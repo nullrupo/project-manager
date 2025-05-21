@@ -21,6 +21,10 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'xp',
+        'level',
+        'role',
+        'job_title',
     ];
 
     /**
@@ -43,6 +47,66 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'xp' => 'integer',
+            'level' => 'integer',
         ];
+    }
+
+    /**
+     * Get the projects owned by the user.
+     */
+    public function ownedProjects()
+    {
+        return $this->hasMany(Project::class, 'owner_id');
+    }
+
+    /**
+     * Get the projects the user is a member of.
+     */
+    public function projects()
+    {
+        return $this->belongsToMany(Project::class)
+            ->withPivot('role')
+            ->withTimestamps();
+    }
+
+    /**
+     * Get the tasks assigned to the user.
+     */
+    public function assignedTasks()
+    {
+        return $this->hasMany(Task::class, 'assignee_id');
+    }
+
+    /**
+     * Get the tasks the user is reviewing.
+     */
+    public function reviewingTasks()
+    {
+        return $this->hasMany(Task::class, 'reviewer_id');
+    }
+
+    /**
+     * Get the tags created by the user.
+     */
+    public function tags()
+    {
+        return $this->hasMany(Tag::class);
+    }
+
+    /**
+     * Get the comments created by the user.
+     */
+    public function comments()
+    {
+        return $this->hasMany(Comment::class);
+    }
+
+    /**
+     * Get the XP logs for the user.
+     */
+    public function xpLogs()
+    {
+        return $this->hasMany(XpLog::class);
     }
 }
