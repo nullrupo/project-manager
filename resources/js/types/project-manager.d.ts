@@ -15,6 +15,7 @@ export interface Project {
     owner?: User;
     members?: User[];
     boards?: Board[];
+    can_edit?: boolean;
 }
 
 export interface Board {
@@ -51,16 +52,17 @@ export interface Task {
     id: number;
     title: string;
     description: string | null;
-    list_id: number;
-    project_id: number;
+    list_id: number | null;
+    project_id: number | null;
     created_by: number;
     position: number;
     priority: 'low' | 'medium' | 'high' | 'urgent';
-    status: string;
+    status: 'to_do' | 'in_progress' | 'done';
     estimate: number | null;
     due_date: string | null;
     completed_at: string | null;
     is_archived: boolean;
+    is_inbox: boolean;
     created_at: string;
     updated_at: string;
     list?: TaskList;

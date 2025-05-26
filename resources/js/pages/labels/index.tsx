@@ -1,10 +1,10 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
-import { type BreadcrumbItem } from '@/types';
+import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Label, Project } from '@/types/project-manager';
-import { Head, Link } from '@inertiajs/react';
-import { Edit, Plus, Tag, Trash2 } from 'lucide-react';
+import { Head, Link, usePage } from '@inertiajs/react';
+import { Edit, Lock, Plus, Tag, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 interface LabelsIndexProps {
@@ -13,6 +13,8 @@ interface LabelsIndexProps {
 }
 
 export default function LabelsIndex({ project, labels }: LabelsIndexProps) {
+    const { auth } = usePage<SharedData>().props;
+    const canEdit = project.can_edit;
     const [searchTerm, setSearchTerm] = useState('');
 
     const breadcrumbs: BreadcrumbItem[] = [
@@ -31,7 +33,7 @@ export default function LabelsIndex({ project, labels }: LabelsIndexProps) {
     ];
 
     // Filter labels based on search term
-    const filteredLabels = labels.filter(label => 
+    const filteredLabels = labels.filter(label =>
         label.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (label.description && label.description.toLowerCase().includes(searchTerm.toLowerCase()))
     );
@@ -51,12 +53,19 @@ export default function LabelsIndex({ project, labels }: LabelsIndexProps) {
                         <p className="text-muted-foreground mt-1">Manage labels for your project</p>
                     </div>
                     <div className="flex gap-2">
-                        <Link href={route('labels.create', { project: project.id })}>
-                            <Button size="sm" className="shadow-sm hover:shadow-md">
-                                <Plus className="h-4 w-4 mr-2" />
+                        {canEdit ? (
+                            <Link href={route('labels.create', { project: project.id })}>
+                                <Button size="sm" className="shadow-sm hover:shadow-md">
+                                    <Plus className="h-4 w-4 mr-2" />
+                                    New Label
+                                </Button>
+                            </Link>
+                        ) : (
+                            <Button size="sm" disabled className="shadow-sm">
+                                <Lock className="h-4 w-4 mr-2" />
                                 New Label
                             </Button>
-                        </Link>
+                        )}
                     </div>
                 </div>
 
@@ -81,13 +90,13 @@ export default function LabelsIndex({ project, labels }: LabelsIndexProps) {
                         {filteredLabels.length > 0 ? (
                             <div className="space-y-3">
                                 {filteredLabels.map((label) => (
-                                    <div 
-                                        key={label.id} 
+                                    <div
+                                        key={label.id}
                                         className="flex items-center justify-between p-4 bg-card/80 backdrop-blur-sm rounded-lg border border-border/50"
                                     >
                                         <div className="flex items-center gap-3">
-                                            <div 
-                                                className="w-6 h-6 rounded-full" 
+                                            <div
+                                                className="w-6 h-6 rounded-full"
                                                 style={{ backgroundColor: label.color }}
                                             ></div>
                                             <div>
@@ -98,27 +107,41 @@ export default function LabelsIndex({ project, labels }: LabelsIndexProps) {
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <Link href={route('labels.edit', { project: project.id, label: label.id })}>
-                                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                                    <Edit className="h-4 w-4" />
+                                            {canEdit ? (
+                                                <Link href={route('labels.edit', { project: project.id, label: label.id })}>
+                                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                                        <Edit className="h-4 w-4" />
+                                                        <span className="sr-only">Edit</span>
+                                                    </Button>
+                                                </Link>
+                                            ) : (
+                                                <Button variant="ghost" size="sm" disabled className="h-8 w-8 p-0">
+                                                    <Lock className="h-4 w-4" />
                                                     <span className="sr-only">Edit</span>
                                                 </Button>
-                                            </Link>
-                                            <Link 
-                                                href={route('labels.destroy', { project: project.id, label: label.id })} 
-                                                method="delete" 
-                                                as="button"
-                                                onClick={(e) => {
-                                                    if (!confirm('Are you sure you want to delete this label?')) {
-                                                        e.preventDefault();
-                                                    }
-                                                }}
-                                            >
-                                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive hover:text-destructive">
-                                                    <Trash2 className="h-4 w-4" />
+                                            )}
+                                            {canEdit ? (
+                                                <Link
+                                                    href={route('labels.destroy', { project: project.id, label: label.id })}
+                                                    method="delete"
+                                                    as="button"
+                                                    onClick={(e) => {
+                                                        if (!confirm('Are you sure you want to delete this label?')) {
+                                                            e.preventDefault();
+                                                        }
+                                                    }}
+                                                >
+                                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive hover:text-destructive">
+                                                        <Trash2 className="h-4 w-4" />
+                                                        <span className="sr-only">Delete</span>
+                                                    </Button>
+                                                </Link>
+                                            ) : (
+                                                <Button variant="ghost" size="sm" disabled className="h-8 w-8 p-0">
+                                                    <Lock className="h-4 w-4" />
                                                     <span className="sr-only">Delete</span>
                                                 </Button>
-                                            </Link>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
@@ -133,12 +156,19 @@ export default function LabelsIndex({ project, labels }: LabelsIndexProps) {
                                     {searchTerm ? 'No labels match your search criteria.' : 'Create your first label to get started.'}
                                 </p>
                                 {!searchTerm && (
-                                    <Link href={route('labels.create', { project: project.id })}>
-                                        <Button size="sm" className="shadow-sm hover:shadow-md">
-                                            <Plus className="h-4 w-4 mr-2" />
+                                    canEdit ? (
+                                        <Link href={route('labels.create', { project: project.id })}>
+                                            <Button size="sm" className="shadow-sm hover:shadow-md">
+                                                <Plus className="h-4 w-4 mr-2" />
+                                                Create Label
+                                            </Button>
+                                        </Link>
+                                    ) : (
+                                        <Button size="sm" disabled className="shadow-sm">
+                                            <Lock className="h-4 w-4 mr-2" />
                                             Create Label
                                         </Button>
-                                    </Link>
+                                    )
                                 )}
                             </div>
                         )}

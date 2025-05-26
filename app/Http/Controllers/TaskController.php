@@ -22,10 +22,7 @@ class TaskController extends Controller
      */
     public function index(Project $project): Response
     {
-        // Check if user has access to the project
-        if (!$project->is_public && !$project->members->contains(Auth::id()) && $project->owner_id !== Auth::id()) {
-            abort(403, 'You do not have permission to view this project.');
-        }
+        // All authenticated users can view projects
 
         $tasks = $project->tasks()
             ->with(['list', 'assignees', 'labels', 'creator'])

@@ -20,12 +20,12 @@ class LabelController extends Controller
      */
     public function index(Project $project): Response
     {
-        // Check if user has access to the project
-        if (!$project->is_public && !$project->members->contains(Auth::id()) && $project->owner_id !== Auth::id()) {
-            abort(403, 'You do not have permission to view this project.');
-        }
+        // All authenticated users can view projects
 
         $labels = $project->labels()->get();
+
+        // Add permission information
+        $project->can_edit = Auth::id() === $project->owner_id;
 
         return Inertia::render('labels/index', [
             'project' => $project,
@@ -38,6 +38,11 @@ class LabelController extends Controller
      */
     public function create(Project $project): Response
     {
+        // Check if user is the project owner
+        if (Auth::id() !== $project->owner_id) {
+            abort(403, 'You do not have permission to create labels in this project.');
+        }
+
         return Inertia::render('labels/create', [
             'project' => $project,
         ]);

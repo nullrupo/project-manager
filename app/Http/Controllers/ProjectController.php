@@ -19,24 +19,18 @@ class ProjectController extends Controller
      */
     public function index(): Response
     {
-        $user = Auth::user();
-
-        // Get projects where the user is a member or owner
-        $projects = $user->projects()
-            ->with('owner')
+        // Get all projects for all users to view
+        $projects = Project::with('owner')
             ->orderBy('created_at', 'desc')
             ->get();
 
-        $ownedProjects = $user->ownedProjects()
-            ->with('owner')
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        // Merge and remove duplicates
-        $allProjects = $projects->merge($ownedProjects)->unique('id');
+        // Add permission information for each project
+        $projects->each(function ($project) {
+            $project->can_edit = Auth::id() === $project->owner_id;
+        });
 
         return Inertia::render('projects/index', [
-            'projects' => $allProjects,
+            'projects' => $projects,
         ]);
     }
 
@@ -117,6 +111,9 @@ class ProjectController extends Controller
             },
         ]);
 
+        // Add permission information
+        $project->can_edit = Auth::id() === $project->owner_id;
+
         return Inertia::render('projects/show', [
             'project' => $project,
         ]);
@@ -127,6 +124,11 @@ class ProjectController extends Controller
      */
     public function edit(Project $project): Response
     {
+        // Check if the user is the owner
+        if (Auth::id() !== $project->owner_id) {
+            abort(403, 'You do not have permission to edit this project.');
+        }
+
         return Inertia::render('projects/edit', [
             'project' => $project,
         ]);
@@ -137,6 +139,11 @@ class ProjectController extends Controller
      */
     public function update(Request $request, Project $project): RedirectResponse
     {
+        // Check if the user is the owner
+        if (Auth::id() !== $project->owner_id) {
+            abort(403, 'You do not have permission to edit this project.');
+        }
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'key' => 'required|string|max:10|unique:projects,key,' . $project->id,

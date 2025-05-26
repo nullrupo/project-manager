@@ -19,10 +19,7 @@ class BoardController extends Controller
      */
     public function index(Project $project): Response
     {
-        // Check if user has access to the project
-        if (!$project->is_public && !$project->members->contains(Auth::id()) && $project->owner_id !== Auth::id()) {
-            abort(403, 'You do not have permission to view this project.');
-        }
+        // All authenticated users can view projects
 
         $boards = $project->boards()
             ->with('lists')
@@ -50,8 +47,8 @@ class BoardController extends Controller
      */
     public function store(Request $request, Project $project): RedirectResponse
     {
-        // Check if user has permission to create boards in this project
-        if ($project->owner_id !== Auth::id() && !$project->members()->where('user_id', Auth::id())->where('role', '!=', 'member')->exists()) {
+        // Check if user is the project owner
+        if ($project->owner_id !== Auth::id()) {
             abort(403, 'You do not have permission to create boards in this project.');
         }
 
@@ -131,10 +128,7 @@ class BoardController extends Controller
      */
     public function show(Project $project, Board $board): Response
     {
-        // Check if user has access to the project
-        if (!$project->is_public && !$project->members->contains(Auth::id()) && $project->owner_id !== Auth::id()) {
-            abort(403, 'You do not have permission to view this project.');
-        }
+        // All authenticated users can view projects
 
         // Check if the board belongs to the project
         if ($board->project_id !== $project->id) {
@@ -185,8 +179,8 @@ class BoardController extends Controller
             abort(404, 'Board not found in this project.');
         }
 
-        // Check if user has permission to update this board
-        if ($project->owner_id !== Auth::id() && !$project->members()->where('user_id', Auth::id())->where('role', '!=', 'member')->exists()) {
+        // Check if user is the project owner
+        if ($project->owner_id !== Auth::id()) {
             abort(403, 'You do not have permission to update this board.');
         }
 
@@ -214,8 +208,8 @@ class BoardController extends Controller
             abort(404, 'Board not found in this project.');
         }
 
-        // Check if user has permission to delete this board
-        if ($project->owner_id !== Auth::id() && !$project->members()->where('user_id', Auth::id())->where('role', '!=', 'member')->exists()) {
+        // Check if user is the project owner
+        if ($project->owner_id !== Auth::id()) {
             abort(403, 'You do not have permission to delete this board.');
         }
 

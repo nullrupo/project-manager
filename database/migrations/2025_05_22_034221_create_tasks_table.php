@@ -15,8 +15,8 @@ return new class extends Migration
             $table->id();
             $table->string('title');
             $table->text('description')->nullable();
-            $table->foreignId('list_id')->constrained()->onDelete('cascade');
-            $table->foreignId('project_id')->constrained()->onDelete('cascade');
+            $table->foreignId('list_id')->nullable()->constrained()->onDelete('cascade');
+            $table->foreignId('project_id')->nullable()->constrained()->onDelete('cascade');
             $table->foreignId('created_by')->constrained('users');
             $table->integer('position')->default(0);
             $table->string('priority')->default('medium'); // low, medium, high, urgent
@@ -25,6 +25,7 @@ return new class extends Migration
             $table->timestamp('due_date')->nullable();
             $table->timestamp('completed_at')->nullable();
             $table->boolean('is_archived')->default(false);
+            $table->boolean('is_inbox')->default(false);
             $table->timestamps();
         });
     }

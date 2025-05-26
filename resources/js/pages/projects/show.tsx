@@ -3,16 +3,19 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AppLayout from '@/layouts/app-layout';
-import { type BreadcrumbItem } from '@/types';
+import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Project } from '@/types/project-manager';
-import { Head, Link } from '@inertiajs/react';
-import { Archive, Edit, Plus, Trash2, Users, ListTodo, Tag } from 'lucide-react';
+import { Head, Link, usePage } from '@inertiajs/react';
+import { Archive, Edit, Lock, Plus, Trash2, Users, ListTodo, Tag } from 'lucide-react';
 
 interface ProjectShowProps {
     project: Project;
 }
 
 export default function ProjectShow({ project }: ProjectShowProps) {
+    const { auth } = usePage<SharedData>().props;
+    const canEdit = project.can_edit;
+
     const breadcrumbs: BreadcrumbItem[] = [
         {
             title: 'Projects',
@@ -42,18 +45,32 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                         {project.description && <p className="text-muted-foreground mt-1">{project.description}</p>}
                     </div>
                     <div className="flex gap-2">
-                        <Link href={route('projects.edit', { project: project.id })}>
-                            <Button variant="outline" size="sm" className="shadow-sm hover:shadow-md">
-                                <Edit className="h-4 w-4 mr-2" />
+                        {canEdit ? (
+                            <Link href={route('projects.edit', { project: project.id })}>
+                                <Button variant="outline" size="sm" className="shadow-sm hover:shadow-md">
+                                    <Edit className="h-4 w-4 mr-2" />
+                                    Edit
+                                </Button>
+                            </Link>
+                        ) : (
+                            <Button variant="outline" size="sm" disabled className="shadow-sm">
+                                <Lock className="h-4 w-4 mr-2" />
                                 Edit
                             </Button>
-                        </Link>
-                        <Link href={route('projects.destroy', { project: project.id })} method="delete" as="button">
-                            <Button variant="destructive" size="sm" className="shadow-sm hover:shadow-md">
-                                <Trash2 className="h-4 w-4 mr-2" />
+                        )}
+                        {canEdit ? (
+                            <Link href={route('projects.destroy', { project: project.id })} method="delete" as="button">
+                                <Button variant="destructive" size="sm" className="shadow-sm hover:shadow-md">
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete
+                                </Button>
+                            </Link>
+                        ) : (
+                            <Button variant="destructive" size="sm" disabled className="shadow-sm">
+                                <Lock className="h-4 w-4 mr-2" />
                                 Delete
                             </Button>
-                        </Link>
+                        )}
                     </div>
                 </div>
 
@@ -206,12 +223,19 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                             <CardHeader className="pb-2">
                                 <div className="flex justify-between items-center">
                                     <CardTitle>Project Boards</CardTitle>
-                                    <Link href={route('boards.create', { project: project.id })}>
-                                        <Button size="sm" className="shadow-sm hover:shadow-md">
-                                            <Plus className="h-4 w-4 mr-2" />
+                                    {canEdit ? (
+                                        <Link href={route('boards.create', { project: project.id })}>
+                                            <Button size="sm" className="shadow-sm hover:shadow-md">
+                                                <Plus className="h-4 w-4 mr-2" />
+                                                New Board
+                                            </Button>
+                                        </Link>
+                                    ) : (
+                                        <Button size="sm" disabled className="shadow-sm">
+                                            <Lock className="h-4 w-4 mr-2" />
                                             New Board
                                         </Button>
-                                    </Link>
+                                    )}
                                 </div>
                             </CardHeader>
                             <CardContent>
@@ -245,12 +269,19 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                 ) : (
                                     <div className="text-center py-6 bg-card/50 backdrop-blur-sm rounded-lg border border-border/50 p-8">
                                         <p className="text-muted-foreground mb-4">No boards found</p>
-                                        <Link href={route('boards.create', { project: project.id })} className="inline-block">
-                                            <Button size="sm" className="shadow-sm hover:shadow-md">
-                                                <Plus className="h-4 w-4 mr-2" />
+                                        {canEdit ? (
+                                            <Link href={route('boards.create', { project: project.id })} className="inline-block">
+                                                <Button size="sm" className="shadow-sm hover:shadow-md">
+                                                    <Plus className="h-4 w-4 mr-2" />
+                                                    Create Board
+                                                </Button>
+                                            </Link>
+                                        ) : (
+                                            <Button size="sm" disabled className="shadow-sm">
+                                                <Lock className="h-4 w-4 mr-2" />
                                                 Create Board
                                             </Button>
-                                        </Link>
+                                        )}
                                     </div>
                                 )}
                             </CardContent>
@@ -262,17 +293,24 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                             <CardHeader className="pb-2">
                                 <div className="flex justify-between items-center">
                                     <CardTitle>Project Members</CardTitle>
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="shadow-sm hover:shadow-md"
-                                        onClick={() => {
-                                            alert('Invite Members functionality will be implemented soon.');
-                                        }}
-                                    >
-                                        <Users className="h-4 w-4 mr-2" />
-                                        Invite Members
-                                    </Button>
+                                    {canEdit ? (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="shadow-sm hover:shadow-md"
+                                            onClick={() => {
+                                                alert('Invite Members functionality will be implemented soon.');
+                                            }}
+                                        >
+                                            <Users className="h-4 w-4 mr-2" />
+                                            Invite Members
+                                        </Button>
+                                    ) : (
+                                        <Button size="sm" variant="outline" disabled className="shadow-sm">
+                                            <Lock className="h-4 w-4 mr-2" />
+                                            Invite Members
+                                        </Button>
+                                    )}
                                 </div>
                             </CardHeader>
                             <CardContent>
@@ -310,16 +348,23 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                 ) : (
                                     <div className="text-center py-6 bg-card/50 backdrop-blur-sm rounded-lg border border-border/50 p-8">
                                         <p className="text-muted-foreground mb-4">No members found</p>
-                                        <Button
-                                            size="sm"
-                                            className="shadow-sm hover:shadow-md"
-                                            onClick={() => {
-                                                alert('Invite Team Members functionality will be implemented soon.');
-                                            }}
-                                        >
-                                            <Plus className="h-4 w-4 mr-2" />
-                                            Invite Team Members
-                                        </Button>
+                                        {canEdit ? (
+                                            <Button
+                                                size="sm"
+                                                className="shadow-sm hover:shadow-md"
+                                                onClick={() => {
+                                                    alert('Invite Team Members functionality will be implemented soon.');
+                                                }}
+                                            >
+                                                <Plus className="h-4 w-4 mr-2" />
+                                                Invite Team Members
+                                            </Button>
+                                        ) : (
+                                            <Button size="sm" disabled className="shadow-sm">
+                                                <Lock className="h-4 w-4 mr-2" />
+                                                Invite Team Members
+                                            </Button>
+                                        )}
                                     </div>
                                 )}
                             </CardContent>

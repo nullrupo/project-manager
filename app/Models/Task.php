@@ -38,6 +38,7 @@ class Task extends Model
         'due_date',
         'completed_at',
         'is_archived',
+        'is_inbox',
     ];
 
     /**
@@ -51,6 +52,7 @@ class Task extends Model
         'due_date' => 'datetime',
         'completed_at' => 'datetime',
         'is_archived' => 'boolean',
+        'is_inbox' => 'boolean',
     ];
 
     /**
@@ -63,10 +65,19 @@ class Task extends Model
 
     /**
      * Get the project that owns the task.
+     * This relationship is optional for inbox tasks.
      */
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    /**
+     * Scope a query to only include inbox tasks.
+     */
+    public function scopeInbox($query)
+    {
+        return $query->where('is_inbox', true);
     }
 
     /**

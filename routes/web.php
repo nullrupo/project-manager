@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\BoardController;
 use App\Http\Controllers\CommentController;
+use App\Http\Controllers\InboxController;
 use App\Http\Controllers\LabelController;
 use App\Http\Controllers\MyTasksController;
 use App\Http\Controllers\ProjectController;
@@ -19,6 +20,22 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', function () {
         return Inertia::render('dashboard');
     })->name('dashboard');
+
+    // Debug route
+    Route::get('debug-projects', function () {
+        $user = Auth::user();
+        $projects = $user->projects()->with('owner')->get();
+        $ownedProjects = $user->ownedProjects()->with('owner')->get();
+        $allProjects = $projects->merge($ownedProjects)->unique('id');
+
+        return response()->json([
+            'user' => $user,
+            'projects_count' => $projects->count(),
+            'owned_projects_count' => $ownedProjects->count(),
+            'all_projects_count' => $allProjects->count(),
+            'projects' => $allProjects->values()
+        ]);
+    });
 
     // Project routes
     Route::resource('projects', ProjectController::class);
@@ -63,10 +80,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // My Tasks routes
     Route::get('my-tasks', [MyTasksController::class, 'index'])->name('my-tasks');
 
-    // Inbox route - for tasks not associated with any project
-    Route::get('inbox', function () {
-        return Inertia::render('inbox');
-    })->name('inbox');
+    // Inbox routes - for tasks not associated with any project
+    Route::get('inbox', [InboxController::class, 'index'])->name('inbox');
+    Route::post('inbox/tasks', [InboxController::class, 'store'])->name('inbox.tasks.store');
+    Route::put('inbox/tasks/{task}', [InboxController::class, 'update'])->name('inbox.tasks.update');
+    Route::delete('inbox/tasks/{task}', [InboxController::class, 'destroy'])->name('inbox.tasks.destroy');
 
     // Team routes
     Route::get('team', [TeamController::class, 'index'])->name('team');

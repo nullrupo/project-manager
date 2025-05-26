@@ -1,10 +1,10 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
-import { type BreadcrumbItem } from '@/types';
+import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Project } from '@/types/project-manager';
-import { Head, Link } from '@inertiajs/react';
-import { CalendarDays, Plus, Users } from 'lucide-react';
+import { Head, Link, usePage } from '@inertiajs/react';
+import { CalendarDays, Lock, Plus, User, Users } from 'lucide-react';
 
 interface ProjectsIndexProps {
     projects: Project[];
@@ -18,6 +18,8 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
+    const { auth } = usePage<SharedData>().props;
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Projects" />
@@ -74,16 +76,24 @@ export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
                                         </p>
                                     )}
                                 </CardContent>
-                                <CardFooter className="flex justify-between border-t pt-4">
-                                    <div className="flex items-center text-sm text-muted-foreground">
-                                        <Users className="mr-1 h-4 w-4" />
-                                        <span>
-                                            {project.members?.length || 0} member{(project.members?.length || 0) !== 1 ? 's' : ''}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center text-sm text-muted-foreground">
-                                        <CalendarDays className="mr-1 h-4 w-4" />
-                                        <span>{new Date(project.created_at).toLocaleDateString()}</span>
+                                <CardFooter className="border-t pt-4">
+                                    <div className="flex flex-col space-y-2 w-full">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center text-sm text-muted-foreground">
+                                                <User className="mr-1 h-4 w-4" />
+                                                <span>Owner: {project.owner?.name || 'Unknown'}</span>
+                                            </div>
+                                            <div className="flex items-center text-sm text-muted-foreground">
+                                                <Users className="mr-1 h-4 w-4" />
+                                                <span>
+                                                    {project.members?.length || 0} member{(project.members?.length || 0) !== 1 ? 's' : ''}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center text-sm text-muted-foreground">
+                                            <CalendarDays className="mr-1 h-4 w-4" />
+                                            <span>Created {new Date(project.created_at).toLocaleDateString()}</span>
+                                        </div>
                                     </div>
                                 </CardFooter>
                             </Card>
