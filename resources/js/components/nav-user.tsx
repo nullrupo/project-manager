@@ -1,8 +1,10 @@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { UserInfo } from '@/components/user-info';
 import { UserMenuContent } from '@/components/user-menu-content';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useInitials } from '@/hooks/use-initials';
 import { type SharedData } from '@/types';
 import { usePage } from '@inertiajs/react';
 import { ChevronsUpDown } from 'lucide-react';
@@ -10,6 +12,7 @@ import { ChevronsUpDown } from 'lucide-react';
 export function NavUser() {
     const { auth } = usePage<SharedData>().props;
     const isMobile = useIsMobile();
+    const getInitials = useInitials();
 
     // Check if the sidebar is collapsed by looking at the cookie
     const isSidebarCollapsed = () => {
@@ -29,19 +32,20 @@ export function NavUser() {
     const collapsed = isSidebarCollapsed();
 
     return (
-        <div className="px-2 py-2 border-t border-sidebar-border/50 mt-auto">
+        <div>
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button
                         variant="ghost"
-                        className={`w-full flex items-center justify-between rounded-md px-2 py-1.5 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground ${collapsed ? 'justify-center' : ''}`}
+                        className={`w-full flex items-center rounded-lg text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground hover:shadow-md hover:scale-105 transition-all duration-300 ease-in-out ${collapsed ? 'justify-center px-2 py-2 h-12' : 'justify-between px-2 py-1.5'}`}
                     >
                         {collapsed ? (
-                            <div className="flex items-center justify-center">
-                                <div className="h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-medium">
-                                    {auth.user?.name?.charAt(0) || 'U'}
-                                </div>
-                            </div>
+                            <Avatar className="h-8 w-8 overflow-hidden rounded-full">
+                                <AvatarImage src={auth.user?.avatar} alt={auth.user?.name} />
+                                <AvatarFallback className="rounded-lg bg-neutral-200 text-black dark:bg-neutral-700 dark:text-white">
+                                    {getInitials(auth.user?.name || '')}
+                                </AvatarFallback>
+                            </Avatar>
                         ) : (
                             <>
                                 <UserInfo user={auth.user} />

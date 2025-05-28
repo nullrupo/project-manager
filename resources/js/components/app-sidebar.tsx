@@ -1,117 +1,230 @@
-import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
-import { SidebarToggle } from '@/components/sidebar-toggle';
-import { ThemeSwitcher } from '@/components/theme-switcher';
 import { Button } from '@/components/ui/button';
-import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar';
-import { type NavItem } from '@/types';
+import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, useSidebar } from '@/components/ui/sidebar';
+import { type NavItem, type NavGroup } from '@/types';
 import { Link } from '@inertiajs/react';
-import { BookOpen, Folder, Inbox, LayoutDashboard, LayoutGrid, ListTodo, PanelLeftIcon, Users } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import {
+    Folder,
+    Inbox,
+    LayoutDashboard,
+    ListTodo,
+    Users,
+    Calendar,
+    Clock,
+    Archive,
+    Trash2,
+    Settings,
+    HelpCircle,
+    BarChart3,
+    Timer,
+    FileText,
+    MessageSquare,
+    Star,
+    PanelLeftClose,
+    PanelLeftOpen
+} from 'lucide-react';
 import AppLogo from './app-logo';
 
-const mainNavItems: NavItem[] = [
+// Main navigation sections based on the PowerPoint specification
+const mainNavGroups: NavGroup[] = [
     {
-        title: 'Dashboard',
-        href: route('dashboard'),
-        icon: LayoutDashboard,
+        title: 'Core',
+        items: [
+            {
+                title: 'Dashboard',
+                href: route('dashboard'),
+                icon: LayoutDashboard,
+            },
+            {
+                title: 'Inbox',
+                href: route('inbox'),
+                icon: Inbox,
+            },
+            {
+                title: 'Favorites',
+                href: route('favorites'),
+                icon: Star,
+            },
+        ]
     },
     {
-        title: 'Projects',
-        href: route('projects.index'),
-        icon: Folder,
+        title: 'Tasks & Planning',
+        items: [
+            {
+                title: 'My Tasks',
+                href: route('my-tasks'),
+                icon: ListTodo,
+            },
+            {
+                title: 'Today',
+                href: route('my-tasks') + '?filter=today',
+                icon: Calendar,
+            },
+            {
+                title: 'Upcoming',
+                href: route('my-tasks') + '?filter=upcoming',
+                icon: Clock,
+            },
+            {
+                title: 'Calendar',
+                href: route('calendar'),
+                icon: Calendar,
+            },
+        ]
     },
     {
-        title: 'Inbox',
-        href: route('inbox'),
-        icon: Inbox,
+        title: 'Work & Projects',
+        items: [
+            {
+                title: 'Projects',
+                href: route('projects.index'),
+                icon: Folder,
+            },
+            {
+                title: 'Time Tracking',
+                href: route('time-tracking'),
+                icon: Timer,
+            },
+            {
+                title: 'Reports',
+                href: route('reports'),
+                icon: BarChart3,
+            },
+        ]
     },
     {
-        title: 'My Tasks',
-        href: route('my-tasks'),
-        icon: ListTodo,
+        title: 'Communication',
+        items: [
+            {
+                title: 'Messages',
+                href: route('messages'),
+                icon: MessageSquare,
+            },
+            {
+                title: 'Team',
+                href: route('team'),
+                icon: Users,
+            },
+            {
+                title: 'Documents',
+                href: route('documents'),
+                icon: FileText,
+            },
+        ]
+    },
+    {
+        title: 'Archive',
+        items: [
+            {
+                title: 'Archived',
+                href: route('my-tasks') + '?filter=archived',
+                icon: Archive,
+            },
+            {
+                title: 'Deleted',
+                href: route('my-tasks') + '?filter=deleted',
+                icon: Trash2,
+            },
+        ]
+    }
+];
+
+const settingsNavItems: NavItem[] = [
+    {
+        title: 'Settings',
+        href: route('profile.edit'),
+        icon: Settings,
     },
     {
         title: 'Team',
         href: route('team'),
         icon: Users,
     },
-];
-
-const footerNavItems: NavItem[] = [
     {
-        title: 'Settings',
-        href: route('profile.edit'),
-        icon: LayoutGrid,
+        title: 'Guidelines',
+        href: 'https://laravel.com/docs/starter-kits#react',
+        icon: HelpCircle,
     },
     {
-        title: 'Documentation',
-        href: 'https://laravel.com/docs/starter-kits#react',
-        icon: BookOpen,
+        title: 'Projects',
+        href: route('projects.index'),
+        icon: Folder,
     },
 ];
 
 export function AppSidebar() {
-    // Use local state for sidebar collapse
-    const [collapsed, setCollapsed] = useState(() => {
-        // Read from cookie on initial render
-        if (typeof document !== 'undefined') {
-            const cookies = document.cookie.split(';');
-            const sidebarCookie = cookies.find(cookie => cookie.trim().startsWith('sidebar_state='));
-
-            if (sidebarCookie) {
-                const cookieValue = sidebarCookie.split('=')[1].trim();
-                return cookieValue === 'false'; // true means expanded, false means collapsed
-            }
-        }
-        return false; // Default to expanded
-    });
-
-    // Function to toggle sidebar state
-    const toggleSidebar = () => {
-        const newState = !collapsed;
-        setCollapsed(newState);
-
-        // Save to cookie
-        document.cookie = `sidebar_state=${!newState}; path=/; max-age=${60 * 60 * 24 * 7}`;
-    };
+    const { state, toggleSidebar } = useSidebar();
+    const collapsed = state === 'collapsed';
 
     return (
-        <div className={`bg-sidebar text-sidebar-foreground flex h-screen flex-col transition-all duration-200 ${collapsed ? 'w-[3rem]' : 'w-[16rem]'}`}>
-            <div className="flex flex-col h-full">
-                {/* Header */}
+        <Sidebar collapsible="icon">
+            <SidebarHeader>
                 <div className="p-4">
-                    <div className="flex items-center">
-                        <Link href={route('dashboard')} prefetch className={`flex items-center ${collapsed ? 'justify-center' : ''}`}>
-                            <AppLogo />
+                    <div className={`flex items-center ${collapsed ? 'justify-center' : ''}`}>
+                        <Link href={route('dashboard')} prefetch className={`flex items-center transition-all duration-300 ease-in-out hover:scale-105 ${collapsed ? '' : 'w-full'}`}>
+                            <AppLogo collapsed={collapsed} />
                         </Link>
                     </div>
                 </div>
+            </SidebarHeader>
 
-                {/* Content */}
-                <div className="flex-1 overflow-y-auto">
-                    <NavMain items={mainNavItems} />
+            <SidebarContent>
+                <div className="flex-1 overflow-auto">
+                    <NavMain groups={mainNavGroups} collapsed={collapsed} />
                 </div>
 
-                {/* Footer */}
-                <div className="mt-auto">
-                    <div className="flex flex-col gap-2 px-4 py-2">
-                        <ThemeSwitcher />
+                {/* Settings Section */}
+                <div className={collapsed ? "px-1 py-2" : "px-2 py-2"}>
+                    <div className={`${collapsed ? 'sr-only' : 'text-xs font-medium text-sidebar-foreground/60 mb-2 px-2'}`}>
+                        Settings
+                    </div>
+                    <nav>
+                        <ul className={collapsed ? "space-y-2" : "space-y-1"}>
+                            {settingsNavItems.map((item) => (
+                                <li key={item.title}>
+                                    <Link
+                                        href={item.href}
+                                        prefetch
+                                        className={`group flex items-center rounded-lg text-sm font-medium transition-all duration-300 ease-in-out text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground hover:shadow-md hover:scale-105 hover:-translate-y-0.5 ${collapsed ? 'justify-center px-2 py-2 w-12 h-12 mx-auto' : 'px-3 py-2.5'}`}
+                                    >
+                                        {item.icon && (
+                                            <item.icon className="flex-shrink-0 h-5 w-5 transition-transform duration-300 ease-in-out group-hover:scale-110" />
+                                        )}
+                                        {!collapsed && (
+                                            <span className="ml-3 truncate transition-all duration-300 ease-in-out group-hover:translate-x-1">{item.title}</span>
+                                        )}
+                                    </Link>
+                                </li>
+                            ))}
+                        </ul>
+                    </nav>
+                </div>
+            </SidebarContent>
+
+            <SidebarFooter>
+                {/* User Section with integrated collapse button */}
+                <div className="px-2 py-2 border-t border-sidebar-border/50">
+                    <div className="flex items-center justify-between mb-2">
+                        {!collapsed && (
+                            <span className="text-xs font-medium text-sidebar-foreground/60 px-2">Account</span>
+                        )}
                         <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex items-center gap-2 px-3 py-2 h-9 border-sidebar-border/50 bg-sidebar-accent/20 hover:bg-sidebar-accent/30"
+                            variant="ghost"
+                            size="icon"
+                            className={`h-6 w-6 text-sidebar-foreground/30 hover:text-sidebar-foreground hover:bg-sidebar-accent/30 hover:shadow-md hover:scale-110 transition-all duration-300 ease-in-out rounded ${collapsed ? 'mx-auto' : 'ml-auto'}`}
                             onClick={toggleSidebar}
                         >
-                            <PanelLeftIcon className={`h-5 w-5 ${collapsed ? 'rotate-180' : ''}`} />
-                            <span className="hidden md:inline">{collapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}</span>
+                            {collapsed ? (
+                                <PanelLeftOpen className="h-4 w-4" />
+                            ) : (
+                                <PanelLeftClose className="h-4 w-4" />
+                            )}
                         </Button>
                     </div>
-                    <NavFooter items={footerNavItems} className="mt-auto" />
                     <NavUser />
                 </div>
-            </div>
-        </div>
+            </SidebarFooter>
+        </Sidebar>
     );
 }

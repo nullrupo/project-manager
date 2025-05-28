@@ -1,18 +1,20 @@
 import { AppContent } from '@/components/app-content';
-import { AppShell } from '@/components/app-shell';
 import { AppSidebar } from '@/components/app-sidebar';
 import { AppSidebarHeader } from '@/components/app-sidebar-header';
+import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { type BreadcrumbItem } from '@/types';
 import { type PropsWithChildren } from 'react';
 
 export default function AppSidebarLayout({ children, breadcrumbs = [] }: PropsWithChildren<{ breadcrumbs?: BreadcrumbItem[] }>) {
     return (
-        <AppShell variant="sidebar">
+        <SidebarProvider defaultOpen={true}>
             <AppSidebar />
-            <AppContent variant="sidebar">
-                <AppSidebarHeader breadcrumbs={breadcrumbs} />
-                {children}
-            </AppContent>
-        </AppShell>
+            <SidebarInset>
+                <div className="p-4">
+                    <AppSidebarHeader breadcrumbs={breadcrumbs} />
+                    {children}
+                </div>
+            </SidebarInset>
+        </SidebarProvider>
     );
 }

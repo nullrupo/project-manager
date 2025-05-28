@@ -88,6 +88,31 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Team routes
     Route::get('team', [TeamController::class, 'index'])->name('team');
+
+    // New feature routes
+    Route::get('calendar', function () {
+        return Inertia::render('calendar');
+    })->name('calendar');
+
+    Route::get('reports', function () {
+        return Inertia::render('reports');
+    })->name('reports');
+
+    Route::get('time-tracking', function () {
+        return Inertia::render('time-tracking');
+    })->name('time-tracking');
+
+    Route::get('documents', function () {
+        return Inertia::render('documents');
+    })->name('documents');
+
+    Route::get('messages', function () {
+        return Inertia::render('messages');
+    })->name('messages');
+
+    Route::get('favorites', function () {
+        return Inertia::render('favorites');
+    })->name('favorites');
 });
 
 require __DIR__.'/settings.php';
