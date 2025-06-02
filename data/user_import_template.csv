@@ -1,0 +1,58 @@
+﻿user_name,email,full_name,role,dept
+quocnt,quocnt@novastars.vn,Nguyễn Trọng Quốc,super_admin,Ban giám đốc
+hiennm,hiennm@novastars.vn,Nguyễn Thị Minh Hiền,manager,Đào tạo
+huongdt,huongdt@novastars.vn,Đinh Thị Hương,team_leader,Đào tạo
+ducla,ducla@novastars.vn,Lê Anh Đức,user,Biên tập
+linhpm,linhpm@novastars.vn,Phạm Mỹ Linh,user,Đào tạo
+haunt,haunt@novastars.vn,Nguyễn Thị Hậu,team_leader,Kinh doanh
+binhpt,binhpt@novastars.vn,Phí Thị Bình,user,Biên tập
+haipn,haipn@novastars.vn,Phạm Thị Ngọc Hải,user,Biên tập
+anhtn,anhtn@novastars.vn,Trần Nam Anh,super_admin,Lập trình
+hangvt,hangvt@novastars.vn,Vũ Thúy Hằng,user,Nhân sự
+uyennb,uyennb@novastars.vn,Nguyễn Bảo Uyên,user,Biên tập
+lananhlt,lananhlt@novastars.vn,Lê Thị Lan Anh,user,Đào tạo
+tientt,tientt@novastars.vn,Triệu Thị Tiên,user,Đào tạo
+anhnh,anhnh@novastars.vn,Nguyễn Hồng Ánh,team_leader,Hoạt hình
+tunm,tunm@novastars.vn,Nguyễn Minh Tú,user,Đào tạo
+linhnp,linhnp@novastars.vn,Nguyễn Phương Linh,user,Đào tạo
+congbt,congbt@novastars.vn,Bùi Thành Công,team_leader,Hoạt hình
+tuyennh,tuyennh@novastars.vn,Nguyễn Hồng Tuyến,team_leader,Kế toán
+tampdn,tampdn@novastars.vn,Phạm Đoàn Như Tâm,user,Đào tạo
+giangnh99,giangnh99@novastars.vn,Nguyễn Hương Giang,user,Đào tạo
+oanhvp,oanhvp@novastars.vn,Vi Thị Phương Oanh,user,Nhân sự
+maidvp,maidvp@novastars.vn,Đoàn Vũ Phương Mai,user,Kế toán
+thomnhd,thomnhd@novastars.vn,Nguyễn Hoàng Diệu Thơm,user,Đào tạo
+anhnt,anhnt@novastars.vn,Nguyễn Thu Anh,user,Đào tạo
+nhungth,nhungth@novastars.vn,Triệu Thị Hồng Nhung,user,Đào tạo
+lamnt,lamnt@novastars.vn,Nguyễn Tùng Lâm,user,Kĩ thuật
+thaoduong,thaoduong@novastars.vn,Nguyễn Thảo Dương,user,Sản xua
+huongnt2001,huongnt2001@novastars.vn,Nguyễn Thị Hương,user,Đào tạo
+diemtp,diemtp@novastars.vn,Tô Phương Diễm,user,Đào tạo
+hanhdt,hanhdt@novastars.vn,Đặng Thị Hạnh,user,Đào tạo
+chaudm,chaudm@novastars.vn,Dương Minh Châu,user,Đào tạo
+thuylt,thuylt@novastars.vn,Lê Thu Thủy,admin,Ban giám đốc
+thanhdl,thanhdl@novastars.vn,Đặng Thị Lệ Thanh,user,Biên tập
+Vupd,Vupd@novastars.vn,Phạm Đức Vũ,user,Hoạt hình
+vuilth,vuilth@novastars.vn,Lê Thị Hồng Vui,user,Đào tạo
+hahtt,hahtt@novastars.vn,Hà Thị Thu Hà,user,Biên tập
+hanglt,hanglt@novastars.vn,Lê Thu Hằng,user,Hoạt hình
+phongnv,phongnv@novastars.vn,Nguyễn Văn Phong,user,Thiết kế
+chinhnt,chinhnt@novastars.vn,Nguyễn Thị Chinh,user,Nhân sự
+thaopp,thaopp@novastars.vn,Phạm Thị Phương Thảo,user,Đào tạo
+anhpm,anhpm@novastars.vn,Phùng Minh Anh,user,Hoạt hình
+phuongnm,phuongnm@novastars.vn,Nguyễn Minh Phương,user,Hoạt hình
+yen,yen@novastars.vn,Hoàng Yến,user,Hoạt hình
+mainq,mainq@novastars.vn,Ngô Quỳnh Mai,user,Hoạt hình
+huongntq,huongntq@novastars.vn,Nguyễn Thị Quỳnh Hương,team_leader,Thiết kế
+yenlh,yenlh@novastars.vn,Lê Thị Hải Yến,team_leader,Sản xuất
+huongntl,huongntl@novastars.vn,Nguyễn Thị Lan Hương,user,Sản xuất
+nguyentq,nguyentq@novastars.vn,Trần Quang Nguyên,admin,Kĩ thuật
+sonnt,sonnt@novastars.vn,Nguyễn Trường Sơn,team_leader,Lập trình
+bachnc,bachnc@novastars.vn,Nguyễn Chí Bách,team_leader,Sự kiện
+huelt,huelt@novastars.vn,Lê Thanh Huệ,user,Đào tạo
+luongnt,luongnt@novastars.vn,Nguyễn Thị Lương,user,Đào tạo
+longlt,longlt@novastars.vn,Lý Thành Long,super_admin,Lập trình
+datdt,datdt@novastars.vn,Đinh Tấn Đạt,user,Hoạt hình
+anhnv,anhnv@novastars.vn,Nguyễn Việt Anh,user,Hoạt hình
+ngaht,ngaht@novastars.vn,Hoàng Thị Nga,user,Kế toán
+luongkimdung89,luongkimdung89@novastars.vn,Lương Thị Kim Dung,user,Biên tập

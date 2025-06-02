@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\ProfileController;
+use App\Http\Controllers\Settings\SidebarPreferencesController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -18,4 +19,13 @@ Route::middleware('auth')->group(function () {
     Route::get('settings/appearance', function () {
         return Inertia::render('settings/appearance');
     })->name('appearance');
+
+    Route::get('settings/sidebar', function () {
+        return Inertia::render('settings/sidebar');
+    })->name('sidebar.settings');
+
+    // Sidebar preferences routes
+    Route::get('settings/sidebar-preferences', [SidebarPreferencesController::class, 'show'])->name('sidebar-preferences.show');
+    Route::patch('settings/sidebar-preferences', [SidebarPreferencesController::class, 'update'])->name('sidebar-preferences.update');
+    Route::post('settings/sidebar-preferences/reset', [SidebarPreferencesController::class, 'reset'])->name('sidebar-preferences.reset');
 });
