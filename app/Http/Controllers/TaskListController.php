@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Board;
 use App\Models\Project;
 use App\Models\TaskList;
+use App\Services\ProjectPermissionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -27,7 +28,7 @@ class TaskListController extends Controller
         }
 
         // Check if user has permission to create lists in this board
-        if ($project->owner_id !== Auth::id() && !$project->members()->where('user_id', Auth::id())->where('role', '!=', 'member')->exists()) {
+        if (!ProjectPermissionService::can($project, 'can_manage_boards')) {
             abort(403, 'You do not have permission to create lists in this board.');
         }
 
@@ -45,7 +46,7 @@ class TaskListController extends Controller
             'name' => $validated['name'],
             'color' => $validated['color'] ?? '#3498db',
             'position' => $maxPosition + 1,
-            'work_in_progress_limit' => $validated['work_in_progress_limit'],
+            'work_in_progress_limit' => $request->input('work_in_progress_limit'),
         ]);
 
         return redirect()->route('boards.show', [$project, $board])
@@ -63,7 +64,7 @@ class TaskListController extends Controller
         }
 
         // Check if user has permission to update this list
-        if ($project->owner_id !== Auth::id() && !$project->members()->where('user_id', Auth::id())->where('role', '!=', 'member')->exists()) {
+        if (!ProjectPermissionService::can($project, 'can_manage_boards')) {
             abort(403, 'You do not have permission to update this list.');
         }
 
@@ -91,7 +92,7 @@ class TaskListController extends Controller
         }
 
         // Check if user has permission to update lists in this board
-        if ($project->owner_id !== Auth::id() && !$project->members()->where('user_id', Auth::id())->where('role', '!=', 'member')->exists()) {
+        if (!ProjectPermissionService::can($project, 'can_manage_boards')) {
             abort(403, 'You do not have permission to update lists in this board.');
         }
 
@@ -124,7 +125,7 @@ class TaskListController extends Controller
         }
 
         // Check if user has permission to delete this list
-        if ($project->owner_id !== Auth::id() && !$project->members()->where('user_id', Auth::id())->where('role', '!=', 'member')->exists()) {
+        if (!ProjectPermissionService::can($project, 'can_manage_boards')) {
             abort(403, 'You do not have permission to delete this list.');
         }
 

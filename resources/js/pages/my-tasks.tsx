@@ -2,37 +2,58 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
 import { Task } from '@/types/project-manager';
-import { Head, Link } from '@inertiajs/react';
-import { CalendarDays, CheckCircle, Clock, ListFilter, Plus } from 'lucide-react';
-import { useState } from 'react';
+import { Head, Link, router } from '@inertiajs/react';
+import { CalendarDays, CheckCircle, Clock, ListFilter, Plus, Archive, Trash2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 interface MyTasksProps {
     tasks: Task[];
+    filter?: string;
 }
 
-export default function MyTasks({ tasks = [] }: MyTasksProps) {
-    const [filter, setFilter] = useState<'all' | 'today' | 'upcoming' | 'completed'>('all');
-    
+export default function MyTasks({ tasks = [], filter: initialFilter }: MyTasksProps) {
+    const [filter, setFilter] = useState<'all' | 'today' | 'upcoming' | 'completed' | 'overdue' | 'archived'>(() => {
+        // Initialize filter from URL parameter or default to 'all'
+        if (initialFilter && ['all', 'today', 'upcoming', 'completed', 'overdue', 'archived'].includes(initialFilter)) {
+            return initialFilter as 'all' | 'today' | 'upcoming' | 'completed' | 'overdue' | 'archived';
+        }
+        return 'all';
+    });
+
+    // Update URL when filter changes
+    const handleFilterChange = (newFilter: typeof filter) => {
+        setFilter(newFilter);
+        router.get(route('my-tasks'), { filter: newFilter }, {
+            preserveState: true,
+            replace: true
+        });
+    };
+
     // Filter tasks based on the selected filter
     const filteredTasks = tasks.filter(task => {
-        if (filter === 'all') return true;
-        if (filter === 'completed') return task.completed_at !== null;
-        
+        if (filter === 'all') return !task.is_archived;
+        if (filter === 'completed') return task.completed_at !== null && !task.is_archived;
+        if (filter === 'archived') return task.is_archived;
+
         const dueDate = task.due_date ? new Date(task.due_date) : null;
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        
+
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
-        
+
         if (filter === 'today') {
-            return dueDate && dueDate >= today && dueDate < tomorrow;
+            return dueDate && dueDate >= today && dueDate < tomorrow && !task.is_archived && task.status !== 'done';
         }
-        
+
         if (filter === 'upcoming') {
-            return dueDate && dueDate >= tomorrow;
+            return dueDate && dueDate >= tomorrow && !task.is_archived && task.status !== 'done';
         }
-        
+
+        if (filter === 'overdue') {
+            return dueDate && dueDate < today && !task.is_archived && task.status !== 'done';
+        }
+
         return true;
     });
 
@@ -50,33 +71,53 @@ export default function MyTasks({ tasks = [] }: MyTasksProps) {
                     </div>
                 </div>
 
-                <div className="flex gap-4 mb-6">
-                    <Button 
-                        variant={filter === 'all' ? 'default' : 'outline'} 
-                        onClick={() => setFilter('all')}
+                <div className="flex flex-wrap gap-2 mb-6">
+                    <Button
+                        variant={filter === 'all' ? 'default' : 'outline'}
+                        onClick={() => handleFilterChange('all')}
+                        size="sm"
                     >
                         All Tasks
                     </Button>
-                    <Button 
-                        variant={filter === 'today' ? 'default' : 'outline'} 
-                        onClick={() => setFilter('today')}
+                    <Button
+                        variant={filter === 'today' ? 'default' : 'outline'}
+                        onClick={() => handleFilterChange('today')}
+                        size="sm"
                     >
                         <Clock className="h-4 w-4 mr-2" />
                         Due Today
                     </Button>
-                    <Button 
-                        variant={filter === 'upcoming' ? 'default' : 'outline'} 
-                        onClick={() => setFilter('upcoming')}
+                    <Button
+                        variant={filter === 'upcoming' ? 'default' : 'outline'}
+                        onClick={() => handleFilterChange('upcoming')}
+                        size="sm"
                     >
                         <CalendarDays className="h-4 w-4 mr-2" />
                         Upcoming
                     </Button>
-                    <Button 
-                        variant={filter === 'completed' ? 'default' : 'outline'} 
-                        onClick={() => setFilter('completed')}
+                    <Button
+                        variant={filter === 'overdue' ? 'default' : 'outline'}
+                        onClick={() => handleFilterChange('overdue')}
+                        size="sm"
+                    >
+                        <Clock className="h-4 w-4 mr-2 text-red-500" />
+                        Overdue
+                    </Button>
+                    <Button
+                        variant={filter === 'completed' ? 'default' : 'outline'}
+                        onClick={() => handleFilterChange('completed')}
+                        size="sm"
                     >
                         <CheckCircle className="h-4 w-4 mr-2" />
                         Completed
+                    </Button>
+                    <Button
+                        variant={filter === 'archived' ? 'default' : 'outline'}
+                        onClick={() => handleFilterChange('archived')}
+                        size="sm"
+                    >
+                        <Archive className="h-4 w-4 mr-2" />
+                        Archived
                     </Button>
                 </div>
 
@@ -89,7 +130,7 @@ export default function MyTasks({ tasks = [] }: MyTasksProps) {
                                         <div>
                                             <CardTitle>{task.title}</CardTitle>
                                             <CardDescription>
-                                                {task.project?.name} / {task.list?.name}
+                                                {task.is_inbox ? 'Inbox' : `${task.project?.name} / ${task.list?.name}`}
                                             </CardDescription>
                                         </div>
                                         <div className={`inline-block w-2 h-2 rounded-full ${
@@ -114,11 +155,19 @@ export default function MyTasks({ tasks = [] }: MyTasksProps) {
                                     )}
                                 </CardContent>
                                 <CardFooter>
-                                    <Link href={route('tasks.show', [task.project_id, task.id])} className="w-full">
-                                        <Button variant="outline" size="sm" className="w-full">
-                                            View Task
-                                        </Button>
-                                    </Link>
+                                    {task.is_inbox ? (
+                                        <Link href={route('inbox')} className="w-full">
+                                            <Button variant="outline" size="sm" className="w-full">
+                                                View in Inbox
+                                            </Button>
+                                        </Link>
+                                    ) : (
+                                        <Link href={route('tasks.show', [task.project_id, task.id])} className="w-full">
+                                            <Button variant="outline" size="sm" className="w-full">
+                                                View Task
+                                            </Button>
+                                        </Link>
+                                    )}
                                 </CardFooter>
                             </Card>
                         ))
@@ -129,8 +178,8 @@ export default function MyTasks({ tasks = [] }: MyTasksProps) {
                             </div>
                             <h3 className="text-lg font-medium">No tasks found</h3>
                             <p className="text-muted-foreground mt-1">
-                                {filter === 'all' 
-                                    ? "You don't have any tasks assigned to you." 
+                                {filter === 'all'
+                                    ? "You don't have any tasks assigned to you."
                                     : `You don't have any ${filter} tasks.`}
                             </p>
                         </div>

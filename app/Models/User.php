@@ -23,6 +23,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'sidebar_preferences',
     ];
 
     /**
@@ -45,6 +46,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'sidebar_preferences' => 'array',
         ];
     }
 
@@ -62,7 +64,15 @@ class User extends Authenticatable
     public function projects(): BelongsToMany
     {
         return $this->belongsToMany(Project::class)
-            ->withPivot('role')
+            ->withPivot([
+                'role',
+                'can_manage_members',
+                'can_manage_boards',
+                'can_manage_tasks',
+                'can_manage_labels',
+                'can_view_project',
+                'can_comment'
+            ])
             ->withTimestamps();
     }
 

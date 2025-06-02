@@ -22,15 +22,15 @@ export default function TaskShow({ project, task }: TaskShowProps) {
         },
         {
             title: project.name,
-            href: route('projects.show', project.id),
+            href: route('projects.show', { project: project.id }),
         },
         {
             title: 'Tasks',
-            href: route('tasks.index', project.id),
+            href: route('tasks.index', { project: project.id }),
         },
         {
             title: task.title,
-            href: route('tasks.show', [project.id, task.id]),
+            href: route('tasks.show', { project: project.id, task: task.id }),
         },
     ];
 
@@ -40,7 +40,7 @@ export default function TaskShow({ project, task }: TaskShowProps) {
 
     const submitComment: FormEventHandler = (e) => {
         e.preventDefault();
-        post(route('comments.store', [project.id, task.id]), {
+        post(route('comments.store', { project: project.id, task: task.id }), {
             onSuccess: () => reset('content'),
         });
     };
@@ -60,11 +60,13 @@ export default function TaskShow({ project, task }: TaskShowProps) {
                                     </CardDescription>
                                 </div>
                                 <div className="flex gap-2">
-                                    <Button variant="outline" size="sm">
-                                        <Edit className="h-4 w-4 mr-2" />
-                                        Edit
-                                    </Button>
-                                    <Link href={route('tasks.destroy', [project.id, task.id])} method="delete" as="button">
+                                    <Link href={route('tasks.edit', { project: project.id, task: task.id })}>
+                                        <Button variant="outline" size="sm">
+                                            <Edit className="h-4 w-4 mr-2" />
+                                            Edit
+                                        </Button>
+                                    </Link>
+                                    <Link href={route('tasks.destroy', { project: project.id, task: task.id })} method="delete" as="button">
                                         <Button variant="destructive" size="sm">
                                             <Trash2 className="h-4 w-4 mr-2" />
                                             Delete
@@ -112,7 +114,7 @@ export default function TaskShow({ project, task }: TaskShowProps) {
                                                             Edit
                                                         </Button>
                                                         <Link
-                                                            href={route('comments.destroy', [project.id, task.id, comment.id])}
+                                                            href={route('comments.destroy', { project: project.id, task: task.id, comment: comment.id })}
                                                             method="delete"
                                                             as="button"
                                                         >

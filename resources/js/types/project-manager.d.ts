@@ -16,6 +16,18 @@ export interface Project {
     members?: User[];
     boards?: Board[];
     can_edit?: boolean;
+    can_manage_members?: boolean;
+    can_manage_tasks?: boolean;
+    can_manage_labels?: boolean;
+    user_role?: string;
+    user_permissions?: {
+        can_manage_members: boolean;
+        can_manage_boards: boolean;
+        can_manage_tasks: boolean;
+        can_manage_labels: boolean;
+        can_view_project: boolean;
+        can_comment: boolean;
+    };
 }
 
 export interface Board {
@@ -23,7 +35,7 @@ export interface Board {
     name: string;
     description: string | null;
     project_id: number;
-    type: 'kanban' | 'scrum';
+    type: 'kanban' | 'scrum' | 'custom';
     is_default: boolean;
     position: number;
     background_color: string | null;
@@ -32,6 +44,8 @@ export interface Board {
     updated_at: string;
     project?: Project;
     lists?: TaskList[];
+    can_edit?: boolean;
+    can_manage_tasks?: boolean;
 }
 
 export interface TaskList {

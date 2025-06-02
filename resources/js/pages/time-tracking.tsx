@@ -30,7 +30,7 @@ export default function TimeTracking() {
                 </div>
 
                 <div className="grid gap-6 md:grid-cols-2">
-                    <Card>
+                    <Card hoverable={true}>
                         <CardHeader>
                             <CardTitle>Active Timer</CardTitle>
                             <CardDescription>

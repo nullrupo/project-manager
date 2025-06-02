@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
+use App\Services\ProjectPermissionService;
 
 class BoardController extends Controller
 {
@@ -25,6 +26,9 @@ class BoardController extends Controller
             ->with('lists')
             ->orderBy('position')
             ->get();
+
+        // Add permission information using the new permission system
+        $project->can_edit = ProjectPermissionService::can($project, 'can_manage_boards');
 
         return Inertia::render('boards/index', [
             'project' => $project,
@@ -47,15 +51,15 @@ class BoardController extends Controller
      */
     public function store(Request $request, Project $project): RedirectResponse
     {
-        // Check if user is the project owner
-        if ($project->owner_id !== Auth::id()) {
+        // Check if user has permission to create boards
+        if (!ProjectPermissionService::can($project, 'can_manage_boards')) {
             abort(403, 'You do not have permission to create boards in this project.');
         }
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'type' => 'required|string|in:kanban,scrum',
+            'type' => 'required|string|in:kanban,scrum,custom',
             'background_color' => 'nullable|string|max:50',
             'background_image' => 'nullable|string|max:255',
         ]);
@@ -92,7 +96,7 @@ class BoardController extends Controller
                 'position' => 2,
                 'color' => '#2ecc71',
             ]);
-        } else {
+        } elseif ($validated['type'] === 'scrum') {
             // Scrum board lists
             $board->lists()->create([
                 'name' => 'Backlog',
@@ -118,6 +122,7 @@ class BoardController extends Controller
                 'color' => '#2ecc71',
             ]);
         }
+        // Custom boards start with no default lists - users create their own
 
         return redirect()->route('boards.show', [$project, $board])
             ->with('success', 'Board created successfully.');
@@ -145,11 +150,33 @@ class BoardController extends Controller
             },
             'lists.tasks.assignees',
             'lists.tasks.labels',
+            'lists.tasks.creator',
+            'lists.tasks.comments.user',
         ]);
+
+        // Load project members and labels for task modals
+        $project->load([
+            'members',
+            'owner',
+            'labels'
+        ]);
+
+        // Get unique members (including owner)
+        $members = $project->members->toBase();
+        if ($project->owner && !$members->contains('id', $project->owner->id)) {
+            $members->push($project->owner);
+        }
+
+        // Add permission information using the new permission system
+        $project->can_edit = ProjectPermissionService::can($project, 'can_manage_boards');
+        $board->can_edit = ProjectPermissionService::can($project, 'can_manage_boards');
+        $board->can_manage_tasks = ProjectPermissionService::can($project, 'can_manage_tasks');
 
         return Inertia::render('boards/show', [
             'project' => $project,
             'board' => $board,
+            'members' => $members,
+            'labels' => $project->labels,
         ]);
     }
 
@@ -161,6 +188,11 @@ class BoardController extends Controller
         // Check if the board belongs to the project
         if ($board->project_id !== $project->id) {
             abort(404, 'Board not found in this project.');
+        }
+
+        // Check if user has permission to edit this board
+        if (!ProjectPermissionService::can($project, 'can_manage_boards')) {
+            abort(403, 'You do not have permission to edit this board.');
         }
 
         return Inertia::render('boards/edit', [
@@ -179,15 +211,15 @@ class BoardController extends Controller
             abort(404, 'Board not found in this project.');
         }
 
-        // Check if user is the project owner
-        if ($project->owner_id !== Auth::id()) {
+        // Check if user has permission to update this board
+        if (!ProjectPermissionService::can($project, 'can_manage_boards')) {
             abort(403, 'You do not have permission to update this board.');
         }
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'type' => 'required|string|in:kanban,scrum',
+            'type' => 'required|string|in:kanban,scrum,custom',
             'background_color' => 'nullable|string|max:50',
             'background_image' => 'nullable|string|max:255',
         ]);
@@ -208,8 +240,8 @@ class BoardController extends Controller
             abort(404, 'Board not found in this project.');
         }
 
-        // Check if user is the project owner
-        if ($project->owner_id !== Auth::id()) {
+        // Check if user has permission to delete this board
+        if (!ProjectPermissionService::can($project, 'can_manage_boards')) {
             abort(403, 'You do not have permission to delete this board.');
         }
 

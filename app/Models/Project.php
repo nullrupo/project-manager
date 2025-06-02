@@ -7,11 +7,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Traits\Favoritable;
 use App\Traits\RenumbersIdsAfterDeletion;
 
 class Project extends Model
 {
-    use HasFactory, RenumbersIdsAfterDeletion;
+    use HasFactory, RenumbersIdsAfterDeletion, Favoritable;
 
     /**
      * Indicates if the model's ID is auto-incrementing.
@@ -60,7 +61,15 @@ class Project extends Model
     public function members(): BelongsToMany
     {
         return $this->belongsToMany(User::class)
-            ->withPivot('role')
+            ->withPivot([
+                'role',
+                'can_manage_members',
+                'can_manage_boards',
+                'can_manage_tasks',
+                'can_manage_labels',
+                'can_view_project',
+                'can_comment'
+            ])
             ->withTimestamps();
     }
 

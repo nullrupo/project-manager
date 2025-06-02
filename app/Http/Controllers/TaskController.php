@@ -6,6 +6,7 @@ use App\Models\Board;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\TaskList;
+use App\Services\ProjectPermissionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -94,8 +95,8 @@ class TaskController extends Controller
             'description' => $validated['description'],
             'priority' => $validated['priority'],
             'status' => $validated['status'],
-            'estimate' => $validated['estimate'],
-            'due_date' => $validated['due_date'],
+            'estimate' => $validated['estimate'] ?? null,
+            'due_date' => $validated['due_date'] ?? null,
             'position' => $maxPosition + 1,
         ]);
 
@@ -164,6 +165,51 @@ class TaskController extends Controller
     }
 
     /**
+     * Show the form for editing the specified task.
+     */
+    public function edit(Project $project, Task $task): Response
+    {
+        // Check if the task belongs to the project
+        if ($task->project_id !== $project->id) {
+            abort(404, 'Task not found in this project.');
+        }
+
+        // Check if user has permission to edit this task
+        if (!ProjectPermissionService::can($project, 'can_manage_tasks')) {
+            abort(403, 'You do not have permission to edit this task.');
+        }
+
+        // Load the task with its relationships
+        $task->load([
+            'list',
+            'assignees',
+            'labels',
+            'creator',
+        ]);
+
+        // Get project members for assignee selection
+        $members = $project->members()->get();
+        $members->push($project->owner);
+        $members = $members->unique('id');
+
+        // Get project labels
+        $labels = $project->labels()->get();
+
+        // Get all lists in the project for list selection
+        $lists = $project->boards()->with('lists')->get()->flatMap(function ($board) {
+            return $board->lists;
+        });
+
+        return Inertia::render('tasks/edit', [
+            'project' => $project,
+            'task' => $task,
+            'members' => $members,
+            'labels' => $labels,
+            'lists' => $lists,
+        ]);
+    }
+
+    /**
      * Update the specified task in storage.
      */
     public function update(Request $request, Project $project, Task $task): RedirectResponse
@@ -194,8 +240,8 @@ class TaskController extends Controller
             'description' => $validated['description'],
             'priority' => $validated['priority'],
             'status' => $validated['status'],
-            'estimate' => $validated['estimate'],
-            'due_date' => $validated['due_date'],
+            'estimate' => $validated['estimate'] ?? null,
+            'due_date' => $validated['due_date'] ?? null,
             'list_id' => $validated['list_id'],
             'is_archived' => $validated['is_archived'] ?? false,
         ]);
@@ -215,6 +261,11 @@ class TaskController extends Controller
      */
     public function updatePositions(Request $request, Project $project): JsonResponse
     {
+        // Check if user has permission to manage tasks in this project
+        if (!ProjectPermissionService::can($project, 'can_manage_tasks')) {
+            abort(403, 'You do not have permission to manage tasks in this project.');
+        }
+
         $validated = $request->validate([
             'tasks' => 'required|array',
             'tasks.*.id' => 'required|integer|exists:tasks,id',
@@ -227,14 +278,52 @@ class TaskController extends Controller
 
             // Make sure the task belongs to the project
             if ($task && $task->project_id === $project->id) {
-                $task->update([
+                // Get the new list to determine the appropriate status
+                $newList = TaskList::find($taskData['list_id']);
+                $newStatus = $this->getStatusFromListName($newList->name);
+
+                $updateData = [
                     'position' => $taskData['position'],
                     'list_id' => $taskData['list_id'],
-                ]);
+                ];
+
+                // Update status if it should change based on the list
+                if ($newStatus && $newStatus !== $task->status) {
+                    $updateData['status'] = $newStatus;
+
+                    // If moving to 'Done' status, set completed_at timestamp
+                    if ($newStatus === 'done' && $task->status !== 'done') {
+                        $updateData['completed_at'] = now();
+                    }
+                    // If moving away from 'Done' status, clear completed_at timestamp
+                    elseif ($newStatus !== 'done' && $task->status === 'done') {
+                        $updateData['completed_at'] = null;
+                    }
+                }
+
+                $task->update($updateData);
             }
         }
 
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Map list name to appropriate task status
+     */
+    private function getStatusFromListName(string $listName): ?string
+    {
+        // Convert to lowercase for case-insensitive matching
+        $listName = strtolower(trim($listName));
+
+        // Map common list names to task statuses
+        return match($listName) {
+            'to do', 'todo', 'backlog', 'new', 'open' => 'to_do',
+            'in progress', 'in-progress', 'inprogress', 'doing', 'active', 'working' => 'in_progress',
+            'done', 'completed', 'finished', 'closed', 'complete' => 'done',
+            'review', 'testing', 'qa', 'pending review' => 'in_progress', // Treat review as in_progress
+            default => null, // Don't change status for unrecognized list names
+        };
     }
 
     /**
@@ -248,8 +337,7 @@ class TaskController extends Controller
         }
 
         // Check if user has permission to delete this task
-        if ($task->created_by !== Auth::id() && $project->owner_id !== Auth::id() &&
-            !$project->members()->where('user_id', Auth::id())->where('role', '!=', 'member')->exists()) {
+        if ($task->created_by !== Auth::id() && !ProjectPermissionService::can($project, 'can_manage_tasks')) {
             abort(403, 'You do not have permission to delete this task.');
         }
 

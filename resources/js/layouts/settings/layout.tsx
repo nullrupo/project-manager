@@ -22,6 +22,11 @@ const sidebarNavItems: NavItem[] = [
         href: '/settings/appearance',
         icon: null,
     },
+    {
+        title: 'Sidebar',
+        href: '/settings/sidebar',
+        icon: null,
+    },
 ];
 
 export default function SettingsLayout({ children }: PropsWithChildren) {
@@ -37,15 +42,15 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
             <Heading title="Settings" description="Manage your profile and account settings" />
 
             <div className="flex flex-col space-y-8 lg:flex-row lg:space-y-0 lg:space-x-12">
-                <aside className="w-full max-w-xl lg:w-48">
-                    <nav className="flex flex-col space-y-1 space-x-0">
+                <aside className="w-full max-w-xl lg:w-48 hover-isolate">
+                    <nav className="flex flex-col space-y-1 space-x-0 no-hover-inherit">
                         {sidebarNavItems.map((item, index) => (
                             <Button
                                 key={`${item.href}-${index}`}
                                 size="sm"
                                 variant="ghost"
                                 asChild
-                                className={cn('w-full justify-start', {
+                                className={cn('w-full justify-start hover-isolate', {
                                     'bg-muted': currentPath === item.href,
                                 })}
                             >

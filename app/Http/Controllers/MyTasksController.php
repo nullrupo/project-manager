@@ -12,18 +12,20 @@ class MyTasksController extends Controller
     /**
      * Display the user's tasks.
      */
-    public function index(): Response
+    public function index(Request $request): Response
     {
         $user = Auth::user();
-        
+        $filter = $request->get('filter', 'all');
+
         // Get tasks assigned to the user
         $tasks = $user->assignedTasks()
             ->with(['project', 'list', 'labels'])
             ->orderBy('due_date')
             ->get();
-            
+
         return Inertia::render('my-tasks', [
             'tasks' => $tasks,
+            'filter' => $filter,
         ]);
     }
 }

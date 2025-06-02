@@ -168,11 +168,6 @@
         border-right: 1px solid var(--sidebar-border);
     }
 
-    /* Enhanced hover states */
-    [data-sidebar="sidebar"] .group:hover {
-        background: var(--sidebar-accent);
-    }
-
     /* Active state styling */
     [data-sidebar="sidebar"] [data-active="true"] {
         background: var(--sidebar-accent);
@@ -180,19 +175,158 @@
     }
 }
 
-/* Apple-like card styling */
+/* Apple-like hover effects */
+.apple-hover {
+    @apply transition-all duration-200 ease-out;
+}
+
+.apple-hover:hover {
+    @apply scale-[1.02];
+    background-color: color-mix(in srgb, var(--sidebar-accent) 60%, transparent);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.dark .apple-hover:hover {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Apple-like card styling - hover effects removed, only for buttons */
 .card {
-    @apply shadow-sm transition-all duration-200;
+    @apply shadow-sm transition-all duration-200 ease-out;
     backdrop-filter: blur(10px);
 }
 
-.card:hover {
-    @apply shadow-md;
+/* Card hover effects are now controlled by the hoverable prop in the Card component */
+
+/* Disable hover effects on non-interactive elements */
+.no-hover, .no-hover * {
+    transition: none !important;
+    transform: none !important;
+    box-shadow: inherit !important;
+    background-color: inherit !important;
+    scale: none !important;
+    filter: none !important;
 }
 
-/* Apple-like button styling */
-.btn, .button {
-    @apply transition-all duration-200;
+.no-hover:hover, .no-hover *:hover {
+    transition: none !important;
+    transform: none !important;
+    box-shadow: inherit !important;
+    background-color: inherit !important;
+    scale: none !important;
+    filter: none !important;
+}
+
+/* Subtle hover effects for clickable but non-button elements */
+.subtle-hover {
+    transition: background-color 0.2s ease;
+}
+
+.subtle-hover:hover {
+    background-color: color-mix(in srgb, var(--muted) 30%, transparent);
+}
+
+/* Apple-like button styling - enhanced for better hover effects */
+.btn, .button, button, [role="button"] {
+    @apply transition-all duration-200 ease-out;
+}
+
+.btn:hover, .button:hover, button:hover, [role="button"]:hover {
+    @apply scale-[1.01];
+    filter: brightness(1.05);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.dark .btn:hover, .dark .button:hover, .dark button:hover, .dark [role="button"]:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Navigation item specific hover effects */
+.nav-item {
+    position: relative;
+    isolation: isolate;
+}
+
+.nav-item::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: transparent;
+    transition: all 0.2s ease-out;
+    z-index: -1;
+}
+
+.nav-item:hover::before {
+    background: color-mix(in srgb, var(--sidebar-accent) 70%, transparent);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.dark .nav-item:hover::before {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Prevent hover effects from bubbling */
+.nav-item:hover {
+    z-index: 1;
+}
+
+/* Apple-like interactive elements - removed, use button styling instead */
+
+/* Prevent hover effects from affecting parent elements */
+.hover-isolate {
+    isolation: isolate;
+    position: relative;
+}
+
+.hover-isolate > * {
+    isolation: isolate;
+}
+
+/* Ensure hover effects only apply to direct targets */
+button:hover,
+a:hover,
+[role="button"]:hover {
+    isolation: isolate;
+    z-index: 1;
+}
+
+/* Prevent hover state inheritance */
+.no-hover-inherit * {
+    pointer-events: auto;
+}
+
+.no-hover-inherit *:not(:hover) {
+    background-color: inherit !important;
+    transform: none !important;
+    box-shadow: inherit !important;
+}
+
+/* Specific fix for navigation groups */
+nav ul li:not(:hover) {
+    background: transparent !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+nav ul:not(:hover) {
+    background: transparent !important;
+}
+
+nav:not(:hover) {
+    background: transparent !important;
+}
+
+/* Ensure only direct hover targets get effects */
+.nav-item:not(:hover) {
+    background: transparent !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+.nav-item:not(:hover)::before {
+    background: transparent !important;
+    box-shadow: none !important;
 }
 
 /* Smooth transitions for theme switching */

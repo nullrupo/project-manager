@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
+use App\Services\ProjectPermissionService;
 
 class ProjectController extends Controller
 {
@@ -19,14 +20,17 @@ class ProjectController extends Controller
      */
     public function index(): Response
     {
+        $user = Auth::user();
+
         // Get all projects for all users to view
-        $projects = Project::with('owner')
+        $projects = Project::with(['owner', 'members'])
             ->orderBy('created_at', 'desc')
             ->get();
 
-        // Add permission information for each project
-        $projects->each(function ($project) {
+        // Add permission information and favorite status for each project
+        $projects->each(function ($project) use ($user) {
             $project->can_edit = Auth::id() === $project->owner_id;
+            $project->is_favorited = $project->isFavoritedBy($user);
         });
 
         return Inertia::render('projects/index', [
@@ -61,8 +65,8 @@ class ProjectController extends Controller
         $project->owner_id = Auth::id();
         $project->save();
 
-        // Add the creator as a member with 'owner' role
-        $project->members()->attach(Auth::id(), ['role' => 'owner']);
+        // Add the creator as a member with 'owner' role and full permissions
+        ProjectPermissionService::addUserToProject($project, Auth::user(), 'owner');
 
         // Create a default board
         $board = $project->boards()->create([
@@ -102,7 +106,17 @@ class ProjectController extends Controller
         // Load the project with its relationships
         $project->load([
             'owner',
-            'members',
+            'members' => function ($query) {
+                $query->withPivot([
+                    'role',
+                    'can_manage_members',
+                    'can_manage_boards',
+                    'can_manage_tasks',
+                    'can_manage_labels',
+                    'can_view_project',
+                    'can_comment'
+                ]);
+            },
             'boards' => function ($query) {
                 $query->orderBy('position');
             },
@@ -111,8 +125,14 @@ class ProjectController extends Controller
             },
         ]);
 
-        // Add permission information
-        $project->can_edit = Auth::id() === $project->owner_id;
+        // Add permission information using the new permission system
+        $user = Auth::user();
+        $project->can_edit = ProjectPermissionService::can($project, 'can_manage_boards');
+        $project->can_manage_members = ProjectPermissionService::can($project, 'can_manage_members');
+        $project->can_manage_tasks = ProjectPermissionService::can($project, 'can_manage_tasks');
+        $project->can_manage_labels = ProjectPermissionService::can($project, 'can_manage_labels');
+        $project->user_role = ProjectPermissionService::getUserRole($project, $user);
+        $project->user_permissions = ProjectPermissionService::getUserPermissions($project, $user);
 
         return Inertia::render('projects/show', [
             'project' => $project,

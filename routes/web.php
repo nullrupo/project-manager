@@ -1,11 +1,15 @@
 <?php
 
 use App\Http\Controllers\BoardController;
+use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\CommentController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\FavoritesController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\LabelController;
 use App\Http\Controllers\MyTasksController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ProjectMemberController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TaskListController;
 use App\Http\Controllers\TeamController;
@@ -17,28 +21,18 @@ Route::get('/', function () {
 })->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('dashboard', function () {
-        return Inertia::render('dashboard');
-    })->name('dashboard');
-
-    // Debug route
-    Route::get('debug-projects', function () {
-        $user = Auth::user();
-        $projects = $user->projects()->with('owner')->get();
-        $ownedProjects = $user->ownedProjects()->with('owner')->get();
-        $allProjects = $projects->merge($ownedProjects)->unique('id');
-
-        return response()->json([
-            'user' => $user,
-            'projects_count' => $projects->count(),
-            'owned_projects_count' => $ownedProjects->count(),
-            'all_projects_count' => $allProjects->count(),
-            'projects' => $allProjects->values()
-        ]);
-    });
+    Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // Project routes
     Route::resource('projects', ProjectController::class);
+
+    // Project member routes (search route must come before {user} route)
+    Route::get('projects/{project}/members', [ProjectMemberController::class, 'index'])->name('projects.members.index');
+    Route::get('projects/{project}/members/search', [ProjectMemberController::class, 'searchUsers'])->name('projects.members.search');
+    Route::post('projects/{project}/members', [ProjectMemberController::class, 'store'])->name('projects.members.store');
+    Route::get('projects/{project}/members/{user}/edit', [ProjectMemberController::class, 'edit'])->name('projects.members.edit');
+    Route::put('projects/{project}/members/{user}', [ProjectMemberController::class, 'update'])->name('projects.members.update');
+    Route::delete('projects/{project}/members/{user}', [ProjectMemberController::class, 'destroy'])->name('projects.members.destroy');
 
     // Board routes
     Route::get('projects/{project}/boards', [BoardController::class, 'index'])->name('boards.index');
@@ -60,6 +54,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('projects/{project}/boards/{board}/lists/{list}/tasks/create', [TaskController::class, 'create'])->name('tasks.create');
     Route::post('projects/{project}/boards/{board}/lists/{list}/tasks', [TaskController::class, 'store'])->name('tasks.store');
     Route::get('projects/{project}/tasks/{task}', [TaskController::class, 'show'])->name('tasks.show');
+    Route::get('projects/{project}/tasks/{task}/edit', [TaskController::class, 'edit'])->name('tasks.edit');
     Route::put('projects/{project}/tasks/{task}', [TaskController::class, 'update'])->name('tasks.update');
     Route::delete('projects/{project}/tasks/{task}', [TaskController::class, 'destroy'])->name('tasks.destroy');
     Route::post('projects/{project}/tasks/positions', [TaskController::class, 'updatePositions'])->name('tasks.positions');
@@ -85,14 +80,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('inbox/tasks', [InboxController::class, 'store'])->name('inbox.tasks.store');
     Route::put('inbox/tasks/{task}', [InboxController::class, 'update'])->name('inbox.tasks.update');
     Route::delete('inbox/tasks/{task}', [InboxController::class, 'destroy'])->name('inbox.tasks.destroy');
+    Route::post('inbox/tasks/{task}/move-to-project', [InboxController::class, 'moveToProject'])->name('inbox.tasks.move-to-project');
 
     // Team routes
     Route::get('team', [TeamController::class, 'index'])->name('team');
 
-    // New feature routes
-    Route::get('calendar', function () {
-        return Inertia::render('calendar');
-    })->name('calendar');
+    // Calendar routes
+    Route::get('calendar', [CalendarController::class, 'index'])->name('calendar');
 
     Route::get('reports', function () {
         return Inertia::render('reports');
@@ -110,9 +104,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return Inertia::render('messages');
     })->name('messages');
 
-    Route::get('favorites', function () {
-        return Inertia::render('favorites');
-    })->name('favorites');
+    // Favorites routes
+    Route::get('favorites', [FavoritesController::class, 'index'])->name('favorites');
+    Route::post('favorites/toggle', [FavoritesController::class, 'toggle'])->name('favorites.toggle');
+
+    // Temporary debug route
+    Route::get('debug-sidebar', function () {
+        $user = auth()->user();
+        return response()->json([
+            'user_id' => $user->id,
+            'sidebar_preferences' => $user->sidebar_preferences,
+            'raw_sidebar_preferences' => $user->getAttributes()['sidebar_preferences'] ?? null,
+        ]);
+    });
 });
 
 require __DIR__.'/settings.php';
