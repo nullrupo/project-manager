@@ -1,0 +1,6 @@
+﻿id,projectId,milestoneId,parentTaskId,title,description,assigneeId,dueDate,status,recurrenceRule,xpEarned,createdAt,updatedAt,deleteAt
+,Thiết kế nhân vật,,,Su Mầm non,,,,done,,,,,
+,Thiết kế nhân vật,,,Kem Mầm non,,,,review,,,,,
+,Thiết kế nhân vật,,,Su Tiểu học,,,,todo,,,,,
+,Thiết kế nhân vật,,,Kem Tiểu học,,,,todo,,,,,
+,Thiết kế nhân vật,,,Nova,,,,archived,,,,,

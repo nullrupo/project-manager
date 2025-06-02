@@ -4,6 +4,8 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -21,6 +23,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'sidebar_preferences',
     ];
 
     /**
@@ -43,6 +46,58 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'sidebar_preferences' => 'array',
         ];
+    }
+
+    /**
+     * Get the projects owned by the user.
+     */
+    public function ownedProjects(): HasMany
+    {
+        return $this->hasMany(Project::class, 'owner_id');
+    }
+
+    /**
+     * Get the projects the user is a member of.
+     */
+    public function projects(): BelongsToMany
+    {
+        return $this->belongsToMany(Project::class)
+            ->withPivot([
+                'role',
+                'can_manage_members',
+                'can_manage_boards',
+                'can_manage_tasks',
+                'can_manage_labels',
+                'can_view_project',
+                'can_comment'
+            ])
+            ->withTimestamps();
+    }
+
+    /**
+     * Get the tasks assigned to the user.
+     */
+    public function assignedTasks(): BelongsToMany
+    {
+        return $this->belongsToMany(Task::class)
+            ->withTimestamps();
+    }
+
+    /**
+     * Get the tasks created by the user.
+     */
+    public function createdTasks(): HasMany
+    {
+        return $this->hasMany(Task::class, 'created_by');
+    }
+
+    /**
+     * Get the comments created by the user.
+     */
+    public function comments(): HasMany
+    {
+        return $this->hasMany(Comment::class);
     }
 }
