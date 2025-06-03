@@ -123,6 +123,12 @@ class ProjectController extends Controller
             'boards.lists' => function ($query) {
                 $query->orderBy('position');
             },
+            'boards.lists.tasks' => function ($query) {
+                $query->orderBy('position');
+            },
+            'boards.lists.tasks.assignees',
+            'boards.lists.tasks.labels',
+            'boards.lists.tasks.creator',
         ]);
 
         // Add permission information using the new permission system
