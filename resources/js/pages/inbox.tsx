@@ -13,6 +13,8 @@ import { Head, router } from '@inertiajs/react';
 import { Calendar, CalendarDays, Clock, Edit, Inbox, Plus, Trash2, User as UserIcon, FolderOpen, Tag, CheckSquare, Square, MoreHorizontal, ArrowRight, Flag, Sparkles, FileText } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { useBatchTaskOperations } from '@/hooks/useBatchTaskOperations';
+import { BulkActionsPanel } from '@/components/BulkActionsPanel';
 
 interface Task {
     id: number;
@@ -99,6 +101,13 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
     });
     const [isCreatingTask, setIsCreatingTask] = useState(false);
 
+    // Unified selection state (used for both keyboard and mouse interactions)
+    const [lastSelectedTaskId, setLastSelectedTaskId] = useState<number | null>(null);
+    const [currentFocusedTaskId, setCurrentFocusedTaskId] = useState<number | null>(null);
+    const taskListRef = useRef<HTMLDivElement>(null);
+
+
+
     // Auto-focus the quick add input when component mounts
     useEffect(() => {
         if (quickAddInputRef.current) {
@@ -123,6 +132,8 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                 console.error('Failed to load inbox preferences:', error);
             });
     }, []);
+
+
 
     // Calculate cleanup-eligible tasks
     const cleanupEligibleTasks = useMemo(() => {
@@ -172,6 +183,60 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
 
         return sorted;
     }, [tasks, sortBy, sortOrder]);
+
+    // Add keyboard event listener for navigation and click-away handler
+    useEffect(() => {
+        const handleGlobalKeyDown = (event: KeyboardEvent) => {
+            // Convert to React.KeyboardEvent-like object
+            const reactEvent = {
+                key: event.key,
+                preventDefault: () => event.preventDefault(),
+                target: event.target
+            } as React.KeyboardEvent;
+
+            handleKeyDown(reactEvent);
+        };
+
+        const handleGlobalClick = (event: MouseEvent) => {
+            // Check if click is outside the task list area
+            if (taskListRef.current && !taskListRef.current.contains(event.target as Node)) {
+                // Only deselect if not clicking on buttons or other interactive elements
+                const target = event.target as HTMLElement;
+                if (!target.closest('button') && !target.closest('[role="dialog"]') && !target.closest('input')) {
+                    setSelectedTasks(new Set());
+                    setCurrentFocusedTaskId(null);
+                    setShowBulkActions(false);
+                }
+            }
+        };
+
+        document.addEventListener('keydown', handleGlobalKeyDown);
+        document.addEventListener('click', handleGlobalClick);
+        return () => {
+            document.removeEventListener('keydown', handleGlobalKeyDown);
+            document.removeEventListener('click', handleGlobalClick);
+        };
+    }, [currentFocusedTaskId, sortedTasks, selectedTasks]);
+
+    // Initialize selection when tasks change
+    useEffect(() => {
+        if (sortedTasks.length > 0 && selectedTasks.size === 0) {
+            // Select the first task when tasks load and nothing is selected
+            setSelectedTasks(new Set([sortedTasks[0].id]));
+            setCurrentFocusedTaskId(sortedTasks[0].id);
+            setLastSelectedTaskId(sortedTasks[0].id);
+        } else if (sortedTasks.length === 0) {
+            // Clear selection when no tasks
+            setSelectedTasks(new Set());
+            setCurrentFocusedTaskId(null);
+            setLastSelectedTaskId(null);
+        } else if (currentFocusedTaskId && !sortedTasks.find(t => t.id === currentFocusedTaskId)) {
+            // If focused task no longer exists, select the first one
+            setSelectedTasks(new Set([sortedTasks[0].id]));
+            setCurrentFocusedTaskId(sortedTasks[0].id);
+            setLastSelectedTaskId(sortedTasks[0].id);
+        }
+    }, [sortedTasks]);
 
     // Reset form when dialog closes
     const resetForm = () => {
@@ -259,16 +324,110 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
         });
     };
 
-    // Bulk operations
-    const toggleTaskSelection = (taskId: number) => {
-        const newSelected = new Set(selectedTasks);
-        if (newSelected.has(taskId)) {
-            newSelected.delete(taskId);
+    // Enhanced task selection with keyboard and mouse support
+    const toggleTaskSelection = (taskId: number, event?: React.MouseEvent) => {
+        let newSelected = new Set(selectedTasks);
+
+        if (event?.shiftKey && lastSelectedTaskId !== null) {
+            // Shift+click: select range
+            const currentIndex = sortedTasks.findIndex(t => t.id === taskId);
+            const lastIndex = sortedTasks.findIndex(t => t.id === lastSelectedTaskId);
+
+            if (currentIndex !== -1 && lastIndex !== -1) {
+                const start = Math.min(currentIndex, lastIndex);
+                const end = Math.max(currentIndex, lastIndex);
+
+                // Clear existing selection and add range
+                newSelected.clear();
+                for (let i = start; i <= end; i++) {
+                    newSelected.add(sortedTasks[i].id);
+                }
+            }
+        } else if (event?.ctrlKey || event?.metaKey) {
+            // Ctrl/Cmd+click: toggle individual task (multi-select)
+            if (newSelected.has(taskId)) {
+                newSelected.delete(taskId);
+            } else {
+                newSelected.add(taskId);
+            }
         } else {
-            newSelected.add(taskId);
+            // Regular click: single-task focus behavior
+            // Deselect all previously selected tasks and select only the clicked task
+            newSelected = new Set([taskId]);
         }
+
         setSelectedTasks(newSelected);
+        setCurrentFocusedTaskId(taskId);
+        setLastSelectedTaskId(taskId);
         setShowBulkActions(newSelected.size > 0);
+    };
+
+    // Toggle task completion status
+    const toggleTaskCompletion = (taskId: number) => {
+        const task = tasks.find(t => t.id === taskId);
+        if (task) {
+            const newStatus = task.status === 'done' ? 'to_do' : 'done';
+            quickUpdateStatus(taskId, newStatus);
+        }
+    };
+
+    // Keyboard navigation functions using unified selection
+    const moveSelection = (direction: 'up' | 'down', shiftKey: boolean = false) => {
+        if (sortedTasks.length === 0) return;
+
+        const currentIndex = currentFocusedTaskId
+            ? sortedTasks.findIndex(t => t.id === currentFocusedTaskId)
+            : -1;
+
+        let newIndex;
+        if (direction === 'up') {
+            newIndex = currentIndex <= 0 ? sortedTasks.length - 1 : currentIndex - 1;
+        } else {
+            newIndex = currentIndex >= sortedTasks.length - 1 ? 0 : currentIndex + 1;
+        }
+
+        const newTaskId = sortedTasks[newIndex]?.id;
+        if (newTaskId) {
+            if (shiftKey && currentFocusedTaskId) {
+                // Shift + Arrow: Add to selection
+                const newSelected = new Set(selectedTasks);
+                newSelected.add(newTaskId);
+                setSelectedTasks(newSelected);
+            } else {
+                // Regular Arrow: Single task focus
+                setSelectedTasks(new Set([newTaskId]));
+            }
+            setCurrentFocusedTaskId(newTaskId);
+            setLastSelectedTaskId(newTaskId);
+            setShowBulkActions(selectedTasks.size > 0 || shiftKey);
+        }
+    };
+
+    const handleKeyDown = (event: React.KeyboardEvent) => {
+        // Only handle keyboard navigation when not in an input field
+        if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+            return;
+        }
+
+        switch (event.key) {
+            case 'ArrowUp':
+                event.preventDefault();
+                moveSelection('up', event.shiftKey);
+                break;
+            case 'ArrowDown':
+                event.preventDefault();
+                moveSelection('down', event.shiftKey);
+                break;
+            case ' ':
+                event.preventDefault();
+                // Toggle completion for all selected tasks
+                if (selectedTasks.size > 0) {
+                    selectedTasks.forEach(taskId => {
+                        toggleTaskCompletion(taskId);
+                    });
+                }
+                break;
+        }
     };
 
     const selectAllTasks = (checked: boolean) => {
@@ -281,31 +440,20 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
         }
     };
 
-    const bulkUpdateStatus = (newStatus: string) => {
-        const taskIds = Array.from(selectedTasks);
-        // For now, we'll update each task individually
-        // In a real app, you'd want a bulk update endpoint
-        taskIds.forEach(taskId => {
-            const task = tasks.find(t => t.id === taskId);
-            if (task) {
-                router.put(route('inbox.tasks.update', { task: taskId }), {
-                    ...task,
-                    status: newStatus,
-                }, { preserveState: true });
-            }
-        });
-        setSelectedTasks(new Set());
-        setShowBulkActions(false);
-    };
-
-    const bulkDelete = () => {
-        const taskIds = Array.from(selectedTasks);
-        taskIds.forEach(taskId => {
-            router.delete(route('inbox.tasks.destroy', { task: taskId }), { preserveState: true });
-        });
-        setSelectedTasks(new Set());
-        setShowBulkActions(false);
-    };
+    // Use the shared batch operations hook
+    const {
+        isProcessing,
+        getSelectedTasksCompletionState,
+        bulkToggleCompletion,
+        bulkDelete,
+        bulkUpdateStatus
+    } = useBatchTaskOperations(
+        tasks,
+        selectedTasks,
+        setSelectedTasks,
+        setShowBulkActions,
+        'inbox.tasks'
+    );
 
     // Quick status update
     const quickUpdateStatus = (taskId: number, newStatus: string) => {
@@ -421,128 +569,146 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
         <AppLayout>
             <Head title="Inbox" />
             <div className="space-y-6">
-                <div className="flex items-center justify-between py-2">
-                    <div className="flex items-center gap-3">
-                        <Inbox className="h-8 w-8 text-primary" />
-                        <h1 className="text-2xl font-semibold">Inbox</h1>
-                        <span className="text-sm text-muted-foreground ml-2">
-                            {sortedTasks.length} tasks
-                        </span>
-                        {sortedTasks.length > 0 && (
-                            <div className="flex items-center gap-2 ml-4">
-                                <Checkbox
-                                    checked={selectedTasks.size === sortedTasks.length && sortedTasks.length > 0}
-                                    onCheckedChange={(checked) => {
-                                        if (checked) {
-                                            setSelectedTasks(new Set(sortedTasks.map(t => t.id)));
-                                        } else {
-                                            setSelectedTasks(new Set());
-                                        }
-                                    }}
-                                />
-                                <span className="text-sm text-muted-foreground">
-                                    Select all
-                                </span>
-                            </div>
-                        )}
-                    </div>
+                <div className="flex items-center gap-4 py-2">
+                    <Inbox className="h-8 w-8 text-primary" />
+                    <h1 className="text-2xl font-semibold">Inbox</h1>
+                    <span className="text-sm text-muted-foreground">
+                        {sortedTasks.length} tasks
+                    </span>
 
-                    <div className="flex items-center gap-2">
-                        {/* Create Task button */}
-                        <Button
-                            variant="default"
-                            size="sm"
-                            onClick={openCreateDialog}
-                            className="flex items-center gap-2"
-                        >
-                            <FileText className="h-4 w-4" />
-                            Create Task
-                        </Button>
+                    {/* Create Task button */}
+                    <Button
+                        variant="default"
+                        size="sm"
+                        onClick={openCreateDialog}
+                        className="flex items-center gap-2"
+                    >
+                        <FileText className="h-4 w-4" />
+                        Create Task
+                    </Button>
 
-                        {/* Cleanup button - always show */}
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={performCleanup}
-                                        disabled={isCleaningUp || cleanupEligibleTasks.length === 0}
-                                        className="flex items-center gap-2"
-                                    >
-                                        {isCleaningUp ? (
-                                            <>
-                                                <Clock className="h-4 w-4 animate-spin" />
-                                                Cleaning...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Sparkles className="h-4 w-4" />
-                                                Clean Up ({cleanupEligibleTasks.length})
-                                            </>
-                                        )}
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>Move all completed tasks to archives and tasks with projects to their respective projects</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-                    </div>
-                </div>
-
-                <Card>
-                    <CardHeader>
-                        {/* Quick Add Form - removed heading */}
-                        <div className="pt-2">
-                            <form onSubmit={handleQuickAdd} className="flex gap-2">
-                                <div className="flex-1">
-                                    <Input
-                                        ref={quickAddInputRef}
-                                        placeholder="Quick add a task..."
-                                        value={quickAddTitle}
-                                        onChange={(e) => setQuickAddTitle(e.target.value)}
-                                        disabled={isQuickAdding}
-                                    />
-                                </div>
-                                <Button type="submit" disabled={!quickAddTitle.trim() || isQuickAdding}>
-                                    {isQuickAdding ? (
+                    {/* Cleanup button - always show */}
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={performCleanup}
+                                    disabled={isCleaningUp || cleanupEligibleTasks.length === 0}
+                                    className="flex items-center gap-2"
+                                >
+                                    {isCleaningUp ? (
                                         <>
-                                            <Clock className="h-4 w-4 mr-2 animate-spin" />
-                                            Adding...
+                                            <Clock className="h-4 w-4 animate-spin" />
+                                            Cleaning...
                                         </>
                                     ) : (
                                         <>
-                                            <Plus className="h-4 w-4 mr-2" />
-                                            Add Task
+                                            <Sparkles className="h-4 w-4" />
+                                            Clean Up ({cleanupEligibleTasks.length})
                                         </>
                                     )}
                                 </Button>
-                            </form>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Move all completed tasks to archives and tasks with projects to their respective projects</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+
+                    {sortedTasks.length > 0 && (
+                        <div className="flex items-center gap-2 ml-auto">
+                            <Checkbox
+                                checked={selectedTasks.size === sortedTasks.length && sortedTasks.length > 0}
+                                onCheckedChange={(checked) => {
+                                    if (checked) {
+                                        setSelectedTasks(new Set(sortedTasks.map(t => t.id)));
+                                    } else {
+                                        setSelectedTasks(new Set());
+                                    }
+                                }}
+                            />
+                            <span className="text-sm text-muted-foreground">
+                                Select all
+                            </span>
                         </div>
-                    </CardHeader>
-                    <CardContent>
+                    )}
+                </div>
+
+                {/* Quick Add Form - Separate container */}
+                <Card>
+                    <CardContent className="pt-6">
+                        <form onSubmit={handleQuickAdd} className="flex gap-2">
+                            <div className="flex-1">
+                                <Input
+                                    ref={quickAddInputRef}
+                                    placeholder="Quick add a task..."
+                                    value={quickAddTitle}
+                                    onChange={(e) => setQuickAddTitle(e.target.value)}
+                                    disabled={isQuickAdding}
+                                />
+                            </div>
+                            <Button type="submit" disabled={!quickAddTitle.trim() || isQuickAdding}>
+                                {isQuickAdding ? (
+                                    <>
+                                        <Clock className="h-4 w-4 mr-2 animate-spin" />
+                                        Adding...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        Add Task
+                                    </>
+                                )}
+                            </Button>
+                        </form>
+                    </CardContent>
+                </Card>
+
+                {/* Task List */}
+                <Card>
+                    <CardContent className="pt-6">
                         {sortedTasks.length > 0 ? (
-                            <div className="space-y-2">
+                            <div
+                                className="space-y-2"
+                                ref={taskListRef}
+                                onClick={(e) => {
+                                    // Click away functionality - deselect all tasks if clicking on empty space
+                                    if (e.target === e.currentTarget) {
+                                        setSelectedTasks(new Set());
+                                        setCurrentFocusedTaskId(null);
+                                        setShowBulkActions(false);
+                                    }
+                                }}
+                            >
                                 {sortedTasks.map((task) => {
                                     const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'done';
+                                    const isSelected = selectedTasks.has(task.id);
+
                                     return (
                                         <div
                                             key={task.id}
-                                            className={`group flex items-start gap-3 p-2 rounded-lg border transition-colors hover:bg-muted/30 ${
+                                            className={`group flex items-start gap-3 p-2 rounded-lg border transition-colors cursor-pointer ${
                                                 isOverdue ? 'border-red-200 bg-red-50/50' : 'border-border/50'
-                                            } ${selectedTasks.has(task.id) ? 'ring-2 ring-primary/20 bg-primary/5' : ''}`}
+                                            } ${isSelected ? 'ring-2 ring-primary/20 bg-primary/5' : 'hover:bg-muted/30'}`}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleTaskSelection(task.id, e);
+                                            }}
+                                            onDoubleClick={() => editTask(task)}
                                         >
                                             <Checkbox
-                                                checked={selectedTasks.has(task.id)}
-                                                onCheckedChange={() => toggleTaskSelection(task.id)}
+                                                checked={task.status === 'done'}
+                                                onCheckedChange={(checked) => {
+                                                    const newStatus = checked ? 'done' : 'to_do';
+                                                    quickUpdateStatus(task.id, newStatus);
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
                                                 className="mt-1"
                                             />
 
-                                            <div
-                                                className="flex-1 min-w-0 cursor-pointer"
-                                                onClick={() => editTask(task)}
-                                            >
+                                            <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2 mb-1">
                                                     <h3 className={`font-medium truncate ${task.status === 'done' ? 'line-through text-muted-foreground' : ''}`}>
                                                         {task.title}
@@ -567,21 +733,6 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                             </div>
 
                                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                {task.status !== 'done' && (
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="h-8 w-8 p-0 text-green-600 hover:text-green-700"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            quickUpdateStatus(task.id, 'done');
-                                                        }}
-                                                        title="Mark as Done"
-                                                    >
-                                                        <CheckSquare className="h-4 w-4" />
-                                                    </Button>
-                                                )}
-
                                                 {projects.length > 0 && (
                                                     <Button
                                                         variant="ghost"
@@ -626,71 +777,28 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                 </Card>
             </div>
 
-            {/* Floating Bulk Actions Panel */}
-            {selectedTasks.size > 0 && (
-                <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50">
-                    <div className="bg-background border border-border rounded-lg shadow-lg p-4 flex items-center gap-3">
-                        <span className="text-sm font-medium">
-                            {selectedTasks.size} task{selectedTasks.size !== 1 ? 's' : ''} selected
-                        </span>
-                        <div className="flex gap-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                    selectedTasks.forEach(taskId => quickUpdateStatus(taskId, 'done'));
-                                    setSelectedTasks(new Set());
-                                }}
-                            >
-                                <CheckSquare className="h-4 w-4 mr-1" />
-                                Mark Done
-                            </Button>
-                            {projects.length > 0 && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                        // For bulk move, we'll use the first selected task as reference
-                                        const firstSelectedTask = tasks.find(t => selectedTasks.has(t.id));
-                                        if (firstSelectedTask) {
-                                            setTaskToMove(firstSelectedTask);
-                                            setSelectedProjectId('');
-                                            setIsMoveDialogOpen(true);
-                                        }
-                                    }}
-                                >
-                                    <ArrowRight className="h-4 w-4 mr-1" />
-                                    Move to Project
-                                </Button>
-                            )}
-                            <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => {
-                                    if (confirm(`Are you sure you want to delete ${selectedTasks.size} task${selectedTasks.size !== 1 ? 's' : ''}?`)) {
-                                        selectedTasks.forEach(taskId => {
-                                            router.delete(route('tasks.destroy', taskId), {
-                                                preserveScroll: true,
-                                            });
-                                        });
-                                        setSelectedTasks(new Set());
-                                    }
-                                }}
-                            >
-                                <Trash2 className="h-4 w-4 mr-1" />
-                                Delete
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setSelectedTasks(new Set())}
-                            >
-                                Cancel
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* Bulk Actions Panel */}
+            <BulkActionsPanel
+                selectedTasks={selectedTasks}
+                onClearSelection={() => {
+                    setSelectedTasks(new Set());
+                    setShowBulkActions(false);
+                }}
+                onToggleCompletion={() => bulkToggleCompletion({ preserveSelection: true })}
+                onDelete={() => bulkDelete({ preserveSelection: true })}
+                onMoveToProject={() => {
+                    // For bulk move, we'll use the first selected task as reference
+                    const firstSelectedTask = tasks.find(t => selectedTasks.has(t.id));
+                    if (firstSelectedTask) {
+                        setTaskToMove(firstSelectedTask);
+                        setSelectedProjectId('');
+                        setIsMoveDialogOpen(true);
+                    }
+                }}
+                getCompletionState={getSelectedTasksCompletionState}
+                showMoveToProject={projects.length > 0}
+                isProcessing={isProcessing}
+            />
 
             {/* Edit Task Dialog */}
             {editingTask && (
@@ -860,6 +968,8 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+
 
             {/* Create Task Dialog */}
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
