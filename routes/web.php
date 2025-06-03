@@ -80,6 +80,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('inbox/tasks/{task}', [InboxController::class, 'update'])->name('inbox.tasks.update');
     Route::delete('inbox/tasks/{task}', [InboxController::class, 'destroy'])->name('inbox.tasks.destroy');
     Route::post('inbox/tasks/{task}/move-to-project', [InboxController::class, 'moveToProject'])->name('inbox.tasks.move-to-project');
+    Route::post('inbox/cleanup', [InboxController::class, 'cleanup'])->name('inbox.cleanup');
 
     // Team routes
     Route::get('team', [TeamController::class, 'index'])->name('team');

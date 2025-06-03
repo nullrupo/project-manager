@@ -36,85 +36,6 @@ export default function ProjectShow({ project }: ProjectShowProps) {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDay, setSelectedDay] = useState<Date | null>(null);
 
-    // Drag and drop state
-    const [activeTask, setActiveTask] = useState<any>(null);
-    const [draggedTask, setDraggedTask] = useState<any>(null);
-    const [isUpdatingTask, setIsUpdatingTask] = useState(false);
-
-    // Local state for optimistic updates
-    const [localTaskUpdates, setLocalTaskUpdates] = useState<{[key: number]: any}>({});
-
-    // Track if any resize handle is being used
-    const [isAnyHandleResizing, setIsAnyHandleResizing] = useState(false);
-
-    // Track if component is mounted to prevent hydration issues
-    const [isMounted, setIsMounted] = useState(false);
-
-    useEffect(() => {
-        setIsMounted(true);
-    }, []);
-
-    // Shared priority color function
-    const getPriorityColor = (priority: string) => {
-        switch (priority) {
-            case 'urgent': return 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 border-l-red-500';
-            case 'high': return 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200 border-l-orange-500';
-            case 'medium': return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 border-l-yellow-500';
-            case 'low': return 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 border-l-green-500';
-            default: return 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 border-l-blue-500';
-        }
-    };
-
-    // Task assignment modal state
-    const [assignTaskModalOpen, setAssignTaskModalOpen] = useState(false);
-    const [taskToAssign, setTaskToAssign] = useState<any>(null);
-
-    // Task duration modal state
-    const [durationModalOpen, setDurationModalOpen] = useState(false);
-    const [taskToExtend, setTaskToExtend] = useState<any>(null);
-
-    // Member panel state
-    const [memberPanelOpen, setMemberPanelOpen] = useState(false);
-
-    // Get tab from URL parameters, default to 'boards'
-    const getActiveTabFromUrl = () => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const tab = urlParams.get('tab');
-        const validTabs = ['boards', 'members', 'labels', 'calendar', 'details'];
-        return validTabs.includes(tab || '') ? tab : 'boards';
-    };
-
-    const [activeTab, setActiveTab] = useState(getActiveTabFromUrl);
-
-    // Update URL when tab changes
-    const handleTabChange = (newTab: string) => {
-        setActiveTab(newTab);
-        const url = new URL(window.location.href);
-        url.searchParams.set('tab', newTab);
-        window.history.pushState({}, '', url.toString());
-    };
-
-    // Listen for browser back/forward navigation
-    useEffect(() => {
-        const handlePopState = () => {
-            setActiveTab(getActiveTabFromUrl());
-        };
-
-        window.addEventListener('popstate', handlePopState);
-        return () => window.removeEventListener('popstate', handlePopState);
-    }, []);
-
-    const breadcrumbs: BreadcrumbItem[] = [
-        {
-            title: 'Projects',
-            href: route('projects.index'),
-        },
-        {
-            title: project.name,
-            href: route('projects.show', { project: project.id }),
-        },
-    ];
-
     const handleDeleteMember = () => {
         if (memberToDelete) {
             router.delete(route('projects.members.destroy', { project: project.id, user: memberToDelete.id }));
@@ -1439,7 +1360,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
 
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <AppLayout>
             <Head title={project.name} />
             <div className="space-y-6">
                 <div className="flex justify-between items-start">
