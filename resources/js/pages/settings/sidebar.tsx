@@ -11,13 +11,6 @@ import { useSidebarPreferences } from '@/hooks/use-sidebar-preferences';
 import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 
-const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Sidebar settings',
-        href: '/settings/sidebar',
-    },
-];
-
 export default function SidebarSettings() {
     const {
         collapsedGroups,
@@ -39,7 +32,7 @@ export default function SidebarSettings() {
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <AppLayout>
             <Head title="Sidebar settings" />
 
             <SettingsLayout>

@@ -24,6 +24,7 @@ class User extends Authenticatable
         'email',
         'password',
         'sidebar_preferences',
+        'inbox_preferences',
     ];
 
     /**
@@ -47,6 +48,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'sidebar_preferences' => 'array',
+            'inbox_preferences' => 'array',
         ];
     }
 

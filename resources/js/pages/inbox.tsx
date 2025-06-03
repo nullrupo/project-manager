@@ -10,8 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/react';
-import { Calendar, CalendarDays, Clock, Edit, Inbox, Plus, Trash2, User as UserIcon, FolderOpen, Tag, CheckSquare, Square, MoreHorizontal, ArrowRight, Flag } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { Calendar, CalendarDays, Clock, Edit, Inbox, Plus, Trash2, User as UserIcon, FolderOpen, Tag, CheckSquare, Square, MoreHorizontal, ArrowRight, Flag, Sparkles, FileText } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useState, useMemo, useEffect, useRef } from 'react';
 
 interface Task {
     id: number;
@@ -48,12 +49,7 @@ interface InboxPageProps {
     projects: Project[];
 }
 
-const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Inbox',
-        href: route('inbox'),
-    },
-];
+// Remove breadcrumbs to eliminate redundant "inbox" text at top
 
 export default function InboxPage({ tasks = [], users = [], projects = [] }: InboxPageProps) {
     const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -74,6 +70,9 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
     const [quickAddTitle, setQuickAddTitle] = useState('');
     const [isQuickAdding, setIsQuickAdding] = useState(false);
 
+    // Ref for quick add input to enable auto-focus
+    const quickAddInputRef = useRef<HTMLInputElement>(null);
+
     // Sort state (keeping basic sorting)
     const [sortBy, setSortBy] = useState<string>('created_at');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -81,6 +80,58 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
     // Bulk operations state
     const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
     const [showBulkActions, setShowBulkActions] = useState(false);
+
+    // Cleanup state
+    const [isCleaningUp, setIsCleaningUp] = useState(false);
+    const [userPreferences, setUserPreferences] = useState<{ auto_cleanup_enabled: boolean }>({
+        auto_cleanup_enabled: false
+    });
+
+    // Create task dialog state
+    const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+    const [createTaskData, setCreateTaskData] = useState({
+        title: '',
+        description: '',
+        priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
+        status: 'to_do' as 'to_do' | 'in_progress' | 'done',
+        due_date: null as string | null,
+        assignee_ids: [] as number[]
+    });
+    const [isCreatingTask, setIsCreatingTask] = useState(false);
+
+    // Auto-focus the quick add input when component mounts
+    useEffect(() => {
+        if (quickAddInputRef.current) {
+            quickAddInputRef.current.focus();
+        }
+    }, []);
+
+    // Load user preferences and perform auto-cleanup on mount
+    useEffect(() => {
+        // Load user preferences
+        fetch(route('inbox-preferences.show'))
+            .then(response => response.json())
+            .then(prefs => {
+                setUserPreferences(prefs);
+
+                // Perform auto-cleanup if enabled
+                if (prefs.auto_cleanup_enabled) {
+                    performAutoCleanup();
+                }
+            })
+            .catch(error => {
+                console.error('Failed to load inbox preferences:', error);
+            });
+    }, []);
+
+    // Calculate cleanup-eligible tasks
+    const cleanupEligibleTasks = useMemo(() => {
+        return tasks.filter(task =>
+            task.status === 'done' ||
+            !task.is_inbox ||
+            task.project
+        );
+    }, [tasks]);
 
     // Sorted tasks (no filtering needed for inbox)
     const sortedTasks = useMemo(() => {
@@ -195,6 +246,12 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
             onSuccess: () => {
                 setQuickAddTitle('');
                 setIsQuickAdding(false);
+                // Refocus the input for continuous task entry
+                setTimeout(() => {
+                    if (quickAddInputRef.current) {
+                        quickAddInputRef.current.focus();
+                    }
+                }, 100);
             },
             onError: () => {
                 setIsQuickAdding(false);
@@ -294,11 +351,77 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
         }
     };
 
+    // Perform automatic cleanup (silent)
+    const performAutoCleanup = () => {
+        router.post(route('inbox.cleanup'), {}, {
+            preserveState: true,
+            preserveScroll: true,
+            only: ['tasks'], // Only refresh tasks data
+        });
+    };
+
+    // Perform immediate cleanup without confirmation
+    const performCleanup = () => {
+        if (isCleaningUp) return; // Prevent double-clicks
+
+        setIsCleaningUp(true);
+        router.post(route('inbox.cleanup'), {}, {
+            onSuccess: () => {
+                setIsCleaningUp(false);
+                // Success message will be shown via Inertia flash message
+            },
+            onError: () => {
+                setIsCleaningUp(false);
+            }
+        });
+    };
+
+    // Create task dialog functions
+    const openCreateDialog = () => {
+        setCreateTaskData({
+            title: '',
+            description: '',
+            priority: 'medium',
+            status: 'to_do',
+            due_date: null,
+            assignee_ids: []
+        });
+        setIsCreateDialogOpen(true);
+    };
+
+    const closeCreateDialog = () => {
+        setIsCreateDialogOpen(false);
+        setCreateTaskData({
+            title: '',
+            description: '',
+            priority: 'medium',
+            status: 'to_do',
+            due_date: null,
+            assignee_ids: []
+        });
+    };
+
+    const handleCreateTask = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!createTaskData.title.trim()) return;
+
+        setIsCreatingTask(true);
+        router.post(route('inbox.tasks.store'), createTaskData, {
+            onSuccess: () => {
+                setIsCreatingTask(false);
+                closeCreateDialog();
+            },
+            onError: () => {
+                setIsCreatingTask(false);
+            }
+        });
+    };
+
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <AppLayout>
             <Head title="Inbox" />
             <div className="space-y-6">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between py-2">
                     <div className="flex items-center gap-3">
                         <Inbox className="h-8 w-8 text-primary" />
                         <h1 className="text-2xl font-semibold">Inbox</h1>
@@ -323,17 +446,59 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                             </div>
                         )}
                     </div>
+
+                    <div className="flex items-center gap-2">
+                        {/* Create Task button */}
+                        <Button
+                            variant="default"
+                            size="sm"
+                            onClick={openCreateDialog}
+                            className="flex items-center gap-2"
+                        >
+                            <FileText className="h-4 w-4" />
+                            Create Task
+                        </Button>
+
+                        {/* Cleanup button - always show */}
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={performCleanup}
+                                        disabled={isCleaningUp || cleanupEligibleTasks.length === 0}
+                                        className="flex items-center gap-2"
+                                    >
+                                        {isCleaningUp ? (
+                                            <>
+                                                <Clock className="h-4 w-4 animate-spin" />
+                                                Cleaning...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Sparkles className="h-4 w-4" />
+                                                Clean Up ({cleanupEligibleTasks.length})
+                                            </>
+                                        )}
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Move all completed tasks to archives and tasks with projects to their respective projects</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    </div>
                 </div>
 
                 <Card>
                     <CardHeader>
-                        <CardTitle>Quick Add Task</CardTitle>
-
-                        {/* Quick Add Form */}
-                        <div className="pt-4 border-t">
+                        {/* Quick Add Form - removed heading */}
+                        <div className="pt-2">
                             <form onSubmit={handleQuickAdd} className="flex gap-2">
                                 <div className="flex-1">
                                     <Input
+                                        ref={quickAddInputRef}
                                         placeholder="Quick add a task..."
                                         value={quickAddTitle}
                                         onChange={(e) => setQuickAddTitle(e.target.value)}
@@ -358,13 +523,13 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                     </CardHeader>
                     <CardContent>
                         {sortedTasks.length > 0 ? (
-                            <div className="space-y-3">
+                            <div className="space-y-2">
                                 {sortedTasks.map((task) => {
                                     const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'done';
                                     return (
                                         <div
                                             key={task.id}
-                                            className={`group flex items-start gap-3 p-4 rounded-lg border transition-colors hover:bg-muted/30 ${
+                                            className={`group flex items-start gap-3 p-2 rounded-lg border transition-colors hover:bg-muted/30 ${
                                                 isOverdue ? 'border-red-200 bg-red-50/50' : 'border-border/50'
                                             } ${selectedTasks.has(task.id) ? 'ring-2 ring-primary/20 bg-primary/5' : ''}`}
                                         >
@@ -382,11 +547,6 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                                     <h3 className={`font-medium truncate ${task.status === 'done' ? 'line-through text-muted-foreground' : ''}`}>
                                                         {task.title}
                                                     </h3>
-                                                    {task.status === 'done' && (
-                                                        <Badge variant="default" className="text-xs">
-                                                            Done
-                                                        </Badge>
-                                                    )}
                                                     {isOverdue && (
                                                         <Badge variant="destructive" className="text-xs">
                                                             Overdue
@@ -395,23 +555,15 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                                 </div>
 
                                                 {task.description && (
-                                                    <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{task.description}</p>
+                                                    <p className="text-sm text-muted-foreground mb-1 line-clamp-2">{task.description}</p>
                                                 )}
 
-                                                <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                                    {task.due_date && (
-                                                        <div className={`flex items-center gap-1 ${isOverdue ? 'text-red-600' : ''}`}>
-                                                            <CalendarDays className="h-3 w-3" />
-                                                            <span>{new Date(task.due_date).toLocaleDateString()}</span>
-                                                        </div>
-                                                    )}
-                                                    {task.priority && (
-                                                        <div className="flex items-center gap-1">
-                                                            <Flag className="h-3 w-3" />
-                                                            <span className="capitalize">{task.priority}</span>
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                {task.due_date && (
+                                                    <div className={`flex items-center gap-1 text-xs text-muted-foreground ${isOverdue ? 'text-red-600' : ''}`}>
+                                                        <CalendarDays className="h-3 w-3" />
+                                                        <span>{new Date(task.due_date).toLocaleDateString()}</span>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -708,6 +860,122 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Create Task Dialog */}
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                <DialogContent className="sm:max-w-[500px]">
+                    <DialogHeader>
+                        <DialogTitle>Create New Task</DialogTitle>
+                        <DialogDescription>
+                            Create a new task with all the details you need.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleCreateTask} className="space-y-4">
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <label htmlFor="create-title" className="text-sm font-medium">Title</label>
+                                <Input
+                                    id="create-title"
+                                    placeholder="Task title"
+                                    value={createTaskData.title}
+                                    onChange={(e) => setCreateTaskData(prev => ({ ...prev, title: e.target.value }))}
+                                    required
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label htmlFor="create-description" className="text-sm font-medium">Description</label>
+                                <Textarea
+                                    id="create-description"
+                                    placeholder="Task description"
+                                    value={createTaskData.description}
+                                    onChange={(e) => setCreateTaskData(prev => ({ ...prev, description: e.target.value }))}
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label htmlFor="create-priority" className="text-sm font-medium">Priority</label>
+                                    <select
+                                        id="create-priority"
+                                        className="w-full rounded-md border border-input bg-background px-3 py-2"
+                                        value={createTaskData.priority}
+                                        onChange={(e) => setCreateTaskData(prev => ({ ...prev, priority: e.target.value as 'low' | 'medium' | 'high' | 'urgent' }))}
+                                    >
+                                        <option value="low">Low</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="high">High</option>
+                                        <option value="urgent">Urgent</option>
+                                    </select>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label htmlFor="create-status" className="text-sm font-medium">Status</label>
+                                    <select
+                                        id="create-status"
+                                        className="w-full rounded-md border border-input bg-background px-3 py-2"
+                                        value={createTaskData.status}
+                                        onChange={(e) => setCreateTaskData(prev => ({ ...prev, status: e.target.value as 'to_do' | 'in_progress' | 'done' }))}
+                                    >
+                                        <option value="to_do">To Do</option>
+                                        <option value="in_progress">In Progress</option>
+                                        <option value="done">Done</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label htmlFor="create-due-date" className="text-sm font-medium">Due Date</label>
+                                <Input
+                                    id="create-due-date"
+                                    type="date"
+                                    className="w-full"
+                                    value={createTaskData.due_date || ''}
+                                    onChange={(e) => setCreateTaskData(prev => ({ ...prev, due_date: e.target.value || null }))}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label htmlFor="create-assignees" className="text-sm font-medium">Assignees</label>
+                                <Select
+                                    value={createTaskData.assignee_ids.length > 0 ? createTaskData.assignee_ids[0].toString() : ''}
+                                    onValueChange={(value) => setCreateTaskData(prev => ({ ...prev, assignee_ids: value ? [parseInt(value)] : [] }))}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select an assignee" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="">No assignee</SelectItem>
+                                        {users.map((user) => (
+                                            <SelectItem key={user.id} value={user.id.toString()}>
+                                                {user.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
+                        <DialogFooter>
+                            <Button type="button" variant="outline" onClick={closeCreateDialog}>
+                                Cancel
+                            </Button>
+                            <Button type="submit" disabled={isCreatingTask}>
+                                {isCreatingTask ? (
+                                    <>
+                                        <Clock className="h-4 w-4 mr-2 animate-spin" />
+                                        Creating...
+                                    </>
+                                ) : (
+                                    'Create Task'
+                                )}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            {/* Cleanup confirmation dialog removed - using immediate cleanup with notifications */}
         </AppLayout>
     );
 }

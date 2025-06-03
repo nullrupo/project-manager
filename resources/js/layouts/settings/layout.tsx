@@ -27,6 +27,11 @@ const sidebarNavItems: NavItem[] = [
         href: '/settings/sidebar',
         icon: null,
     },
+    {
+        title: 'Inbox',
+        href: '/settings/inbox',
+        icon: null,
+    },
 ];
 
 export default function SettingsLayout({ children }: PropsWithChildren) {

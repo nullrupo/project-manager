@@ -31,16 +31,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDay, setSelectedDay] = useState<Date | null>(null);
 
-    const breadcrumbs: BreadcrumbItem[] = [
-        {
-            title: 'Projects',
-            href: route('projects.index'),
-        },
-        {
-            title: project.name,
-            href: route('projects.show', { project: project.id }),
-        },
-    ];
+    // Breadcrumbs removed - using browser navigation instead
 
     const handleDeleteMember = () => {
         if (memberToDelete) {
@@ -142,7 +133,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
     }
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <AppLayout>
             <Head title={project.name} />
             <div className="space-y-6">
                 <div className="flex justify-between items-start">

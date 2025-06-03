@@ -83,8 +83,21 @@ class InboxController extends Controller
             $task->assignees()->attach($validated['assignee_ids']);
         }
 
-        return redirect()->route('inbox')
-            ->with('success', 'Task created successfully.');
+        // Check if this is a quick task (minimal data) to avoid notification spam
+        $isQuickTask = empty($validated['description']) &&
+                      $validated['priority'] === 'medium' &&
+                      $validated['status'] === 'to_do' &&
+                      empty($validated['due_date']) &&
+                      empty($validated['assignee_ids']);
+
+        if ($isQuickTask) {
+            // No notification for quick tasks to avoid spam
+            return redirect()->route('inbox');
+        } else {
+            // Show notification for full tasks
+            return redirect()->route('inbox')
+                ->with('success', 'Task created successfully.');
+        }
     }
 
     /**
@@ -206,5 +219,58 @@ class InboxController extends Controller
 
         return redirect()->route('inbox')
             ->with('success', "Task moved to project '{$project->name}' successfully.");
+    }
+
+    /**
+     * Clean up completed and moved tasks from inbox.
+     * Archives completed tasks and moves project tasks back to their projects.
+     */
+    public function cleanup(Request $request): RedirectResponse
+    {
+        $user = Auth::user();
+
+        // Find tasks eligible for cleanup:
+        // 1. Completed tasks (status === 'done') - these will be archived
+        // 2. Tasks that have been moved to projects (project_id is not null) - these will be moved back to projects
+        $completedTasks = Task::where(function ($query) use ($user) {
+            $query->where('created_by', $user->id)
+                  ->orWhereHas('assignees', function ($q) use ($user) {
+                      $q->where('users.id', $user->id);
+                  });
+        })
+        ->where('status', 'done')
+        ->where('is_inbox', true)
+        ->get();
+
+        $projectTasks = Task::where(function ($query) use ($user) {
+            $query->where('created_by', $user->id)
+                  ->orWhereHas('assignees', function ($q) use ($user) {
+                      $q->where('users.id', $user->id);
+                  });
+        })
+        ->whereNotNull('project_id')
+        ->where('is_inbox', true)
+        ->get();
+
+        $cleanupCount = 0;
+
+        // Archive completed tasks (remove from inbox but keep in database)
+        foreach ($completedTasks as $task) {
+            if ($task->created_by === $user->id || $task->assignees->contains($user->id)) {
+                $task->update(['is_inbox' => false]);
+                $cleanupCount++;
+            }
+        }
+
+        // Move project tasks back to their projects (remove from inbox)
+        foreach ($projectTasks as $task) {
+            if ($task->created_by === $user->id || $task->assignees->contains($user->id)) {
+                $task->update(['is_inbox' => false]);
+                $cleanupCount++;
+            }
+        }
+
+        return redirect()->route('inbox')
+            ->with('success', "Inbox cleaned! {$cleanupCount} tasks moved to archives and projects.");
     }
 }
