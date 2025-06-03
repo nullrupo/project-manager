@@ -226,6 +226,8 @@ class TaskController extends Controller
             'status' => 'required|string',
             'estimate' => 'nullable|integer|min:0',
             'due_date' => 'nullable|date',
+            'start_date' => 'nullable|date',
+            'duration_days' => 'nullable|integer|min:1',
             'list_id' => 'required|exists:lists,id',
             'assignee_ids' => 'nullable|array',
             'assignee_ids.*' => 'exists:users,id',
@@ -242,6 +244,8 @@ class TaskController extends Controller
             'status' => $validated['status'],
             'estimate' => $validated['estimate'] ?? null,
             'due_date' => $validated['due_date'] ?? null,
+            'start_date' => $validated['start_date'] ?? null,
+            'duration_days' => $validated['duration_days'] ?? null,
             'list_id' => $validated['list_id'],
             'is_archived' => $validated['is_archived'] ?? false,
         ]);
@@ -254,6 +258,40 @@ class TaskController extends Controller
 
         return redirect()->route('tasks.show', [$project, $task])
             ->with('success', 'Task updated successfully.');
+    }
+
+    /**
+     * Update the due date of a task.
+     */
+    public function updateDueDate(Request $request, Project $project, Task $task): JsonResponse
+    {
+        // Check if the task belongs to the project
+        if ($task->project_id !== $project->id) {
+            abort(404, 'Task not found in this project.');
+        }
+
+        // Check if user has permission to manage tasks in this project
+        if (!ProjectPermissionService::can($project, 'can_manage_tasks')) {
+            abort(403, 'You do not have permission to manage tasks in this project.');
+        }
+
+        $validated = $request->validate([
+            'due_date' => 'nullable|date',
+            'start_date' => 'nullable|date',
+            'duration_days' => 'nullable|integer|min:1',
+        ]);
+
+        $task->update([
+            'due_date' => $validated['due_date'] ?? null,
+            'start_date' => $validated['start_date'] ?? null,
+            'duration_days' => $validated['duration_days'] ?? null,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Task due date updated successfully.',
+            'task' => $task->fresh(['assignees', 'labels', 'creator'])
+        ]);
     }
 
     /**

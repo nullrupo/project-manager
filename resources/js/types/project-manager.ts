@@ -75,6 +75,8 @@ export interface Task {
     status: 'to_do' | 'in_progress' | 'done';
     estimate: number | null;
     due_date: string | null;
+    start_date: string | null;
+    duration_days: number | null;
     completed_at: string | null;
     is_archived: boolean;
     is_inbox: boolean;

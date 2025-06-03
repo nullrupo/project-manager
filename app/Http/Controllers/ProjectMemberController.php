@@ -13,34 +13,7 @@ use Inertia\Response;
 
 class ProjectMemberController extends Controller
 {
-    /**
-     * Display a listing of project members
-     */
-    public function index(Project $project): Response
-    {
-        // Check if current user can view project
-        if (!ProjectPermissionService::can($project, 'can_view_project')) {
-            abort(403, 'You do not have permission to view this project.');
-        }
 
-        // Load project with members and their permissions
-        $project->load(['members' => function ($query) {
-            $query->withPivot(['role', 'can_manage_members', 'can_manage_boards', 'can_manage_tasks', 'can_manage_labels', 'can_view_project', 'can_comment']);
-        }, 'owner']);
-
-        // Add permission information using the permission system
-        $user = Auth::user();
-        $project->can_edit = ProjectPermissionService::can($project, 'can_manage_boards');
-        $project->can_manage_members = ProjectPermissionService::can($project, 'can_manage_members');
-        $project->can_manage_tasks = ProjectPermissionService::can($project, 'can_manage_tasks');
-        $project->can_manage_labels = ProjectPermissionService::can($project, 'can_manage_labels');
-        $project->user_role = ProjectPermissionService::getUserRole($project, $user);
-        $project->user_permissions = ProjectPermissionService::getUserPermissions($project, $user);
-
-        return Inertia::render('projects/members/index', [
-            'project' => $project,
-        ]);
-    }
 
     /**
      * Search for users to add to project
@@ -70,37 +43,7 @@ class ProjectMemberController extends Controller
         return response()->json($users);
     }
 
-    /**
-     * Show the form for editing member permissions
-     */
-    public function edit(Project $project, User $user): Response
-    {
-        // Check if current user can manage members
-        if (!ProjectPermissionService::can($project, 'can_manage_members')) {
-            abort(403, 'You do not have permission to manage project members.');
-        }
 
-        // Get user's current permissions
-        $userPermissions = ProjectPermissionService::getUserPermissions($project, $user);
-        $userRole = ProjectPermissionService::getUserRole($project, $user);
-
-        return Inertia::render('projects/members/edit', [
-            'project' => $project,
-            'member' => $user,
-            'memberRole' => $userRole,
-            'memberPermissions' => $userPermissions,
-            'availableRoles' => [
-                'admin' => ProjectPermissionService::getRoleDescriptions()['admin'],
-                'editor' => ProjectPermissionService::getRoleDescriptions()['editor'],
-                'viewer' => ProjectPermissionService::getRoleDescriptions()['viewer'],
-            ],
-            'defaultPermissions' => [
-                'admin' => ProjectPermissionService::getDefaultPermissions('admin'),
-                'editor' => ProjectPermissionService::getDefaultPermissions('editor'),
-                'viewer' => ProjectPermissionService::getDefaultPermissions('viewer'),
-            ],
-        ]);
-    }
 
     /**
      * Update member permissions
