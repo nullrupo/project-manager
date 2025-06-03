@@ -27,10 +27,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('projects', ProjectController::class);
 
     // Project member routes (search route must come before {user} route)
-    Route::get('projects/{project}/members', [ProjectMemberController::class, 'index'])->name('projects.members.index');
     Route::get('projects/{project}/members/search', [ProjectMemberController::class, 'searchUsers'])->name('projects.members.search');
     Route::post('projects/{project}/members', [ProjectMemberController::class, 'store'])->name('projects.members.store');
-    Route::get('projects/{project}/members/{user}/edit', [ProjectMemberController::class, 'edit'])->name('projects.members.edit');
     Route::put('projects/{project}/members/{user}', [ProjectMemberController::class, 'update'])->name('projects.members.update');
     Route::delete('projects/{project}/members/{user}', [ProjectMemberController::class, 'destroy'])->name('projects.members.destroy');
 
@@ -56,6 +54,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('projects/{project}/tasks/{task}', [TaskController::class, 'show'])->name('tasks.show');
     Route::get('projects/{project}/tasks/{task}/edit', [TaskController::class, 'edit'])->name('tasks.edit');
     Route::put('projects/{project}/tasks/{task}', [TaskController::class, 'update'])->name('tasks.update');
+    Route::patch('projects/{project}/tasks/{task}/due-date', [TaskController::class, 'updateDueDate'])->name('tasks.update-due-date');
     Route::delete('projects/{project}/tasks/{task}', [TaskController::class, 'destroy'])->name('tasks.destroy');
     Route::post('projects/{project}/tasks/positions', [TaskController::class, 'updatePositions'])->name('tasks.positions');
 

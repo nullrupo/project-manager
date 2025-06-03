@@ -11,9 +11,13 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Project } from '@/types/project-manager';
 import { Head, Link, usePage, router } from '@inertiajs/react';
-import { Archive, Edit, Lock, Plus, Trash2, Users, ListTodo, Tag, Globe, Shield, Calendar, BarChart3, UserPlus, Settings, Crown, Clock, AlertCircle, CheckCircle2, Search, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Archive, Edit, Lock, Plus, Trash2, Users, ListTodo, Tag, Globe, Shield, Calendar, BarChart3, UserPlus, Settings, Crown, Clock, AlertCircle, CheckCircle2, Search, Filter, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu } from 'lucide-react';
 import InviteMemberModal from '@/components/invite-member-modal';
-import { useState } from 'react';
+import MemberPermissionModal from '@/components/member-permission-modal';
+import { useState, useEffect } from 'react';
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useSensor, useSensors, PointerSensor, MouseSensor } from '@dnd-kit/core';
+import { useDraggable, useDroppable } from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
 
 interface ProjectShowProps {
     project: Project;
@@ -23,15 +27,14 @@ export default function ProjectShow({ project }: ProjectShowProps) {
     const { auth } = usePage<SharedData>().props;
     const canEdit = project.can_edit;
     const [inviteModalOpen, setInviteModalOpen] = useState(false);
-    const [activeTab, setActiveTab] = useState('boards');
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [memberToDelete, setMemberToDelete] = useState<any>(null);
+    const [permissionModalOpen, setPermissionModalOpen] = useState(false);
+    const [editingMember, setEditingMember] = useState<any>(null);
     const [boardSearchQuery, setBoardSearchQuery] = useState('');
     const [boardTypeFilter, setBoardTypeFilter] = useState('all');
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDay, setSelectedDay] = useState<Date | null>(null);
-
-    // Breadcrumbs removed - using browser navigation instead
 
     const handleDeleteMember = () => {
         if (memberToDelete) {
@@ -66,14 +69,18 @@ export default function ProjectShow({ project }: ProjectShowProps) {
         const days = [];
 
         // Previous month's trailing days
-        const prevMonth = new Date(year, month - 1, 0);
-        const daysInPrevMonth = prevMonth.getDate();
-        for (let i = firstDay - 1; i >= 0; i--) {
-            days.push({
-                date: new Date(year, month - 1, daysInPrevMonth - i),
-                isCurrentMonth: false,
-                tasks: []
-            });
+        if (firstDay > 0) {
+            const prevMonthYear = month === 0 ? year - 1 : year;
+            const prevMonthIndex = month === 0 ? 11 : month - 1;
+            const daysInPrevMonth = new Date(prevMonthYear, prevMonthIndex + 1, 0).getDate();
+
+            for (let i = firstDay - 1; i >= 0; i--) {
+                days.push({
+                    date: new Date(prevMonthYear, prevMonthIndex, daysInPrevMonth - i),
+                    isCurrentMonth: false,
+                    tasks: []
+                });
+            }
         }
 
         // Current month's days
@@ -88,22 +95,23 @@ export default function ProjectShow({ project }: ProjectShowProps) {
 
         // Next month's leading days
         const remainingDays = 42 - days.length; // 6 weeks * 7 days
-        for (let day = 1; day <= remainingDays; day++) {
-            days.push({
-                date: new Date(year, month + 1, day),
-                isCurrentMonth: false,
-                tasks: []
-            });
+        if (remainingDays > 0) {
+            const nextMonthYear = month === 11 ? year + 1 : year;
+            const nextMonthIndex = month === 11 ? 0 : month + 1;
+
+            for (let day = 1; day <= remainingDays; day++) {
+                days.push({
+                    date: new Date(nextMonthYear, nextMonthIndex, day),
+                    isCurrentMonth: false,
+                    tasks: []
+                });
+            }
         }
 
         return days;
     };
 
-    const getTasksForDate = (date: Date) => {
-        // This would normally come from the project's tasks with due dates
-        // For now, return empty array as we don't have task data in the project prop
-        return [];
-    };
+
 
     const navigateMonth = (direction: 'prev' | 'next') => {
         setCurrentDate(prev => {
@@ -126,11 +134,1230 @@ export default function ProjectShow({ project }: ProjectShowProps) {
         return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     };
 
+    // Get all tasks from project boards
+    const getAllProjectTasks = () => {
+        const tasks: any[] = [];
+        project.boards?.forEach(board => {
+            board.lists?.forEach(list => {
+                list.tasks?.forEach(task => {
+                    // Apply local updates if they exist
+                    const updatedTask = localTaskUpdates[task.id]
+                        ? { ...task, ...localTaskUpdates[task.id] }
+                        : task;
+
+                    tasks.push({
+                        ...updatedTask,
+                        boardName: board.name,
+                        listName: list.name
+                    });
+                });
+            });
+        });
+        return tasks;
+    };
+
+    // Get tasks for a specific date (only single-day tasks - multi-day tasks are handled separately)
+    const getTasksForDate = (date: Date) => {
+        const dateStr = date.toISOString().split('T')[0];
+        const allTasks = getAllProjectTasks();
+        if (!allTasks || allTasks.length === 0) return [];
+
+        return allTasks.filter(task => {
+            if (!task || !task.due_date) return false;
+
+            const taskDueDate = task.due_date.split('T')[0];
+
+            // Skip multi-day tasks completely - they will be rendered as continuous strips
+            if (task.start_date && task.duration_days && task.duration_days > 1) {
+                return false;
+            }
+
+            // For single-day tasks, just check due date
+            return taskDueDate === dateStr;
+        });
+    };
+
+    // Get all multi-day tasks that should be rendered as continuous strips
+    const getMultiDayTasks = () => {
+        const allTasks = getAllProjectTasks();
+        if (!allTasks || allTasks.length === 0) return [];
+
+        return allTasks.filter(task =>
+            task && task.start_date && task.duration_days && task.duration_days > 1
+        );
+    };
+
+    // Calculate row positions for multi-day tasks to prevent overlapping
+    const getMultiDayTasksWithRows = () => {
+        const multiDayTasks = getMultiDayTasks();
+        if (!multiDayTasks.length) return [];
+
+
+
+        // Sort tasks by start date, then by duration (longer tasks first for better packing)
+        const sortedTasks = [...multiDayTasks].sort((a, b) => {
+            const dateA = new Date(a.start_date.split('T')[0]);
+            const dateB = new Date(b.start_date.split('T')[0]);
+            const dateDiff = dateA.getTime() - dateB.getTime();
+
+            // If same start date, prioritize longer tasks
+            if (dateDiff === 0) {
+                return (b.duration_days || 1) - (a.duration_days || 1);
+            }
+            return dateDiff;
+        });
+
+        // Track occupied rows for each date
+        const occupiedRows: { [dateKey: string]: Set<number> } = {};
+
+        // Assign row positions to tasks
+        const tasksWithRows = sortedTasks.map(task => {
+            const startDate = new Date(task.start_date.split('T')[0]);
+            let endDate: Date;
+
+            // Calculate end date properly
+            if (task.due_date) {
+                endDate = new Date(task.due_date.split('T')[0]);
+            } else if (task.duration_days) {
+                endDate = new Date(startDate);
+                endDate.setDate(startDate.getDate() + task.duration_days - 1);
+            } else {
+                endDate = new Date(startDate);
+            }
+
+
+
+            // Find the first available row for this task's entire duration
+            let assignedRow = 0;
+            let rowFound = false;
+
+            while (!rowFound && assignedRow < 10) { // Safety limit
+                let canUseRow = true;
+
+                // Check if this row is available for the entire task duration
+                const currentDate = new Date(startDate);
+                while (currentDate <= endDate) {
+                    const dateKey = currentDate.toISOString().split('T')[0];
+
+                    if (!occupiedRows[dateKey]) {
+                        occupiedRows[dateKey] = new Set();
+                    }
+
+                    if (occupiedRows[dateKey].has(assignedRow)) {
+                        canUseRow = false;
+                        break;
+                    }
+
+                    currentDate.setDate(currentDate.getDate() + 1);
+                }
+
+                if (canUseRow) {
+                    // Mark this row as occupied for the entire task duration
+                    const currentDate = new Date(startDate);
+                    while (currentDate <= endDate) {
+                        const dateKey = currentDate.toISOString().split('T')[0];
+                        occupiedRows[dateKey].add(assignedRow);
+                        currentDate.setDate(currentDate.getDate() + 1);
+                    }
+                    rowFound = true;
+
+                } else {
+                    assignedRow++;
+                }
+            }
+
+            return {
+                ...task,
+                taskRow: assignedRow
+            };
+        });
+
+
+        return tasksWithRows;
+    };
+
+    // Check if a task spans multiple days
+    const isMultiDayTask = (task: any) => {
+        return task.start_date && task.duration_days && task.duration_days > 1;
+    };
+
+    // Get the position of a date within a multi-day task
+    const getTaskDatePosition = (task: any, date: Date) => {
+        if (!isMultiDayTask(task)) return 'single';
+
+        const dateStr = date.toISOString().split('T')[0];
+        const startDateStr = task.start_date.split('T')[0];
+        const endDateStr = task.due_date.split('T')[0];
+
+        if (dateStr === startDateStr) return 'start';
+        if (dateStr === endDateStr) return 'end';
+        return 'middle';
+    };
+
+    // Drag and drop handlers
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 3,
+            },
+        }),
+        useSensor(MouseSensor, {
+            activationConstraint: {
+                distance: 3,
+            },
+        })
+    );
+
+    const handleDragStart = (event: DragStartEvent) => {
+        const { active } = event;
+
+        // Prevent dragging if a resize handle is being used
+        if (isAnyHandleResizing) {
+            return;
+        }
+
+        // Check if dragging a member
+        if (active.id.toString().startsWith('member-')) {
+            const memberId = active.id.toString().split('-')[1];
+            const member = project.members?.find(m => m.id.toString() === memberId);
+            setActiveTask({ type: 'member', ...member });
+            setDraggedTask({ type: 'member', ...member });
+            return;
+        }
+
+        let task;
+        if (active.id.toString().startsWith('calendar-task-')) {
+            // Dragging from calendar (old single-day tasks)
+            const taskId = active.id.toString().split('-')[2];
+            task = getAllProjectTasks().find(t => t.id.toString() === taskId);
+        } else if (active.id.toString().startsWith('multiday-task-')) {
+            // Dragging multi-day task strip
+            const taskId = active.id.toString().split('-')[2];
+            task = getAllProjectTasks().find(t => t.id.toString() === taskId);
+        } else {
+            // Dragging from task list
+            task = getAllProjectTasks().find(t => t.id.toString() === active.id);
+        }
+
+
+        setActiveTask(task);
+        setDraggedTask(task);
+    };
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+
+        if (!over) {
+            setActiveTask(null);
+            setDraggedTask(null);
+            return;
+        }
+
+        // Handle member assignment to tasks
+        if (active.id.toString().startsWith('member-')) {
+            const memberId = active.id.toString().split('-')[1];
+            const member = project.members?.find(m => m.id.toString() === memberId);
+
+            if (!member) {
+                setActiveTask(null);
+                setDraggedTask(null);
+                return;
+            }
+
+            // Check if dropped on a task
+            let targetTask = null;
+            if (over.id.toString().startsWith('task-drop-')) {
+                const taskId = over.id.toString().split('-')[2];
+                targetTask = getAllProjectTasks().find(t => t.id.toString() === taskId);
+            } else if (over.id.toString().startsWith('multiday-task-drop-')) {
+                const taskId = over.id.toString().split('-')[3];
+                targetTask = getAllProjectTasks().find(t => t.id.toString() === taskId);
+            }
+
+            if (targetTask) {
+                // Assign member to task
+                setTaskToAssign(targetTask);
+                setAssignTaskModalOpen(true);
+                console.log(`Assigning ${member.name} to task: ${targetTask.title}`);
+            }
+
+            setActiveTask(null);
+            setDraggedTask(null);
+            return;
+        }
+
+        // Get the task being dragged
+        let task = draggedTask;
+        let isFromCalendar = false;
+
+        // Check if dragging from calendar
+        if (active.id.toString().startsWith('calendar-task-')) {
+            const taskId = active.id.toString().split('-')[2];
+            task = getAllProjectTasks().find(t => t.id.toString() === taskId);
+            isFromCalendar = true;
+        } else if (active.id.toString().startsWith('multiday-task-')) {
+            const taskId = active.id.toString().split('-')[2];
+            task = getAllProjectTasks().find(t => t.id.toString() === taskId);
+            isFromCalendar = true;
+        }
+
+        if (!task) {
+            setActiveTask(null);
+            setDraggedTask(null);
+            return;
+        }
+
+        // Check if dropped on a calendar day
+        if (over.id.toString().startsWith('calendar-day-')) {
+            const dateStr = over.id.toString().replace('calendar-day-', '');
+            const newDueDate = new Date(dateStr).toISOString().split('T')[0];
+
+            setIsUpdatingTask(true);
+
+            // For new tasks (no existing due date), set as single day task
+            // For existing tasks, preserve duration if it exists
+            let startDate = newDueDate;
+            let durationDays = 1;
+
+            if (task.start_date && task.duration_days) {
+                // Preserve existing duration
+                durationDays = task.duration_days;
+                startDate = newDueDate;
+
+                // Calculate new due date based on duration
+                const newStartDate = new Date(startDate);
+                const calculatedDueDate = new Date(newStartDate);
+                calculatedDueDate.setDate(calculatedDueDate.getDate() + durationDays - 1);
+                const finalDueDate = calculatedDueDate.toISOString().split('T')[0];
+
+                // Apply optimistic update immediately
+                setLocalTaskUpdates(prev => ({
+                    ...prev,
+                    [task.id]: {
+                        start_date: startDate,
+                        due_date: finalDueDate,
+                        duration_days: durationDays
+                    }
+                }));
+
+                // Temporarily disable server updates to prevent infinite loop
+                console.log('Task moved successfully with duration - server update disabled');
+                setIsUpdatingTask(false);
+            } else {
+                // Simple single-day task
+                // Apply optimistic update immediately
+                setLocalTaskUpdates(prev => ({
+                    ...prev,
+                    [task.id]: {
+                        due_date: newDueDate,
+                        start_date: newDueDate,
+                        duration_days: 1
+                    }
+                }));
+
+                // Temporarily disable server updates to prevent infinite loop
+                console.log('Task due date updated successfully - server update disabled');
+                setIsUpdatingTask(false);
+            }
+        }
+
+        setActiveTask(null);
+        setDraggedTask(null);
+    };
+
+    // Generate calendar data fresh each render for real-time updates
     const calendarDays = generateCalendarDays();
     const weeks = [];
     for (let i = 0; i < calendarDays.length; i += 7) {
         weeks.push(calendarDays.slice(i, i + 7));
     }
+
+    // Draggable Member Component
+    const DraggableMember = ({ member }: { member: any }) => {
+        const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+            id: `member-${member.id}`,
+            data: { member, type: 'member' }
+        });
+
+        const style = {
+            transform: CSS.Translate.toString(transform),
+            opacity: isDragging ? 0.5 : 1,
+        };
+
+        return (
+            <div
+                ref={setNodeRef}
+                style={style}
+                {...listeners}
+                {...attributes}
+                className={`flex items-center gap-2 p-2 bg-background border rounded-lg cursor-grab active:cursor-grabbing hover:shadow-md transition-all ${isDragging ? 'ring-2 ring-blue-500 shadow-lg' : ''}`}
+                title={`Drag ${member.name} to assign to tasks`}
+            >
+                <Avatar className="h-8 w-8 border">
+                    <AvatarImage src={member.avatar} />
+                    <AvatarFallback className="text-sm font-medium">
+                        {member.name.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-medium truncate">{member.name}</span>
+                    <span className="text-xs text-muted-foreground truncate">{member.email}</span>
+                </div>
+            </div>
+        );
+    };
+
+    // Draggable Task Component
+    const DraggableTask = ({ task }: { task: any }) => {
+        const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+            id: task.id.toString(),
+            data: { task }
+        });
+
+        const style = {
+            transform: CSS.Translate.toString(transform),
+            opacity: isDragging ? 0.5 : 1,
+        };
+
+
+
+        return (
+            <div
+                ref={setNodeRef}
+                style={style}
+                {...listeners}
+                {...attributes}
+                className={`p-2 border-l-4 rounded-md transition-colors group relative cursor-grab active:cursor-grabbing hover:shadow-md ${getPriorityColor(task.priority)} ${isDragging ? 'ring-2 ring-blue-500 shadow-lg' : ''}`}
+                title={`Drag to calendar (ID: ${task.id}) - Click and drag me!`}
+            >
+                <div className="flex items-start justify-between mb-1">
+                    <h4 className="font-medium text-xs truncate flex-1 mr-2">{task.title}</h4>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                        {task.assignees?.slice(0, 2).map((assignee: any) => (
+                            <Avatar key={assignee.id} className="h-4 w-4 border">
+                                <AvatarImage src={assignee.avatar} />
+                                <AvatarFallback className="text-xs">
+                                    {assignee.name.charAt(0).toUpperCase()}
+                                </AvatarFallback>
+                            </Avatar>
+                        ))}
+                        {task.assignees?.length > 2 && (
+                            <div className="h-4 w-4 rounded-full bg-muted text-xs flex items-center justify-center">
+                                +{task.assignees.length - 2}
+                            </div>
+                        )}
+                    </div>
+                </div>
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="truncate flex-1 mr-2">{task.boardName} • {task.listName}</span>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                        {task.duration_days && task.duration_days > 1 && (
+                            <Badge variant="secondary" className="text-xs">
+                                {task.duration_days}d
+                            </Badge>
+                        )}
+                        <Badge variant="outline" className="text-xs">
+                            {task.priority}
+                        </Badge>
+                    </div>
+                </div>
+
+                {/* Assignment button */}
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setTaskToAssign(task);
+                        setAssignTaskModalOpen(true);
+                    }}
+                >
+                    <Users className="h-4 w-4" />
+                </Button>
+            </div>
+        );
+    };
+
+    // Droppable Calendar Day Component
+    const DroppableCalendarDay = ({ day }: { day: any }) => {
+        const dropId = `calendar-day-${day.date.toISOString().split('T')[0]}`;
+        const { setNodeRef, isOver } = useDroppable({
+            id: dropId,
+        });
+
+
+
+        const dayTasks = getTasksForDate(day.date);
+
+        return (
+            <div
+                ref={setNodeRef}
+                className={`min-h-[180px] p-2 border-r border-b border-border last:border-r-0 transition-all duration-200 ${
+                    !day.isCurrentMonth
+                        ? 'bg-muted/20 text-muted-foreground'
+                        : 'bg-background hover:bg-muted/30'
+                } ${isToday(day.date) ? 'bg-primary/10 border-primary/20' : ''} ${
+                    isOver ? 'bg-blue-100 dark:bg-blue-950/30 border-blue-300 border-2 border-dashed' : ''
+                }`}
+            >
+                <div className={`text-sm font-medium mb-1 ${
+                    isToday(day.date) ? 'text-primary' : day.isCurrentMonth ? 'text-foreground' : 'text-muted-foreground'
+                }`}>
+                    {day.date.getDate()}
+                </div>
+
+                <div className="space-y-1">
+                    {dayTasks.slice(0, 2).map((task) => {
+
+                        const taskPosition = getTaskDatePosition(task, day.date);
+                        const isMultiDay = isMultiDayTask(task);
+
+                        // Different styling for multi-day tasks
+                        let multiDayClasses = '';
+                        let durationText = '';
+
+                        if (isMultiDay) {
+                            durationText = ` (${task.duration_days}d)`;
+                            switch (taskPosition) {
+                                case 'start':
+                                    multiDayClasses = 'rounded-l border-r-0';
+                                    break;
+                                case 'middle':
+                                    multiDayClasses = 'rounded-none border-r-0 border-l-0 border-l-2';
+                                    break;
+                                case 'end':
+                                    multiDayClasses = 'rounded-r border-l-0 border-l-2';
+                                    break;
+                                default:
+                                    multiDayClasses = 'rounded';
+                            }
+                        }
+
+                        // Make calendar tasks draggable and droppable for member assignment
+                        const CalendarTask = ({ task, day, taskPosition, isMultiDay, multiDayClasses, durationText }: any) => {
+                            const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } = useDraggable({
+                                id: `calendar-task-${task.id}-${day.date.toISOString()}`,
+                                data: { task, source: 'calendar' }
+                            });
+
+                            const { setNodeRef: setDropRef, isOver } = useDroppable({
+                                id: `task-drop-${task.id}-${day.date.toISOString()}`,
+                                data: { task, type: 'task' }
+                            });
+
+                            const style = {
+                                transform: CSS.Translate.toString(transform),
+                                opacity: isDragging ? 0.5 : 1,
+                            };
+
+                            // Combine refs
+                            const setNodeRef = (node: HTMLElement | null) => {
+                                setDragRef(node);
+                                setDropRef(node);
+                            };
+
+                            return (
+                                <div
+                                    ref={setNodeRef}
+                                    style={style}
+                                    key={`${task.id}-${day.date.toISOString()}`}
+                                    onClick={(e) => {
+                                        // Only navigate if not dragging and not clicking on resize handles
+                                        if (!isDragging && !(e.target as HTMLElement).closest('.resize-handle')) {
+                                            router.visit(route('tasks.show', { project: project.id, task: task.id }));
+                                        }
+                                    }}
+                                    onContextMenu={(e) => {
+                                        e.preventDefault();
+                                        setTaskToExtend(task);
+                                        setDurationModalOpen(true);
+                                    }}
+                                    className={`group h-8 text-sm px-3 truncate flex items-center gap-1 border-l-4 hover:opacity-90 transition-all duration-200 ease-out shadow-sm relative ${getPriorityColor(task.priority)} ${multiDayClasses || 'rounded'} ${isDragging ? 'ring-2 ring-blue-400 shadow-lg scale-105' : 'hover:shadow-md'} ${isOver ? 'ring-2 ring-green-400 bg-green-50 dark:bg-green-950/20' : ''}`}
+                                    title={`${task.title} - ${task.priority} priority${durationText} | Drag to move, right-click for duration`}
+                                >
+                                    {/* Main draggable area - excludes resize handles */}
+                                    <div
+                                        {...listeners}
+                                        {...attributes}
+                                        className="flex items-center gap-1 flex-1 cursor-grab active:cursor-grabbing"
+                                    >
+                                        {task.assignees?.[0] && taskPosition !== 'middle' && (
+                                            <Avatar className="h-3 w-3 flex-shrink-0">
+                                                <AvatarImage src={task.assignees[0].avatar} />
+                                                <AvatarFallback className="text-xs">
+                                                    {task.assignees[0].name.charAt(0).toUpperCase()}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                        )}
+                                        <span className="truncate">
+                                            {taskPosition === 'start' && isMultiDay ? `${task.title} ${durationText}` :
+                                             taskPosition === 'middle' ? '━━━' :
+                                             taskPosition === 'end' ? `━━ ${task.title}` :
+                                             task.title}
+                                        </span>
+                                    </div>
+
+                                    {/* Assignment button - appears on hover */}
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="absolute right-1 top-1 opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setTaskToAssign(task);
+                                            setAssignTaskModalOpen(true);
+                                        }}
+                                        title="Assign task"
+                                    >
+                                        <Users className="h-3 w-3" />
+                                    </Button>
+
+                                    {/* Resize handles for all tasks - outside draggable area */}
+                                    <>
+                                        {/* Left handle - for moving start date or shrinking from start */}
+                                        {(taskPosition === 'start' || taskPosition === 'single') && (
+                                            <ResizeHandle
+                                                task={task}
+                                                direction="start"
+                                                onResize={(newDuration) => handleTaskResize(task, newDuration)}
+                                            />
+                                        )}
+                                        {/* Right handle - for extending/shrinking from end */}
+                                        {(taskPosition === 'end' || taskPosition === 'single') && (
+                                            <ResizeHandle
+                                                task={task}
+                                                direction="end"
+                                                onResize={(newDuration) => handleTaskResize(task, newDuration)}
+                                            />
+                                        )}
+                                    </>
+                                </div>
+                            );
+                        };
+
+                        return <CalendarTask
+                            key={`calendar-task-${task.id}-${day.date.toISOString()}`}
+                            task={task}
+                            day={day}
+                            taskPosition={taskPosition}
+                            isMultiDay={isMultiDay}
+                            multiDayClasses={multiDayClasses}
+                            durationText={durationText}
+                        />;
+                    })}
+                    {dayTasks.length > 2 && (
+                        <div className="text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors" title={`${dayTasks.length - 2} more tasks`}>
+                            +{dayTasks.length - 2} more
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    // Continuous Multi-Day Task Strip Component
+    const MultiDayTaskStrip = ({ task, calendarDays }: { task: any; calendarDays: any[] }) => {
+        // Use local updates if available for real-time feedback, but preserve taskRow
+        const localUpdate = localTaskUpdates[task.id] || {};
+        const currentTask = {
+            ...task,
+            ...localUpdate,
+            // Preserve taskRow from original task assignment
+            taskRow: task.taskRow
+        };
+
+
+
+        // Safety checks - ensure we have valid data
+        if (!currentTask || !currentTask.start_date || !currentTask.due_date || !calendarDays || calendarDays.length === 0) {
+            return null;
+        }
+
+        // Ensure dates are valid
+        const startDateStr = currentTask.start_date.split('T')[0];
+        const dueDateStr = currentTask.due_date.split('T')[0];
+        if (!startDateStr || !dueDateStr) {
+            return null;
+        }
+
+        const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } = useDraggable({
+            id: `multiday-task-${currentTask.id}`,
+            data: { task: currentTask, source: 'calendar' }
+        });
+
+        const { setNodeRef: setDropRef, isOver } = useDroppable({
+            id: `multiday-task-drop-${currentTask.id}`,
+            data: { task: currentTask, type: 'task' }
+        });
+
+        const style = {
+            transform: CSS.Translate.toString(transform),
+            opacity: isDragging ? 0.5 : 1,
+        };
+
+        // Combine refs for the first segment only
+        const setNodeRef = (node: HTMLElement | null) => {
+            setDragRef(node);
+            setDropRef(node);
+        };
+
+        // Calculate task position and span using validated date strings
+        const startDate = new Date(startDateStr);
+        const endDate = new Date(dueDateStr);
+
+        // Validate the date objects
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+            return null;
+        }
+
+        // Find start and end positions in the calendar grid
+        const startDayIndex = calendarDays.findIndex(day =>
+            day.date.toISOString().split('T')[0] === startDateStr
+        );
+        const endDayIndex = calendarDays.findIndex(day =>
+            day.date.toISOString().split('T')[0] === dueDateStr
+        );
+
+        if (startDayIndex === -1 || endDayIndex === -1) return null;
+
+        // Calculate grid position
+        const startRow = Math.floor(startDayIndex / 7);
+        const startCol = startDayIndex % 7;
+        const endRow = Math.floor(endDayIndex / 7);
+        const endCol = endDayIndex % 7;
+
+        // Handle tasks that span multiple weeks
+        const taskSegments = [];
+        let currentRow = startRow;
+        let currentStartCol = startCol;
+
+        while (currentRow <= endRow) {
+            const isLastRow = currentRow === endRow;
+            const segmentEndCol = isLastRow ? endCol : 6;
+            const segmentSpan = segmentEndCol - currentStartCol + 1;
+
+            taskSegments.push({
+                row: currentRow,
+                startCol: currentStartCol,
+                span: segmentSpan,
+                isFirst: currentRow === startRow,
+                isLast: isLastRow
+            });
+
+            currentRow++;
+            currentStartCol = 0;
+        }
+
+        return (
+            <>
+                {taskSegments.map((segment, index) => (
+                    <div
+                        key={`${currentTask.id}-segment-${index}-${currentTask.start_date}-${currentTask.due_date}`}
+                        ref={index === 0 ? setNodeRef : undefined}
+                        className={`group absolute z-20 h-8 ${getPriorityColor(currentTask.priority)} border-l-4 text-sm flex items-center cursor-grab active:cursor-grabbing hover:opacity-90 transition-all duration-200 ease-out shadow-sm ${
+                            segment.isFirst && segment.isLast ? 'rounded' :
+                            segment.isFirst ? 'rounded-l' :
+                            segment.isLast ? 'rounded-r' : ''
+                        } ${isDragging ? 'ring-2 ring-blue-400 shadow-lg scale-105' : 'hover:shadow-md'} ${isOver && segment.isFirst ? 'ring-2 ring-green-400 bg-green-50 dark:bg-green-950/20' : ''}`}
+                        style={{
+                            top: `${segment.row * 180 + 70 + (currentTask.taskRow || 0) * 36}px`, // Position below day number with task row offset
+                            left: `calc(${(segment.startCol / 7) * 100}% + 8px)`, // Add padding from left edge
+                            width: `calc(${(segment.span / 7) * 100}% - 16px)`, // Reduce width to add padding on both sides
+                            ...(index === 0 ? style : {}),
+                            zIndex: 20 + (currentTask.taskRow || 0) // Ensure proper layering
+                        }}
+                        {...(index === 0 ? { ...listeners, ...attributes } : {})}
+                        onClick={(e) => {
+                            if (!isDragging && !(e.target as HTMLElement).closest('.resize-handle')) {
+                                try {
+                                    router.visit(route('tasks.show', { project: project.id, task: task.id }));
+                                } catch (error) {
+                                    console.warn('Task route not available:', error);
+                                }
+                            }
+                        }}
+                        title={`${currentTask.title} - ${currentTask.priority} priority (${currentTask.duration_days}d) | ${currentTask.assignees?.length ? `Assigned to: ${currentTask.assignees.map(a => a.name).join(', ')}` : 'Unassigned'} | Drag to move, resize handles to extend/shrink`}
+                    >
+                        {/* Task content - only show on first segment */}
+                        {segment.isFirst && (
+                            <div className="flex items-center gap-2 flex-1 min-w-0 px-3">
+                                {currentTask.assignees?.[0] && (
+                                    <Avatar className="h-5 w-5 flex-shrink-0 border border-white/20">
+                                        <AvatarImage src={currentTask.assignees[0].avatar} />
+                                        <AvatarFallback className="text-xs font-medium">
+                                            {currentTask.assignees[0].name.charAt(0).toUpperCase()}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                    <div className="font-medium truncate text-sm">
+                                        {currentTask.title}
+                                    </div>
+                                    <div className="text-xs opacity-75 flex items-center gap-2">
+                                        <span>{currentTask.duration_days}d</span>
+                                        <span>•</span>
+                                        <span className="capitalize">{currentTask.priority}</span>
+                                        {currentTask.assignees?.length > 1 && (
+                                            <>
+                                                <span>•</span>
+                                                <span>+{currentTask.assignees.length - 1} more</span>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Assignment button - only show on first segment */}
+                        {segment.isFirst && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="absolute right-1 top-1 opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setTaskToAssign(currentTask);
+                                    setAssignTaskModalOpen(true);
+                                }}
+                                title="Assign task"
+                            >
+                                <Users className="h-3 w-3" />
+                            </Button>
+                        )}
+
+                        {/* Resize handles - only on first and last segments */}
+                        {segment.isFirst && (
+                            <ResizeHandle
+                                task={currentTask}
+                                direction="start"
+                                onResize={(newDuration) => handleTaskResize(task, newDuration)}
+                            />
+                        )}
+                        {segment.isLast && (
+                            <ResizeHandle
+                                task={currentTask}
+                                direction="end"
+                                onResize={(newDuration) => handleTaskResize(task, newDuration)}
+                            />
+                        )}
+                    </div>
+                ))}
+            </>
+        );
+    };
+
+    // Task Assignment Modal Component
+    const TaskAssignmentModal = ({ task, project, open, onOpenChange }: {
+        task: any;
+        project: Project;
+        open: boolean;
+        onOpenChange: (open: boolean) => void;
+    }) => {
+        const [selectedAssignees, setSelectedAssignees] = useState<number[]>([]);
+        const [isAssigning, setIsAssigning] = useState(false);
+
+        // Initialize selected assignees when task changes
+        useEffect(() => {
+            if (task) {
+                setSelectedAssignees(task.assignees?.map((a: any) => a.id) || []);
+            }
+        }, [task]);
+
+        const handleAssign = () => {
+            if (!task) return;
+
+            setIsAssigning(true);
+
+            // Use Inertia router for task updates to handle redirects properly
+            router.put(route('tasks.update', { project: project.id, task: task.id }), {
+                title: task.title,
+                description: task.description || '',
+                priority: task.priority,
+                status: task.status,
+                estimate: task.estimate,
+                due_date: task.due_date,
+                start_date: task.start_date,
+                duration_days: task.duration_days,
+                list_id: task.list_id,
+                assignee_ids: selectedAssignees,
+                label_ids: task.labels?.map((l: any) => l.id) || [],
+                is_archived: task.is_archived || false,
+            }, {
+                preserveState: true,
+                preserveScroll: true,
+                onSuccess: () => {
+                    onOpenChange(false);
+                    // Page will reload automatically with updated data
+                },
+                onError: (errors) => {
+                    console.error('Failed to assign task:', errors);
+                },
+                onFinish: () => {
+                    setIsAssigning(false);
+                }
+            });
+        };
+
+        const toggleAssignee = (userId: number) => {
+            setSelectedAssignees(prev =>
+                prev.includes(userId)
+                    ? prev.filter(id => id !== userId)
+                    : [...prev, userId]
+            );
+        };
+
+        const allMembers = [
+            ...(project.members || []),
+            ...(project.owner ? [project.owner] : [])
+        ].filter((member, index, self) =>
+            index === self.findIndex(m => m.id === member.id)
+        );
+
+        return (
+            <div className={`fixed inset-0 z-50 ${open ? 'block' : 'hidden'}`}>
+                <div className="fixed inset-0 bg-black/50" onClick={() => onOpenChange(false)} />
+                <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Users className="h-5 w-5" />
+                                Assign Task
+                            </CardTitle>
+                            <CardDescription>
+                                {task?.title}
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm font-medium">Select assignees:</span>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setSelectedAssignees([])}
+                                    disabled={selectedAssignees.length === 0}
+                                >
+                                    Clear All
+                                </Button>
+                            </div>
+                            <div className="space-y-2">
+                                {allMembers.map((member) => (
+                                    <div
+                                        key={member.id}
+                                        className={`flex items-center gap-3 p-2 rounded-lg border cursor-pointer transition-colors ${
+                                            selectedAssignees.includes(member.id)
+                                                ? 'bg-primary/10 border-primary'
+                                                : 'hover:bg-muted/50'
+                                        }`}
+                                        onClick={() => toggleAssignee(member.id)}
+                                    >
+                                        <Avatar className="h-8 w-8">
+                                            <AvatarImage src={member.avatar} />
+                                            <AvatarFallback>
+                                                {member.name.charAt(0).toUpperCase()}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <div className="flex-1">
+                                            <div className="font-medium">{member.name}</div>
+                                            <div className="text-sm text-muted-foreground">{member.email}</div>
+                                        </div>
+                                        {selectedAssignees.includes(member.id) && (
+                                            <CheckCircle2 className="h-5 w-5 text-primary" />
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                        <CardFooter className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                onClick={() => onOpenChange(false)}
+                                disabled={isAssigning}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handleAssign}
+                                disabled={isAssigning}
+                            >
+                                {isAssigning ? 'Assigning...' : 'Assign'}
+                            </Button>
+                        </CardFooter>
+                    </Card>
+                </div>
+            </div>
+        );
+    };
+
+    // Task Duration Extension Modal Component
+    const TaskDurationModal = ({ task, project, open, onOpenChange }: {
+        task: any;
+        project: Project;
+        open: boolean;
+        onOpenChange: (open: boolean) => void;
+    }) => {
+        const [newDuration, setNewDuration] = useState(1);
+        const [isUpdating, setIsUpdating] = useState(false);
+
+        // Initialize duration when task changes
+        useEffect(() => {
+            if (task) {
+                setNewDuration(task.duration_days || 1);
+            }
+        }, [task]);
+
+        const handleUpdateDuration = async () => {
+            if (!task) return;
+
+            setIsUpdating(true);
+
+            try {
+                // Calculate new due date based on start date and duration
+                const startDate = task.start_date ? new Date(task.start_date.split('T')[0]) : new Date(task.due_date.split('T')[0]);
+                const newDueDate = new Date(startDate);
+                newDueDate.setDate(newDueDate.getDate() + newDuration - 1);
+
+                // Temporarily disable server updates to prevent infinite loop
+                console.log('Task duration update completed locally - server update disabled to prevent infinite loop');
+                onOpenChange(false);
+            } catch (error) {
+                console.error('Error updating task duration:', error);
+            } finally {
+                setIsUpdating(false);
+            }
+        };
+
+        return (
+            <div className={`fixed inset-0 z-50 ${open ? 'block' : 'hidden'}`}>
+                <div className="fixed inset-0 bg-black/50" onClick={() => onOpenChange(false)} />
+                <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Calendar className="h-5 w-5" />
+                                Set Task Duration
+                            </CardTitle>
+                            <CardDescription>
+                                {task?.title}
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Duration (days)</label>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setNewDuration(Math.max(1, newDuration - 1))}
+                                        disabled={newDuration <= 1}
+                                    >
+                                        -
+                                    </Button>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="365"
+                                        value={newDuration}
+                                        onChange={(e) => setNewDuration(Math.max(1, parseInt(e.target.value) || 1))}
+                                        className="w-20 text-center border rounded px-2 py-1"
+                                    />
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setNewDuration(newDuration + 1)}
+                                        disabled={newDuration >= 365}
+                                    >
+                                        +
+                                    </Button>
+                                </div>
+                                <div className="text-sm text-muted-foreground">
+                                    {task && (
+                                        <>
+                                            Start: {task.start_date ? new Date(task.start_date).toLocaleDateString() : new Date(task.due_date).toLocaleDateString()}
+                                            <br />
+                                            End: {(() => {
+                                                const startDate = task.start_date ? new Date(task.start_date.split('T')[0]) : new Date(task.due_date.split('T')[0]);
+                                                const endDate = new Date(startDate);
+                                                endDate.setDate(endDate.getDate() + newDuration - 1);
+                                                return endDate.toLocaleDateString();
+                                            })()}
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </CardContent>
+                        <CardFooter className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                onClick={() => onOpenChange(false)}
+                                disabled={isUpdating}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handleUpdateDuration}
+                                disabled={isUpdating}
+                            >
+                                {isUpdating ? 'Updating...' : 'Update Duration'}
+                            </Button>
+                        </CardFooter>
+                    </Card>
+                </div>
+            </div>
+        );
+    };
+
+    // Enhanced Resize Handle Component with colored edges
+    const ResizeHandle = ({ task, direction, onResize }: { task: any; direction: 'start' | 'end'; onResize: (newDuration: number) => void }) => {
+        const [isResizing, setIsResizing] = useState(false);
+
+        const handleMouseDown = (e: React.MouseEvent) => {
+            e.stopPropagation();
+            e.preventDefault();
+            e.nativeEvent.stopImmediatePropagation();
+
+            console.log(`Starting resize: direction=${direction}, currentDuration=${task.duration_days}`);
+
+            const startXPos = e.clientX;
+            const originalDur = task.duration_days || 1;
+
+            setIsResizing(true);
+            setIsAnyHandleResizing(true);
+
+            // Create handlers with captured values
+            const mouseMoveHandler = (e: MouseEvent) => {
+                const deltaX = e.clientX - startXPos;
+                const dayWidth = 140;
+                const daysDelta = Math.round(deltaX / dayWidth);
+
+                let newDuration = originalDur;
+                if (direction === 'end') {
+                    // For end handle: positive delta = extend, negative delta = shrink
+                    newDuration = Math.max(1, originalDur + daysDelta);
+                } else {
+                    // For start handle: negative delta = extend backward, positive delta = shrink from start
+                    newDuration = Math.max(1, originalDur - daysDelta);
+                }
+
+                if (newDuration !== originalDur) {
+                    console.log(`Mouse move: ${originalDur} -> ${newDuration} (delta: ${daysDelta}, direction: ${direction})`);
+                    onResize(newDuration);
+                }
+            };
+
+            const mouseUpHandler = (e: MouseEvent) => {
+                const deltaX = e.clientX - startXPos;
+                const dayWidth = 140;
+                const daysDelta = Math.round(deltaX / dayWidth);
+
+                let newDuration = originalDur;
+                if (direction === 'end') {
+                    // For end handle: positive delta = extend, negative delta = shrink
+                    newDuration = Math.max(1, originalDur + daysDelta);
+                } else {
+                    // For start handle: negative delta = extend backward, positive delta = shrink from start
+                    newDuration = Math.max(1, originalDur - daysDelta);
+                }
+
+                if (newDuration !== originalDur) {
+                    console.log(`Resize complete: ${originalDur} -> ${newDuration} days (direction: ${direction})`);
+                    onResize(newDuration);
+                }
+
+                setIsResizing(false);
+                setIsAnyHandleResizing(false);
+                document.removeEventListener('mousemove', mouseMoveHandler);
+                document.removeEventListener('mouseup', mouseUpHandler);
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+            };
+
+            document.addEventListener('mousemove', mouseMoveHandler);
+            document.addEventListener('mouseup', mouseUpHandler);
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+        };
+
+
+
+        // Get priority-based colors for the resize handles - clean and simple
+        const getHandleColor = (priority: string) => {
+            switch (priority) {
+                case 'urgent': return 'bg-red-500/90 hover:bg-red-500';
+                case 'high': return 'bg-orange-500/90 hover:bg-orange-500';
+                case 'medium': return 'bg-yellow-500/90 hover:bg-yellow-500';
+                case 'low': return 'bg-green-500/90 hover:bg-green-500';
+                default: return 'bg-blue-500/90 hover:bg-blue-500';
+            }
+        };
+
+        return (
+            <div
+                className={`resize-handle absolute ${direction === 'start' ? 'left-0' : 'right-0'} top-0 bottom-0 w-1 cursor-col-resize transition-all duration-200 ease-out ${isResizing ? 'w-2 opacity-100 bg-white/40' : 'opacity-0 hover:opacity-100 hover:w-2 hover:bg-white/30'} ${direction === 'start' ? 'rounded-l' : 'rounded-r'}`}
+                onMouseDown={handleMouseDown}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+                title={`Drag to ${direction === 'start' ? 'move start date' : 'extend/shrink duration'}`}
+                style={{
+                    zIndex: 25,
+                }}
+            >
+                {/* Visual indicator - only visible when active */}
+                {isResizing && (
+                    <div className={`absolute inset-0 ${direction === 'start' ? 'rounded-l' : 'rounded-r'} overflow-hidden`}>
+                        <div className="absolute inset-0 bg-white/20"></div>
+                        <div className="absolute inset-y-2 left-1/2 transform -translate-x-1/2 w-px bg-white/80"></div>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    // Handle task resize
+    const handleTaskResize = async (task: any, newDuration: number) => {
+        console.log(`handleTaskResize called: task ${task.id}, newDuration: ${newDuration}`);
+
+        // Get current task data (including any local updates)
+        const currentTask = { ...task, ...(localTaskUpdates[task.id] || {}) };
+
+        if (newDuration === currentTask.duration_days) {
+            console.log('Duration unchanged, skipping update');
+            return;
+        }
+
+        // Calculate new dates based on the current task
+        const startDate = currentTask.start_date ? new Date(currentTask.start_date.split('T')[0]) : new Date(currentTask.due_date.split('T')[0]);
+        const newDueDate = new Date(startDate);
+        newDueDate.setDate(newDueDate.getDate() + newDuration - 1);
+
+        console.log(`Updating task ${task.id}: ${currentTask.duration_days}d -> ${newDuration}d`);
+        console.log(`New dates: ${startDate.toISOString().split('T')[0]} to ${newDueDate.toISOString().split('T')[0]}`);
+
+        // Apply optimistic update immediately for real-time feedback
+        setLocalTaskUpdates(prev => ({
+            ...prev,
+            [task.id]: {
+                ...prev[task.id],
+                start_date: startDate.toISOString().split('T')[0],
+                due_date: newDueDate.toISOString().split('T')[0],
+                duration_days: newDuration
+            }
+        }));
+
+        // Send update to server immediately for testing
+        try {
+            setIsUpdatingTask(true);
+
+            // Temporarily disable server updates to prevent infinite loop
+            console.log('Task resize completed locally - server update disabled to prevent infinite loop');
+            setIsUpdatingTask(false);
+        } catch (error) {
+            console.error('Error updating task:', error);
+            setIsUpdatingTask(false);
+        }
+    };
+
+
 
     return (
         <AppLayout>
@@ -260,7 +1487,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
 
                 {/* Project Tabs */}
                 <div className="w-full">
-                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                    <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
                         <TabsList className="grid w-full grid-cols-5 h-auto p-1 bg-muted/50 rounded-b-none border-b-0">
                         <TabsTrigger
                             value="boards"
@@ -557,105 +1784,77 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                             </CardHeader>
                             <CardContent>
                                 {project.members && project.members.length > 0 ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-3">
                                         {project.members.map((member) => (
-                                            <Card key={member.id} className="group hover:shadow-md transition-all duration-300 border-2 hover:border-primary/20">
-                                                <CardContent className="p-6">
-                                                    <div className="flex items-start gap-4">
-                                                        <div className="relative">
-                                                            <Avatar className="h-16 w-16 border-2 border-background shadow-md">
-                                                                <AvatarImage src={member.avatar} />
-                                                                <AvatarFallback className="text-lg font-semibold bg-gradient-to-br from-primary/20 to-primary/10">
-                                                                    {member.name.charAt(0).toUpperCase()}
-                                                                </AvatarFallback>
-                                                            </Avatar>
-                                                            {member.id === project.owner_id && (
-                                                                <div className="absolute -top-1 -right-1 w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center">
-                                                                    <Crown className="h-3 w-3 text-white" />
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="flex items-start justify-between">
-                                                                <div className="min-w-0 flex-1">
-                                                                    <h4 className="font-semibold text-lg truncate group-hover:text-primary transition-colors">
-                                                                        {member.name}
-                                                                    </h4>
-                                                                    <p className="text-sm text-muted-foreground truncate">{member.email}</p>
-                                                                    <div className="flex items-center gap-2 mt-2">
-                                                                        <Badge
-                                                                            variant={member.id === project.owner_id ? "default" : "secondary"}
-                                                                            className="text-xs"
-                                                                        >
-                                                                            {member.id === project.owner_id ? 'Owner' : (member.pivot?.role || 'Member')}
-                                                                        </Badge>
-                                                                        {member.id === project.owner_id && (
-                                                                            <Badge variant="outline" className="text-xs text-yellow-600 border-yellow-200">
-                                                                                Project Owner
-                                                                            </Badge>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                    {project.can_manage_members && member.id !== project.owner_id ? (
-                                                                        <>
-                                                                            <Link href={route('projects.members.edit', { project: project.id, user: member.id })}>
-                                                                                <Button
-                                                                                    variant="ghost"
-                                                                                    size="sm"
-                                                                                    className="h-8 w-8 p-0"
-                                                                                    title="Manage permissions"
-                                                                                >
-                                                                                    <Settings className="h-4 w-4" />
-                                                                                </Button>
-                                                                            </Link>
-                                                                            <Button
-                                                                                variant="ghost"
-                                                                                size="sm"
-                                                                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                                                                                title="Remove member"
-                                                                                onClick={() => {
-                                                                                    setMemberToDelete(member);
-                                                                                    setDeleteDialogOpen(true);
-                                                                                }}
-                                                                            >
-                                                                                <Trash2 className="h-4 w-4" />
-                                                                            </Button>
-                                                                        </>
-                                                                    ) : member.id !== project.owner_id ? (
-                                                                        <Button
-                                                                            variant="ghost"
-                                                                            size="sm"
-                                                                            className="h-8 w-8 p-0"
-                                                                            disabled
-                                                                            title="No permission to manage"
-                                                                        >
-                                                                            <Lock className="h-4 w-4" />
-                                                                        </Button>
-                                                                    ) : null}
-                                                                </div>
+                                            <div key={member.id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="relative">
+                                                        <Avatar className="h-10 w-10">
+                                                            <AvatarImage src={member.avatar} />
+                                                            <AvatarFallback className="text-sm">
+                                                                {member.name.charAt(0).toUpperCase()}
+                                                            </AvatarFallback>
+                                                        </Avatar>
+                                                        {member.id === project.owner_id && (
+                                                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full flex items-center justify-center">
+                                                                <Crown className="h-2 w-2 text-white" />
                                                             </div>
-
-                                                            {/* Member Stats */}
-                                                            <div className="grid grid-cols-2 gap-2 mt-4">
-                                                                <div className="bg-muted/50 rounded-lg p-2 text-center">
-                                                                    <div className="text-sm font-medium">
-                                                                        {/* This would need to be calculated from actual task assignments */}
-                                                                        0
-                                                                    </div>
-                                                                    <div className="text-xs text-muted-foreground">Tasks</div>
-                                                                </div>
-                                                                <div className="bg-muted/50 rounded-lg p-2 text-center">
-                                                                    <div className="text-sm font-medium">
-                                                                        {new Date(member.pivot?.created_at || member.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                                                                    </div>
-                                                                    <div className="text-xs text-muted-foreground">Joined</div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
+                                                        )}
                                                     </div>
-                                                </CardContent>
-                                            </Card>
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <h4 className="font-medium">{member.name}</h4>
+                                                            <Badge
+                                                                variant={member.id === project.owner_id ? "default" : "secondary"}
+                                                                className="text-xs"
+                                                            >
+                                                                {member.id === project.owner_id ? 'Owner' : (member.pivot?.role || 'Member')}
+                                                            </Badge>
+                                                        </div>
+                                                        <p className="text-sm text-muted-foreground">{member.email}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                    {project.can_manage_members && member.id !== project.owner_id ? (
+                                                        <>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-8 w-8 p-0"
+                                                                title="Manage permissions"
+                                                                onClick={() => {
+                                                                    setEditingMember(member);
+                                                                    setPermissionModalOpen(true);
+                                                                }}
+                                                            >
+                                                                <Settings className="h-4 w-4" />
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                                                title="Remove member"
+                                                                onClick={() => {
+                                                                    setMemberToDelete(member);
+                                                                    setDeleteDialogOpen(true);
+                                                                }}
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        </>
+                                                    ) : member.id !== project.owner_id ? (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-8 w-8 p-0"
+                                                            disabled
+                                                            title="No permission to manage"
+                                                        >
+                                                            <Lock className="h-4 w-4" />
+                                                        </Button>
+                                                    ) : null}
+                                                </div>
+                                            </div>
                                         ))}
                                     </div>
                                 ) : (
@@ -731,26 +1930,38 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                     </TabsContent>
 
                     <TabsContent value="calendar" className="mt-0">
-                        <Card className="rounded-t-none border-t-0">
-                            <CardHeader className="pb-4">
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <CardTitle className="flex items-center gap-2">
-                                            <Calendar className="h-5 w-5" />
-                                            Project Calendar
-                                        </CardTitle>
-                                        <CardDescription>
-                                            View project tasks and deadlines in calendar format
-                                        </CardDescription>
-                                    </div>
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="space-y-6">
-                                    {/* Calendar Navigation */}
-                                    <div className="flex items-center justify-between">
-                                        <h3 className="text-xl font-semibold">{formatMonthYear(currentDate)}</h3>
+                        <DndContext
+                            sensors={sensors}
+                            onDragStart={handleDragStart}
+                            onDragEnd={handleDragEnd}
+                        >
+                            <Card className="rounded-t-none border-t-0">
+                                <CardHeader className="pb-4">
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <CardTitle className="flex items-center gap-2">
+                                                <Calendar className="h-5 w-5" />
+                                                Project Calendar
+                                            </CardTitle>
+                                            <CardDescription>
+                                                Drag tasks from the list to calendar days to set deadlines
+                                            </CardDescription>
+                                        </div>
                                         <div className="flex items-center gap-2">
+                                            {/* Team Members Panel Toggle */}
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setMemberPanelOpen(!memberPanelOpen)}
+                                                className="flex items-center gap-2"
+                                            >
+                                                <Users className="h-4 w-4" />
+                                                <span className="hidden sm:inline">Team</span>
+                                                {memberPanelOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                            </Button>
+
+                                            <Separator orientation="vertical" className="h-6" />
+
                                             <Button
                                                 variant="outline"
                                                 size="sm"
@@ -774,153 +1985,240 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                             </Button>
                                         </div>
                                     </div>
-
-                                    {/* Calendar Grid */}
-                                    <div className="border rounded-lg overflow-hidden bg-background">
-                                        {/* Week days header */}
-                                        <div className="grid grid-cols-7 bg-muted/50">
-                                            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                                                <div key={day} className="p-3 text-center text-sm font-medium text-muted-foreground border-r border-border last:border-r-0">
-                                                    {day}
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        {/* Calendar weeks */}
-                                        {weeks.map((week, weekIndex) => (
-                                            <div key={weekIndex} className="grid grid-cols-7">
-                                                {week.map((day, dayIndex) => (
-                                                    <div
-                                                        key={day.date.toISOString()}
-                                                        className={`min-h-[100px] p-2 border-r border-b border-border last:border-r-0 cursor-pointer hover:bg-muted/30 transition-colors ${
-                                                            !day.isCurrentMonth
-                                                                ? 'bg-muted/20 text-muted-foreground'
-                                                                : 'bg-background'
-                                                        } ${isToday(day.date) ? 'bg-primary/10 border-primary/20' : ''}`}
-                                                        onClick={() => setSelectedDay(day.date)}
-                                                    >
-                                                        <div className={`text-sm font-medium mb-1 ${
-                                                            isToday(day.date) ? 'text-primary' : day.isCurrentMonth ? 'text-foreground' : 'text-muted-foreground'
-                                                        }`}>
-                                                            {day.date.getDate()}
-                                                        </div>
-
-                                                        {/* Task indicators would go here */}
-                                                        <div className="space-y-1">
-                                                            {day.tasks.slice(0, 3).map((task, index) => (
-                                                                <div
-                                                                    key={index}
-                                                                    className="text-xs p-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded truncate"
-                                                                >
-                                                                    {task.title}
-                                                                </div>
-                                                            ))}
-                                                            {day.tasks.length > 3 && (
-                                                                <div className="text-xs text-muted-foreground">
-                                                                    +{day.tasks.length - 3} more
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        ))}
+                                    <div className="text-center text-lg font-semibold text-primary">
+                                        {formatMonthYear(currentDate)}
                                     </div>
 
-                                    {/* Quick Actions */}
-                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                                        <Card className="border-2 hover:shadow-md transition-shadow cursor-pointer" onClick={() => router.get(route('calendar'))}>
-                                            <CardContent className="p-4 text-center">
-                                                <Calendar className="h-8 w-8 text-indigo-600 mx-auto mb-2" />
-                                                <h4 className="font-medium">Full Calendar</h4>
-                                                <p className="text-sm text-muted-foreground">View all tasks</p>
-                                            </CardContent>
-                                        </Card>
+                                    {/* Collapsible Team Members Panel */}
+                                    {memberPanelOpen && (
+                                        <div className="mt-4 p-4 bg-muted/30 rounded-lg border">
+                                            <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                                                <Users className="h-4 w-4" />
+                                                Team Members - Drag to assign tasks
+                                            </h4>
+                                            <div className="flex flex-wrap gap-2">
+                                                {project.members?.map((member) => (
+                                                    <DraggableMember key={member.id} member={member} />
+                                                ))}
+                                                {(!project.members || project.members.length === 0) && (
+                                                    <div className="text-sm text-muted-foreground">
+                                                        No team members in this project
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                                        {/* Task List - Left Side */}
+                                        <div className="lg:col-span-1">
+                                            <Card>
+                                                <CardHeader>
+                                                    <CardTitle className="text-lg flex items-center gap-2">
+                                                        Project Tasks
+                                                        {isUpdatingTask && (
+                                                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+                                                        )}
 
-                                        {canEdit && (
-                                            <Card className="border-2 hover:shadow-md transition-shadow cursor-pointer" onClick={() => router.get(route('tasks.create', { project: project.id }))}>
-                                                <CardContent className="p-4 text-center">
-                                                    <Plus className="h-8 w-8 text-green-600 mx-auto mb-2" />
-                                                    <h4 className="font-medium">Add Task</h4>
-                                                    <p className="text-sm text-muted-foreground">Create new task</p>
+                                                    </CardTitle>
+                                                    <CardDescription>
+                                                        Drag tasks to calendar days to set deadlines
+                                                    </CardDescription>
+                                                </CardHeader>
+                                                <CardContent>
+                                                    <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                                                        {(() => {
+                                                            const allTasks = getAllProjectTasks();
+                                                            const tasksWithoutDueDate = allTasks.filter(task => !task.due_date);
+                                                            const tasksWithDueDate = allTasks.filter(task => task.due_date);
+
+                                                            if (allTasks.length === 0) {
+                                                                return (
+                                                                    <div className="text-center py-8 text-muted-foreground">
+                                                                        <ListTodo className="h-8 w-8 mx-auto mb-2" />
+                                                                        <p>No tasks in this project</p>
+                                                                    </div>
+                                                                );
+                                                            }
+
+                                                            return (
+                                                                <div className="space-y-3">
+                                                                    {/* Tasks without due dates */}
+                                                                    {tasksWithoutDueDate.length > 0 && (
+                                                                        <div>
+                                                                            <h4 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                                                                                <Clock className="h-4 w-4" />
+                                                                                Unscheduled ({tasksWithoutDueDate.length})
+                                                                            </h4>
+                                                                            <div className="space-y-1">
+                                                                                {tasksWithoutDueDate.map((task) => (
+                                                                                    <DraggableTask key={task.id} task={task} />
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* Tasks with due dates */}
+                                                                    {tasksWithDueDate.length > 0 && (
+                                                                        <div>
+                                                                            <h4 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                                                                                <Calendar className="h-4 w-4" />
+                                                                                Scheduled ({tasksWithDueDate.length})
+                                                                            </h4>
+                                                                            <div className="space-y-1">
+                                                                                {tasksWithDueDate
+                                                                                    .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
+                                                                                    .map((task) => (
+                                                                                        <DraggableTask key={task.id} task={task} />
+                                                                                    ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })()}
+                                                    </div>
                                                 </CardContent>
                                             </Card>
-                                        )}
+                                        </div>
 
-                                        <Card className="border-2 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveTab('boards')}>
-                                            <CardContent className="p-4 text-center">
-                                                <ListTodo className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-                                                <h4 className="font-medium">View Boards</h4>
-                                                <p className="text-sm text-muted-foreground">Manage tasks</p>
-                                            </CardContent>
-                                        </Card>
+                                        {/* Calendar - Right Side */}
+                                        <div className="lg:col-span-3">
+                                            <div className="border rounded-lg overflow-hidden bg-background">
+                                                {/* Week days header */}
+                                                <div className="grid grid-cols-7 bg-muted/50">
+                                                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                                                        <div key={day} className="p-2 text-center text-sm font-medium text-muted-foreground border-r border-border last:border-r-0">
+                                                            {day}
+                                                        </div>
+                                                    ))}
+                                                </div>
+
+                                                {/* Calendar weeks */}
+                                                <div className="relative">
+                                                    {weeks && weeks.length > 0 ? weeks.map((week, weekIndex) => (
+                                                        <div key={`week-${weekIndex}`} className="grid grid-cols-7">
+                                                            {week && week.length > 0 ? week.map((day, dayIndex) => (
+                                                                <DroppableCalendarDay key={`day-${day?.date?.toISOString() || `${weekIndex}-${dayIndex}`}`} day={day} />
+                                                            )) : null}
+                                                        </div>
+                                                    )) : (
+                                                        <div className="text-center py-8 text-muted-foreground">
+                                                            Loading calendar...
+                                                        </div>
+                                                    )}
+
+                                                    {/* Multi-day task strips overlay */}
+                                                    {weeks && weeks.length > 0 && getMultiDayTasksWithRows().map((task) => (
+                                                        <MultiDayTaskStrip
+                                                            key={`multiday-${task.id}`}
+                                                            task={task}
+                                                            calendarDays={weeks.flat()}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     {/* Calendar Legend */}
-                                    <Card className="border-2">
-                                        <CardHeader>
-                                            <CardTitle className="text-lg">Calendar Legend</CardTitle>
-                                        </CardHeader>
-                                        <CardContent>
-                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-4 h-4 bg-red-500 rounded"></div>
-                                                    <span>Overdue Tasks</span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-4 h-4 bg-yellow-500 rounded"></div>
-                                                    <span>Due Soon</span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-4 h-4 bg-blue-500 rounded"></div>
-                                                    <span>Project Tasks</span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-4 h-4 bg-green-500 rounded"></div>
-                                                    <span>Completed</span>
-                                                </div>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
+                                    <div className="mt-6">
+                                        <Card>
+                                            <CardHeader>
+                                                <CardTitle className="text-lg">Calendar Guide</CardTitle>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <div className="space-y-4">
+                                                    {/* How to use */}
+                                                    <div>
+                                                        <h4 className="font-medium mb-2">How to Use:</h4>
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-4 h-4 bg-blue-100 border-l-2 border-blue-500 rounded"></div>
+                                                                <span>Drag tasks from left panel to calendar days</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <Users className="w-4 h-4 text-muted-foreground" />
+                                                                <span>Hover over tasks and click <Users className="w-3 h-3 inline" /> to assign users</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-4 h-4 rounded-full bg-muted border flex items-center justify-center">
+                                                                    <div className="w-2 h-2 rounded-full bg-primary"></div>
+                                                                </div>
+                                                                <span>Small avatars show task assignees</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-4 h-4 bg-muted rounded cursor-pointer"></div>
+                                                                <span>Click on tasks in calendar to view/edit</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-4 h-4 bg-muted rounded cursor-pointer"></div>
+                                                                <span>Right-click on tasks to set duration</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-8 h-4 bg-blue-100 border-l-2 border-blue-500 rounded-l flex items-center justify-center text-xs">━━</div>
+                                                                <span>Multi-day tasks span across calendar days</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
 
-                                    {/* Calendar Stats */}
-                                    <Card className="border-2">
-                                        <CardHeader>
-                                            <CardTitle className="text-lg">This Month's Overview</CardTitle>
-                                        </CardHeader>
-                                        <CardContent>
-                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                                <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg text-center">
-                                                    <div className="text-2xl font-bold text-blue-600">
-                                                        {/* This would be calculated from actual tasks */}
-                                                        0
+                                                    {/* Priority colors */}
+                                                    <div>
+                                                        <h4 className="font-medium mb-2">Priority Colors:</h4>
+                                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-4 h-4 bg-red-100 border-l-2 border-red-500 rounded"></div>
+                                                                <span>Urgent</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-4 h-4 bg-orange-100 border-l-2 border-orange-500 rounded"></div>
+                                                                <span>High</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-4 h-4 bg-yellow-100 border-l-2 border-yellow-500 rounded"></div>
+                                                                <span>Medium</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-4 h-4 bg-green-100 border-l-2 border-green-500 rounded"></div>
+                                                                <span>Low</span>
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                    <div className="text-sm text-blue-600/80">Tasks Due</div>
                                                 </div>
-                                                <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg text-center">
-                                                    <div className="text-2xl font-bold text-green-600">
-                                                        0
-                                                    </div>
-                                                    <div className="text-sm text-green-600/80">Completed</div>
-                                                </div>
-                                                <div className="bg-orange-50 dark:bg-orange-950/20 p-4 rounded-lg text-center">
-                                                    <div className="text-2xl font-bold text-orange-600">
-                                                        0
-                                                    </div>
-                                                    <div className="text-sm text-orange-600/80">In Progress</div>
-                                                </div>
-                                                <div className="bg-red-50 dark:bg-red-950/20 p-4 rounded-lg text-center">
-                                                    <div className="text-2xl font-bold text-red-600">
-                                                        0
-                                                    </div>
-                                                    <div className="text-sm text-red-600/80">Overdue</div>
-                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* Drag Overlay */}
+                            <DragOverlay>
+                                {activeTask ? (
+                                    <div className="p-3 border-l-4 border-l-blue-500 bg-blue-50 dark:bg-blue-950/20 rounded-lg shadow-lg opacity-90">
+                                        <div className="flex items-start justify-between mb-2">
+                                            <h4 className="font-medium text-sm">{activeTask.title}</h4>
+                                            <div className="flex items-center gap-1">
+                                                {activeTask.assignees?.slice(0, 2).map((assignee: any) => (
+                                                    <Avatar key={assignee.id} className="h-5 w-5 border">
+                                                        <AvatarImage src={assignee.avatar} />
+                                                        <AvatarFallback className="text-xs">
+                                                            {assignee.name.charAt(0).toUpperCase()}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                ))}
                                             </div>
-                                        </CardContent>
-                                    </Card>
-                                </div>
-                            </CardContent>
-                        </Card>
+                                        </div>
+                                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                            <span>{activeTask.boardName} • {activeTask.listName}</span>
+                                            <Badge variant="outline" className="text-xs">
+                                                {activeTask.priority}
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                ) : null}
+                            </DragOverlay>
+                        </DndContext>
                     </TabsContent>
 
                     <TabsContent value="details" className="mt-0">
@@ -1095,6 +2393,29 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                 confirmText="Remove"
                 cancelText="Cancel"
                 variant="destructive"
+            />
+
+            <MemberPermissionModal
+                project={project}
+                member={editingMember}
+                open={permissionModalOpen}
+                onOpenChange={setPermissionModalOpen}
+            />
+
+            {/* Task Assignment Modal */}
+            <TaskAssignmentModal
+                task={taskToAssign}
+                project={project}
+                open={assignTaskModalOpen}
+                onOpenChange={setAssignTaskModalOpen}
+            />
+
+            {/* Task Duration Modal */}
+            <TaskDurationModal
+                task={taskToExtend}
+                project={project}
+                open={durationModalOpen}
+                onOpenChange={setDurationModalOpen}
             />
         </AppLayout>
     );
