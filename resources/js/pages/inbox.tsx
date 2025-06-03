@@ -104,8 +104,14 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
     const [selectedProject, setSelectedProject] = useState<Project | null>(null);
     const [showProjectDropdown, setShowProjectDropdown] = useState(false);
 
+    // Project selection state for edit dialog
+    const [editProjectSearchQuery, setEditProjectSearchQuery] = useState('');
+    const [editSelectedProject, setEditSelectedProject] = useState<Project | null>(null);
+    const [showEditProjectDropdown, setShowEditProjectDropdown] = useState(false);
+
     // Refs for project search inputs
     const projectSearchRef = useRef<HTMLInputElement>(null);
+    const editProjectSearchRef = useRef<HTMLInputElement>(null);
 
     // Unified selection state (used for both keyboard and mouse interactions)
     const [lastSelectedTaskId, setLastSelectedTaskId] = useState<number | null>(null);
@@ -224,25 +230,20 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
         };
     }, [currentFocusedTaskId, sortedTasks, selectedTasks]);
 
-    // Initialize selection when tasks change
+    // Clear selection when tasks change if focused task no longer exists
     useEffect(() => {
-        if (sortedTasks.length > 0 && selectedTasks.size === 0) {
-            // Select the first task when tasks load and nothing is selected
-            setSelectedTasks(new Set([sortedTasks[0].id]));
-            setCurrentFocusedTaskId(sortedTasks[0].id);
-            setLastSelectedTaskId(sortedTasks[0].id);
-        } else if (sortedTasks.length === 0) {
+        if (sortedTasks.length === 0) {
             // Clear selection when no tasks
             setSelectedTasks(new Set());
             setCurrentFocusedTaskId(null);
             setLastSelectedTaskId(null);
         } else if (currentFocusedTaskId && !sortedTasks.find(t => t.id === currentFocusedTaskId)) {
-            // If focused task no longer exists, select the first one
-            setSelectedTasks(new Set([sortedTasks[0].id]));
-            setCurrentFocusedTaskId(sortedTasks[0].id);
-            setLastSelectedTaskId(sortedTasks[0].id);
+            // If focused task no longer exists, clear selection (no auto-selection)
+            setSelectedTasks(new Set());
+            setCurrentFocusedTaskId(null);
+            setLastSelectedTaskId(null);
         }
-    }, [sortedTasks]);
+    }, [sortedTasks, currentFocusedTaskId]);
 
     // Reset form when dialog closes
     const resetForm = () => {
@@ -252,6 +253,9 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
         setStatus('to_do');
         setDueDate(null);
         setEditingTask(null);
+        // Clear edit project selection state
+        setEditSelectedProject(null);
+        setEditProjectSearchQuery('');
     };
 
     // Set form values when editing a task
@@ -262,6 +266,9 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
         setPriority(task.priority);
         setStatus(task.status);
         setDueDate(task.due_date);
+        // Set project selection state for edit dialog
+        setEditSelectedProject(task.project || null);
+        setEditProjectSearchQuery(task.project?.name || '');
     };
 
     // Handle edit form submission
@@ -275,6 +282,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                 priority,
                 status,
                 due_date: dueDate,
+                project_id: editSelectedProject?.id || null,
             };
 
             // Update existing task
@@ -282,6 +290,9 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                 onSuccess: () => {
                     setEditingTask(null);
                     resetForm();
+                    // Clear edit project selection state
+                    setEditSelectedProject(null);
+                    setEditProjectSearchQuery('');
                 },
             });
         }
@@ -605,6 +616,26 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
         setCreateTaskData(prev => ({ ...prev, project_id: null }));
     };
 
+    // Project selection functions for edit dialog
+    const filteredEditProjects = useMemo(() => {
+        if (!editProjectSearchQuery) return projects;
+        return projects.filter(project =>
+            project.name.toLowerCase().includes(editProjectSearchQuery.toLowerCase()) ||
+            project.key.toLowerCase().includes(editProjectSearchQuery.toLowerCase())
+        );
+    }, [projects, editProjectSearchQuery]);
+
+    const handleEditProjectSelect = (project: Project) => {
+        setEditSelectedProject(project);
+        setEditProjectSearchQuery(project.name);
+        setShowEditProjectDropdown(false);
+    };
+
+    const clearEditProjectSelection = () => {
+        setEditSelectedProject(null);
+        setEditProjectSearchQuery('');
+    };
+
     return (
         <AppLayout>
             <Head title="Inbox" />
@@ -729,13 +760,13 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                     return (
                                         <div
                                             key={task.id}
-                                            className={`group flex items-start gap-3 p-3 rounded-lg border-2 transition-all cursor-pointer ${
+                                            className={`group flex items-start gap-3 p-3 rounded-lg border-2 transition-all cursor-pointer bg-white ${
                                                 isOverdue
-                                                    ? 'border-red-300 bg-red-50/70 shadow-sm'
-                                                    : 'border-border bg-background shadow-sm hover:shadow-md'
+                                                    ? 'border-red-300 shadow-sm'
+                                                    : 'border-border shadow-sm hover:shadow-md'
                                             } ${isSelected
-                                                ? 'ring-2 ring-primary/30 bg-primary/10 border-primary/30'
-                                                : 'hover:bg-muted/50 hover:border-border'
+                                                ? 'ring-2 ring-primary/30 border-primary/30'
+                                                : 'hover:border-primary/20'
                                             }`}
                                             onClick={(e) => {
                                                 e.stopPropagation();
@@ -895,25 +926,56 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                     <div className="relative">
                                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                         <Input
+                                            ref={editProjectSearchRef}
                                             placeholder="Search projects..."
-                                            value={editingTask?.project?.name || ''}
-                                            onChange={() => {}} // Read-only for now, can be enhanced later
+                                            value={editProjectSearchQuery}
+                                            onChange={(e) => {
+                                                setEditProjectSearchQuery(e.target.value);
+                                                setShowEditProjectDropdown(e.target.value.length > 0);
+                                            }}
+                                            onFocus={() => setShowEditProjectDropdown(editProjectSearchQuery.length > 0 || filteredEditProjects.length > 0)}
+                                            onBlur={() => setTimeout(() => setShowEditProjectDropdown(false), 200)}
                                             className="pl-10"
-                                            disabled
                                         />
-                                        <div className="mt-2 text-sm text-muted-foreground">
-                                            {editingTask?.project ? (
-                                                <div className="flex items-center gap-2">
-                                                    <FolderOpen className="h-4 w-4" />
-                                                    <span>Currently in: <strong>{editingTask.project.name}</strong></span>
-                                                    <Badge variant="outline" className="text-xs">
-                                                        {editingTask.project.key}
-                                                    </Badge>
-                                                </div>
-                                            ) : (
-                                                <span>No project assigned. Use "Move to Project" to assign one.</span>
-                                            )}
-                                        </div>
+                                        {editSelectedProject && (
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                                                onClick={clearEditProjectSelection}
+                                            >
+                                                <X className="h-3 w-3" />
+                                            </Button>
+                                        )}
+
+                                        {/* Project Dropdown */}
+                                        {showEditProjectDropdown && filteredEditProjects.length > 0 && (
+                                            <div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-auto">
+                                                {filteredEditProjects.slice(0, 10).map((project) => (
+                                                    <button
+                                                        key={project.id}
+                                                        type="button"
+                                                        className="w-full px-3 py-2 text-left hover:bg-muted flex items-center gap-2 border-b last:border-b-0"
+                                                        onClick={() => handleEditProjectSelect(project)}
+                                                    >
+                                                        <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                                                        <span className="flex-1">{project.name}</span>
+                                                        <Badge variant="secondary" className="text-xs">
+                                                            {project.key}
+                                                        </Badge>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Selected Project Display */}
+                                        {editSelectedProject && (
+                                            <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+                                                <FolderOpen className="h-4 w-4" />
+                                                <span>Selected: <strong>{editSelectedProject.name}</strong></span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 

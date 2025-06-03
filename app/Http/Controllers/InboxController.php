@@ -80,6 +80,26 @@ class InboxController extends Controller
             }
         }
 
+        // Determine if task should be in inbox or moved to project
+        $isInboxTask = empty($validated['project_id']);
+        $listId = null;
+        $position = 0;
+
+        // If project is assigned, find the appropriate list and position
+        if (!$isInboxTask) {
+            $project = Project::findOrFail($validated['project_id']);
+
+            // Find the first available list in the project's default board
+            $defaultBoard = $project->boards()->where('is_default', true)->first();
+            if ($defaultBoard) {
+                $firstList = $defaultBoard->lists()->orderBy('position')->first();
+                if ($firstList) {
+                    $listId = $firstList->id;
+                    $position = Task::where('list_id', $listId)->max('position') + 1;
+                }
+            }
+        }
+
         // Create the task
         $task = new Task([
             'title' => $validated['title'],
@@ -88,7 +108,9 @@ class InboxController extends Controller
             'status' => $validated['status'],
             'due_date' => $validated['due_date'] ?? null,
             'project_id' => $validated['project_id'] ?? null,
-            'is_inbox' => true,
+            'list_id' => $listId,
+            'position' => $position,
+            'is_inbox' => $isInboxTask,
             'created_by' => Auth::id(),
         ]);
 
@@ -111,8 +133,12 @@ class InboxController extends Controller
             return redirect()->route('inbox');
         } else {
             // Show notification for full tasks
+            $message = 'Task created successfully.';
+            if (!$isInboxTask && isset($project)) {
+                $message = "Task created and moved to project '{$project->name}' successfully.";
+            }
             return redirect()->route('inbox')
-                ->with('success', 'Task created successfully.');
+                ->with('success', $message);
         }
     }
 
@@ -137,9 +163,51 @@ class InboxController extends Controller
             'priority' => 'required|string|in:low,medium,high,urgent',
             'status' => 'required|string|in:to_do,in_progress,done',
             'due_date' => 'nullable|date',
+            'project_id' => 'nullable|exists:projects,id',
             'assignee_ids' => 'nullable|array',
             'assignee_ids.*' => 'exists:users,id',
         ]);
+
+        // Check if user has permission to assign task to the project
+        if (!empty($validated['project_id'])) {
+            $project = Project::findOrFail($validated['project_id']);
+            $user = Auth::user();
+
+            if ($project->owner_id !== $user->id && !$project->members->contains($user->id)) {
+                return back()->withErrors(['project_id' => 'You do not have permission to assign tasks to this project.']);
+            }
+        }
+
+        // Handle project assignment logic
+        $newProjectId = $validated['project_id'] ?? null;
+        $currentProjectId = $task->project_id;
+
+        // Determine if task should be moved to/from inbox
+        $shouldBeInInbox = empty($newProjectId);
+        $listId = $task->list_id;
+        $position = $task->position;
+
+        // If project assignment is changing
+        if ($newProjectId !== $currentProjectId) {
+            if ($newProjectId) {
+                // Moving to a project - find appropriate list and position
+                $project = Project::findOrFail($newProjectId);
+
+                // Find the first available list in the project's default board
+                $defaultBoard = $project->boards()->where('is_default', true)->first();
+                if ($defaultBoard) {
+                    $firstList = $defaultBoard->lists()->orderBy('position')->first();
+                    if ($firstList) {
+                        $listId = $firstList->id;
+                        $position = Task::where('list_id', $listId)->max('position') + 1;
+                    }
+                }
+            } else {
+                // Moving back to inbox - clear list and position
+                $listId = null;
+                $position = 0;
+            }
+        }
 
         $task->update([
             'title' => $validated['title'],
@@ -147,6 +215,10 @@ class InboxController extends Controller
             'priority' => $validated['priority'],
             'status' => $validated['status'],
             'due_date' => $validated['due_date'] ?? null,
+            'project_id' => $newProjectId,
+            'list_id' => $listId,
+            'position' => $position,
+            'is_inbox' => $shouldBeInInbox,
         ]);
 
         // Sync assignees if provided
@@ -154,8 +226,19 @@ class InboxController extends Controller
             $task->assignees()->sync($validated['assignee_ids']);
         }
 
+        // Determine success message based on what happened
+        $message = 'Task updated successfully.';
+        if ($newProjectId !== $currentProjectId) {
+            if ($newProjectId) {
+                $project = Project::find($newProjectId);
+                $message = "Task updated and moved to project '{$project->name}' successfully.";
+            } else {
+                $message = 'Task updated and moved back to inbox successfully.';
+            }
+        }
+
         return redirect()->route('inbox')
-            ->with('success', 'Task updated successfully.');
+            ->with('success', $message);
     }
 
     /**
