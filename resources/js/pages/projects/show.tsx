@@ -645,14 +645,15 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity absolute top-1 right-1 h-6 w-6 p-0"
                     onClick={(e) => {
                         e.stopPropagation();
                         setTaskToAssign(task);
                         setAssignTaskModalOpen(true);
                     }}
+                    title="Assign task"
                 >
-                    <Users className="h-4 w-4" />
+                    <Users className="h-3 w-3" />
                 </Button>
             </div>
         );
@@ -2274,27 +2275,44 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                             {/* Drag Overlay */}
                             <DragOverlay>
                                 {activeTask ? (
-                                    <div className="p-3 border-l-4 border-l-blue-500 bg-blue-50 dark:bg-blue-950/20 rounded-lg shadow-lg opacity-90">
-                                        <div className="flex items-start justify-between mb-2">
-                                            <h4 className="font-medium text-sm">{activeTask.title}</h4>
-                                            <div className="flex items-center gap-1">
-                                                {activeTask.assignees?.slice(0, 2).map((assignee: any) => (
-                                                    <Avatar key={assignee.id} className="h-5 w-5 border">
-                                                        <AvatarImage src={assignee.avatar} />
-                                                        <AvatarFallback className="text-xs">
-                                                            {assignee.name.charAt(0).toUpperCase()}
-                                                        </AvatarFallback>
-                                                    </Avatar>
-                                                ))}
+                                    activeTask.type === 'member' ? (
+                                        // Member drag overlay
+                                        <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/20 border rounded-lg shadow-lg opacity-90">
+                                            <Avatar className="h-8 w-8 border">
+                                                <AvatarImage src={activeTask.avatar} />
+                                                <AvatarFallback className="text-sm font-medium">
+                                                    {activeTask.name?.charAt(0).toUpperCase()}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            <div className="flex flex-col min-w-0">
+                                                <span className="text-sm font-medium truncate">{activeTask.name}</span>
+                                                <span className="text-xs text-muted-foreground truncate">Drag to assign to task</span>
                                             </div>
                                         </div>
-                                        <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                            <span>{activeTask.boardName} • {activeTask.listName}</span>
-                                            <Badge variant="outline" className="text-xs">
-                                                {activeTask.priority}
-                                            </Badge>
+                                    ) : (
+                                        // Task drag overlay
+                                        <div className="p-3 border-l-4 border-l-blue-500 bg-blue-50 dark:bg-blue-950/20 rounded-lg shadow-lg opacity-90">
+                                            <div className="flex items-start justify-between mb-2">
+                                                <h4 className="font-medium text-sm">{activeTask.title}</h4>
+                                                <div className="flex items-center gap-1">
+                                                    {activeTask.assignees?.slice(0, 2).map((assignee: any) => (
+                                                        <Avatar key={assignee.id} className="h-5 w-5 border">
+                                                            <AvatarImage src={assignee.avatar} />
+                                                            <AvatarFallback className="text-xs">
+                                                                {assignee.name.charAt(0).toUpperCase()}
+                                                            </AvatarFallback>
+                                                        </Avatar>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                                <span>{activeTask.boardName} • {activeTask.listName}</span>
+                                                <Badge variant="outline" className="text-xs">
+                                                    {activeTask.priority}
+                                                </Badge>
+                                            </div>
                                         </div>
-                                    </div>
+                                    )
                                 ) : null}
                             </DragOverlay>
                         </DndContext>
