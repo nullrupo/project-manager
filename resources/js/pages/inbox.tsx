@@ -1,16 +1,14 @@
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Card, CardContent } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
-import { type BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/react';
-import { Calendar, CalendarDays, Clock, Edit, Inbox, Plus, Trash2, User as UserIcon, FolderOpen, Tag, CheckSquare, Square, MoreHorizontal, ArrowRight, Flag, Sparkles, FileText } from 'lucide-react';
+import { CalendarDays, Clock, Inbox, Plus, Trash2, FolderOpen, ArrowRight, Sparkles, FileText, Search, X } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useBatchTaskOperations } from '@/hooks/useBatchTaskOperations';
@@ -95,11 +93,19 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
         title: '',
         description: '',
         priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
-        status: 'to_do' as 'to_do' | 'in_progress' | 'done',
         due_date: null as string | null,
-        assignee_ids: [] as number[]
+        assignee_ids: [] as number[],
+        project_id: null as number | null
     });
     const [isCreatingTask, setIsCreatingTask] = useState(false);
+
+    // Project selection state for create dialog only
+    const [projectSearchQuery, setProjectSearchQuery] = useState('');
+    const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+    const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+
+    // Refs for project search inputs
+    const projectSearchRef = useRef<HTMLInputElement>(null);
 
     // Unified selection state (used for both keyboard and mouse interactions)
     const [lastSelectedTaskId, setLastSelectedTaskId] = useState<number | null>(null);
@@ -307,6 +313,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
             priority: 'medium',
             status: 'to_do',
             due_date: null,
+            project_id: null, // Quick add doesn't support project selection
         }, {
             onSuccess: () => {
                 setQuickAddTitle('');
@@ -530,10 +537,12 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
             title: '',
             description: '',
             priority: 'medium',
-            status: 'to_do',
             due_date: null,
-            assignee_ids: []
+            assignee_ids: [],
+            project_id: null
         });
+        setSelectedProject(null);
+        setProjectSearchQuery('');
         setIsCreateDialogOpen(true);
     };
 
@@ -543,10 +552,12 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
             title: '',
             description: '',
             priority: 'medium',
-            status: 'to_do',
             due_date: null,
-            assignee_ids: []
+            assignee_ids: [],
+            project_id: null
         });
+        setSelectedProject(null);
+        setProjectSearchQuery('');
     };
 
     const handleCreateTask = (e: React.FormEvent) => {
@@ -554,7 +565,13 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
         if (!createTaskData.title.trim()) return;
 
         setIsCreatingTask(true);
-        router.post(route('inbox.tasks.store'), createTaskData, {
+        const taskData = {
+            ...createTaskData,
+            status: 'to_do', // Default status for new tasks
+            project_id: selectedProject?.id || null
+        };
+
+        router.post(route('inbox.tasks.store'), taskData, {
             onSuccess: () => {
                 setIsCreatingTask(false);
                 closeCreateDialog();
@@ -563,6 +580,29 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                 setIsCreatingTask(false);
             }
         });
+    };
+
+    // Project search and selection helpers
+    const filteredProjects = useMemo(() => {
+        if (!projectSearchQuery.trim()) return projects;
+        const query = projectSearchQuery.toLowerCase();
+        return projects.filter(project =>
+            project.name.toLowerCase().includes(query) ||
+            project.key.toLowerCase().includes(query)
+        );
+    }, [projects, projectSearchQuery]);
+
+    const handleProjectSelect = (project: Project) => {
+        setSelectedProject(project);
+        setProjectSearchQuery(project.name);
+        setShowProjectDropdown(false);
+        setCreateTaskData(prev => ({ ...prev, project_id: project.id }));
+    };
+
+    const clearProjectSelection = () => {
+        setSelectedProject(null);
+        setProjectSearchQuery('');
+        setCreateTaskData(prev => ({ ...prev, project_id: null }));
     };
 
     return (
@@ -638,7 +678,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
 
                 {/* Quick Add Form - Separate container */}
                 <Card>
-                    <CardContent className="pt-6">
+                    <CardContent className="pt-3 pb-3">
                         <form onSubmit={handleQuickAdd} className="flex gap-2">
                             <div className="flex-1">
                                 <Input
@@ -668,7 +708,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
 
                 {/* Task List */}
                 <Card>
-                    <CardContent className="pt-6">
+                    <CardContent className="pt-3 pb-3">
                         {sortedTasks.length > 0 ? (
                             <div
                                 className="space-y-2"
@@ -689,9 +729,14 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                     return (
                                         <div
                                             key={task.id}
-                                            className={`group flex items-start gap-3 p-2 rounded-lg border transition-colors cursor-pointer ${
-                                                isOverdue ? 'border-red-200 bg-red-50/50' : 'border-border/50'
-                                            } ${isSelected ? 'ring-2 ring-primary/20 bg-primary/5' : 'hover:bg-muted/30'}`}
+                                            className={`group flex items-start gap-3 p-3 rounded-lg border-2 transition-all cursor-pointer ${
+                                                isOverdue
+                                                    ? 'border-red-300 bg-red-50/70 shadow-sm'
+                                                    : 'border-border bg-background shadow-sm hover:shadow-md'
+                                            } ${isSelected
+                                                ? 'ring-2 ring-primary/30 bg-primary/10 border-primary/30'
+                                                : 'hover:bg-muted/50 hover:border-border'
+                                            }`}
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 toggleTaskSelection(task.id, e);
@@ -705,7 +750,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                                     quickUpdateStatus(task.id, newStatus);
                                                 }}
                                                 onClick={(e) => e.stopPropagation()}
-                                                className="mt-1"
+                                                className="mt-1 border-2 border-muted-foreground/40 data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                                             />
 
                                             <div className="flex-1 min-w-0">
@@ -724,12 +769,24 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                                     <p className="text-sm text-muted-foreground mb-1 line-clamp-2">{task.description}</p>
                                                 )}
 
-                                                {task.due_date && (
-                                                    <div className={`flex items-center gap-1 text-xs text-muted-foreground ${isOverdue ? 'text-red-600' : ''}`}>
-                                                        <CalendarDays className="h-3 w-3" />
-                                                        <span>{new Date(task.due_date).toLocaleDateString()}</span>
-                                                    </div>
-                                                )}
+                                                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                                    {task.due_date && (
+                                                        <div className={`flex items-center gap-1 ${isOverdue ? 'text-red-600' : ''}`}>
+                                                            <CalendarDays className="h-3 w-3" />
+                                                            <span>{new Date(task.due_date).toLocaleDateString()}</span>
+                                                        </div>
+                                                    )}
+
+                                                    {task.project && (
+                                                        <div className="flex items-center gap-1">
+                                                            <FolderOpen className="h-3 w-3" />
+                                                            <span>{task.project.name}</span>
+                                                            <Badge variant="outline" className="text-xs">
+                                                                {task.project.key}
+                                                            </Badge>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
 
                                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -806,12 +863,10 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                     <DialogContent className="sm:max-w-[500px]">
                         <DialogHeader>
                             <DialogTitle>Edit Task</DialogTitle>
-                            <DialogDescription>
-                                Update the details of your inbox task.
-                            </DialogDescription>
                         </DialogHeader>
                         <form onSubmit={onSubmit} className="space-y-4">
                             <div className="space-y-4">
+                                {/* 1. Title */}
                                 <div className="space-y-2">
                                     <label htmlFor="edit-title" className="text-sm font-medium">Title</label>
                                     <Input
@@ -823,6 +878,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                     />
                                 </div>
 
+                                {/* 2. Description */}
                                 <div className="space-y-2">
                                     <label htmlFor="edit-description" className="text-sm font-medium">Description</label>
                                     <Textarea
@@ -833,37 +889,51 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                     />
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <label htmlFor="edit-priority" className="text-sm font-medium">Priority</label>
-                                        <select
-                                            id="edit-priority"
-                                            className="w-full rounded-md border border-input bg-background px-3 py-2"
-                                            value={priority}
-                                            onChange={(e) => setPriority(e.target.value)}
-                                        >
-                                            <option value="low">Low</option>
-                                            <option value="medium">Medium</option>
-                                            <option value="high">High</option>
-                                            <option value="urgent">Urgent</option>
-                                        </select>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <label htmlFor="edit-status" className="text-sm font-medium">Status</label>
-                                        <select
-                                            id="edit-status"
-                                            className="w-full rounded-md border border-input bg-background px-3 py-2"
-                                            value={status}
-                                            onChange={(e) => setStatus(e.target.value)}
-                                        >
-                                            <option value="to_do">To Do</option>
-                                            <option value="in_progress">In Progress</option>
-                                            <option value="done">Done</option>
-                                        </select>
+                                {/* 3. Project */}
+                                <div className="space-y-2">
+                                    <label htmlFor="edit-project" className="text-sm font-medium">Project</label>
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            placeholder="Search projects..."
+                                            value={editingTask?.project?.name || ''}
+                                            onChange={() => {}} // Read-only for now, can be enhanced later
+                                            className="pl-10"
+                                            disabled
+                                        />
+                                        <div className="mt-2 text-sm text-muted-foreground">
+                                            {editingTask?.project ? (
+                                                <div className="flex items-center gap-2">
+                                                    <FolderOpen className="h-4 w-4" />
+                                                    <span>Currently in: <strong>{editingTask.project.name}</strong></span>
+                                                    <Badge variant="outline" className="text-xs">
+                                                        {editingTask.project.key}
+                                                    </Badge>
+                                                </div>
+                                            ) : (
+                                                <span>No project assigned. Use "Move to Project" to assign one.</span>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 
+                                {/* 4. Priority */}
+                                <div className="space-y-2">
+                                    <label htmlFor="edit-priority" className="text-sm font-medium">Priority</label>
+                                    <select
+                                        id="edit-priority"
+                                        className="w-full rounded-md border border-input bg-background px-3 py-2"
+                                        value={priority}
+                                        onChange={(e) => setPriority(e.target.value)}
+                                    >
+                                        <option value="low">Low</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="high">High</option>
+                                        <option value="urgent">Urgent</option>
+                                    </select>
+                                </div>
+
+                                {/* 5. Due Date */}
                                 <div className="space-y-2">
                                     <label htmlFor="edit-due-date" className="text-sm font-medium">Due Date</label>
                                     <Input
@@ -872,8 +942,23 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                         className="w-full"
                                         value={dueDate || ''}
                                         onChange={(e) => setDueDate(e.target.value || null)}
+                                        onKeyDown={(e) => {
+                                            // Fix tab navigation for date input
+                                            if (e.key === 'Tab' && !e.shiftKey) {
+                                                e.preventDefault();
+                                                // Focus the next field (assignee - not implemented in edit dialog yet)
+                                                // For now, just let it tab to the next available element
+                                                const nextElement = e.currentTarget.parentElement?.parentElement?.nextElementSibling?.querySelector('input, select, button') as HTMLElement;
+                                                if (nextElement) {
+                                                    nextElement.focus();
+                                                }
+                                            }
+                                        }}
                                     />
                                 </div>
+
+                                {/* 6. Assignee - Note: Not implemented in edit dialog yet, but keeping structure consistent */}
+                                {/* This would be added here if assignee editing is needed in the future */}
                             </div>
 
                             <DialogFooter>
@@ -976,12 +1061,10 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                 <DialogContent className="sm:max-w-[500px]">
                     <DialogHeader>
                         <DialogTitle>Create New Task</DialogTitle>
-                        <DialogDescription>
-                            Create a new task with all the details you need.
-                        </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleCreateTask} className="space-y-4">
                         <div className="space-y-4">
+                            {/* 1. Title */}
                             <div className="space-y-2">
                                 <label htmlFor="create-title" className="text-sm font-medium">Title</label>
                                 <Input
@@ -993,6 +1076,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                 />
                             </div>
 
+                            {/* 2. Description */}
                             <div className="space-y-2">
                                 <label htmlFor="create-description" className="text-sm font-medium">Description</label>
                                 <Textarea
@@ -1003,37 +1087,82 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                 />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label htmlFor="create-priority" className="text-sm font-medium">Priority</label>
-                                    <select
-                                        id="create-priority"
-                                        className="w-full rounded-md border border-input bg-background px-3 py-2"
-                                        value={createTaskData.priority}
-                                        onChange={(e) => setCreateTaskData(prev => ({ ...prev, priority: e.target.value as 'low' | 'medium' | 'high' | 'urgent' }))}
-                                    >
-                                        <option value="low">Low</option>
-                                        <option value="medium">Medium</option>
-                                        <option value="high">High</option>
-                                        <option value="urgent">Urgent</option>
-                                    </select>
-                                </div>
+                            {/* 3. Project */}
+                            <div className="space-y-2">
+                                <label htmlFor="create-project" className="text-sm font-medium">Project</label>
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        ref={projectSearchRef}
+                                        placeholder="Search projects..."
+                                        value={projectSearchQuery}
+                                        onChange={(e) => {
+                                            setProjectSearchQuery(e.target.value);
+                                            setShowProjectDropdown(e.target.value.length > 0);
+                                        }}
+                                        onFocus={() => setShowProjectDropdown(projectSearchQuery.length > 0 || filteredProjects.length > 0)}
+                                        onBlur={() => setTimeout(() => setShowProjectDropdown(false), 200)}
+                                        className="pl-10"
+                                    />
+                                    {selectedProject && (
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                                            onClick={clearProjectSelection}
+                                        >
+                                            <X className="h-3 w-3" />
+                                        </Button>
+                                    )}
 
-                                <div className="space-y-2">
-                                    <label htmlFor="create-status" className="text-sm font-medium">Status</label>
-                                    <select
-                                        id="create-status"
-                                        className="w-full rounded-md border border-input bg-background px-3 py-2"
-                                        value={createTaskData.status}
-                                        onChange={(e) => setCreateTaskData(prev => ({ ...prev, status: e.target.value as 'to_do' | 'in_progress' | 'done' }))}
-                                    >
-                                        <option value="to_do">To Do</option>
-                                        <option value="in_progress">In Progress</option>
-                                        <option value="done">Done</option>
-                                    </select>
+                                    {/* Project Dropdown */}
+                                    {showProjectDropdown && filteredProjects.length > 0 && (
+                                        <div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-auto">
+                                            {filteredProjects.slice(0, 10).map((project) => (
+                                                <button
+                                                    key={project.id}
+                                                    type="button"
+                                                    className="w-full px-3 py-2 text-left hover:bg-muted flex items-center gap-2 border-b last:border-b-0"
+                                                    onClick={() => handleProjectSelect(project)}
+                                                >
+                                                    <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                                                    <span className="flex-1">{project.name}</span>
+                                                    <Badge variant="secondary" className="text-xs">
+                                                        {project.key}
+                                                    </Badge>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* Selected Project Display */}
+                                    {selectedProject && (
+                                        <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+                                            <FolderOpen className="h-4 w-4" />
+                                            <span>Selected: <strong>{selectedProject.name}</strong></span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
+                            {/* 4. Priority */}
+                            <div className="space-y-2">
+                                <label htmlFor="create-priority" className="text-sm font-medium">Priority</label>
+                                <select
+                                    id="create-priority"
+                                    className="w-full rounded-md border border-input bg-background px-3 py-2"
+                                    value={createTaskData.priority}
+                                    onChange={(e) => setCreateTaskData(prev => ({ ...prev, priority: e.target.value as 'low' | 'medium' | 'high' | 'urgent' }))}
+                                >
+                                    <option value="low">Low</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="high">High</option>
+                                    <option value="urgent">Urgent</option>
+                                </select>
+                            </div>
+
+                            {/* 5. Due Date */}
                             <div className="space-y-2">
                                 <label htmlFor="create-due-date" className="text-sm font-medium">Due Date</label>
                                 <Input
@@ -1042,20 +1171,40 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                     className="w-full"
                                     value={createTaskData.due_date || ''}
                                     onChange={(e) => setCreateTaskData(prev => ({ ...prev, due_date: e.target.value || null }))}
+                                    onKeyDown={(e) => {
+                                        // Fix tab navigation for date input
+                                        if (e.key === 'Tab' && !e.shiftKey) {
+                                            e.preventDefault();
+                                            // Focus the next field (assignee select trigger)
+                                            setTimeout(() => {
+                                                const assigneeSelect = document.querySelector('#create-assignees-trigger') as HTMLElement;
+                                                if (assigneeSelect) {
+                                                    assigneeSelect.focus();
+                                                } else {
+                                                    // Fallback to any select trigger in the dialog
+                                                    const fallbackSelect = document.querySelector('[data-radix-select-trigger]') as HTMLElement;
+                                                    if (fallbackSelect) {
+                                                        fallbackSelect.focus();
+                                                    }
+                                                }
+                                            }, 0);
+                                        }
+                                    }}
                                 />
                             </div>
 
+                            {/* 6. Assignee */}
                             <div className="space-y-2">
-                                <label htmlFor="create-assignees" className="text-sm font-medium">Assignees</label>
+                                <label htmlFor="create-assignees" className="text-sm font-medium">Assignee</label>
                                 <Select
-                                    value={createTaskData.assignee_ids.length > 0 ? createTaskData.assignee_ids[0].toString() : ''}
-                                    onValueChange={(value) => setCreateTaskData(prev => ({ ...prev, assignee_ids: value ? [parseInt(value)] : [] }))}
+                                    value={createTaskData.assignee_ids.length > 0 ? createTaskData.assignee_ids[0].toString() : 'no-assignee'}
+                                    onValueChange={(value) => setCreateTaskData(prev => ({ ...prev, assignee_ids: value === 'no-assignee' ? [] : [parseInt(value)] }))}
                                 >
-                                    <SelectTrigger>
+                                    <SelectTrigger id="create-assignees-trigger">
                                         <SelectValue placeholder="Select an assignee" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="">No assignee</SelectItem>
+                                        <SelectItem value="no-assignee">No assignee</SelectItem>
                                         {users.map((user) => (
                                             <SelectItem key={user.id} value={user.id.toString()}>
                                                 {user.name}

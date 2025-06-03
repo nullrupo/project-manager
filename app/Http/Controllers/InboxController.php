@@ -28,7 +28,7 @@ class InboxController extends Controller
                           $q->where('users.id', $user->id);
                       });
             })
-            ->with(['assignees', 'labels', 'creator'])
+            ->with(['assignees', 'labels', 'creator', 'project'])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -63,7 +63,22 @@ class InboxController extends Controller
             'due_date' => 'nullable|date',
             'assignee_ids' => 'nullable|array',
             'assignee_ids.*' => 'exists:users,id',
+            'project_id' => 'nullable|exists:projects,id',
         ]);
+
+        // Check project authorization if project_id is provided
+        if (!empty($validated['project_id'])) {
+            $project = Project::findOrFail($validated['project_id']);
+
+            // Check if user has permission to add tasks to this project
+            $user = Auth::user();
+            $hasPermission = $project->owner_id === $user->id ||
+                           $project->members()->where('users.id', $user->id)->exists();
+
+            if (!$hasPermission) {
+                return back()->withErrors(['project_id' => 'You do not have permission to add tasks to this project.']);
+            }
+        }
 
         // Create the task
         $task = new Task([
@@ -72,6 +87,7 @@ class InboxController extends Controller
             'priority' => $validated['priority'],
             'status' => $validated['status'],
             'due_date' => $validated['due_date'] ?? null,
+            'project_id' => $validated['project_id'] ?? null,
             'is_inbox' => true,
             'created_by' => Auth::id(),
         ]);
