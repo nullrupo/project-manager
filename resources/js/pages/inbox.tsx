@@ -961,9 +961,6 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                                     >
                                                         <FolderOpen className="h-4 w-4 text-muted-foreground" />
                                                         <span className="flex-1">{project.name}</span>
-                                                        <Badge variant="secondary" className="text-xs">
-                                                            {project.key}
-                                                        </Badge>
                                                     </button>
                                                 ))}
                                             </div>
@@ -1190,9 +1187,6 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                                 >
                                                     <FolderOpen className="h-4 w-4 text-muted-foreground" />
                                                     <span className="flex-1">{project.name}</span>
-                                                    <Badge variant="secondary" className="text-xs">
-                                                        {project.key}
-                                                    </Badge>
                                                 </button>
                                             ))}
                                         </div>

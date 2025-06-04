@@ -53,12 +53,21 @@ class ProjectController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'key' => 'required|string|max:10|unique:projects,key',
             'description' => 'nullable|string',
             'is_public' => 'boolean',
             'background_color' => 'nullable|string|max:50',
             'icon' => 'nullable|string|max:50',
         ]);
+
+        // Auto-generate a unique project key from name
+        $key = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $validated['name']), 0, 4));
+        $counter = 1;
+        $originalKey = $key;
+        while (Project::where('key', $key)->exists()) {
+            $key = $originalKey . $counter;
+            $counter++;
+        }
+        $validated['key'] = $key;
 
         // Create the project
         $project = new Project($validated);
@@ -172,7 +181,6 @@ class ProjectController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'key' => 'required|string|max:10|unique:projects,key,' . $project->id,
             'description' => 'nullable|string',
             'is_public' => 'boolean',
             'background_color' => 'nullable|string|max:50',

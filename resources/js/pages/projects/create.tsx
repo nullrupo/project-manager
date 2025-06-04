@@ -14,7 +14,6 @@ import { FormEventHandler, useEffect } from 'react';
 
 interface ProjectCreateForm {
     name: string;
-    key: string;
     description: string;
     is_public: boolean;
     background_color: string;
@@ -36,24 +35,12 @@ const breadcrumbs: BreadcrumbItem[] = [
 export default function ProjectCreate() {
     const { data, setData, post, processing, errors } = useForm<ProjectCreateForm>({
         name: '',
-        key: '',
         description: '',
         is_public: false,
         background_color: '#3498db',
         icon: '',
         visibility: 'private',
     });
-
-    // Auto-generate project key from name
-    useEffect(() => {
-        if (data.name && !data.key) {
-            const generatedKey = data.name
-                .toUpperCase()
-                .replace(/[^A-Z0-9]/g, '')
-                .substring(0, 4);
-            setData('key', generatedKey);
-        }
-    }, [data.name]);
 
     // Sync visibility with is_public
     useEffect(() => {
@@ -94,25 +81,6 @@ export default function ProjectCreate() {
                                     className="text-base"
                                 />
                                 <InputError message={errors.name} />
-                            </div>
-
-                            {/* Project Key */}
-                            <div className="space-y-2">
-                                <Label htmlFor="key" className="text-sm font-medium">Project Key</Label>
-                                <Input
-                                    id="key"
-                                    value={data.key}
-                                    onChange={(e) => setData('key', e.target.value.toUpperCase())}
-                                    placeholder="PROJ"
-                                    maxLength={10}
-                                    required
-                                    className="font-mono text-base"
-                                />
-                                <p className="text-sm text-muted-foreground flex items-center gap-1">
-                                    <Info className="h-3 w-3" />
-                                    A short, unique identifier for this project (e.g., PROJ, TEST)
-                                </p>
-                                <InputError message={errors.key} />
                             </div>
 
                             {/* Description */}

@@ -126,9 +126,6 @@ export default function Favorites({ favorites, totalCount }: FavoritesProps) {
                                                                             />
                                                                             <CardTitle className="text-base">{project.title}</CardTitle>
                                                                         </div>
-                                                                        <Badge variant="outline" className="text-xs">
-                                                                            {project.key}
-                                                                        </Badge>
                                                                     </div>
                                                                     {project.description && (
                                                                         <CardDescription className="text-sm">
@@ -230,9 +227,6 @@ export default function Favorites({ favorites, totalCount }: FavoritesProps) {
                                                                 />
                                                                 <CardTitle className="text-base">{project.title}</CardTitle>
                                                             </div>
-                                                            <Badge variant="outline" className="text-xs">
-                                                                {project.key}
-                                                            </Badge>
                                                         </div>
                                                         {project.description && (
                                                             <CardDescription className="text-sm">

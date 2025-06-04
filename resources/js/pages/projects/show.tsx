@@ -1575,9 +1575,6 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                             <div className="flex-1 min-w-0">
                                 <h1 className="text-3xl font-bold flex flex-wrap items-center gap-2 break-words">
                                     <span className="break-words">{project.name}</span>
-                                    <Badge variant="secondary" className="text-sm font-mono">
-                                        {project.key}
-                                    </Badge>
                                 </h1>
                                 <div className="flex items-center gap-3 mt-1">
                                     {project.is_public ? (
@@ -2470,11 +2467,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                             <CardTitle className="text-lg">Project Information</CardTitle>
                                         </CardHeader>
                                         <CardContent className="space-y-4">
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <label className="text-sm font-medium text-muted-foreground">Project Key</label>
-                                                    <p className="text-lg font-mono bg-muted/50 px-3 py-2 rounded-md">{project.key}</p>
-                                                </div>
+                                            <div className="grid grid-cols-1 gap-4">
                                                 <div>
                                                     <label className="text-sm font-medium text-muted-foreground">Visibility</label>
                                                     <div className="flex items-center gap-2 mt-1">

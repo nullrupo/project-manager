@@ -33,7 +33,6 @@ export default function ProjectEdit({ project }: ProjectEditProps) {
 
     const { data, setData, put, processing, errors } = useForm({
         name: project.name,
-        key: project.key,
         description: project.description || '',
         is_public: project.is_public,
         background_color: project.background_color || '#3498db',
@@ -65,22 +64,6 @@ export default function ProjectEdit({ project }: ProjectEditProps) {
                                     required
                                 />
                                 <InputError message={errors.name} />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="key">Project Key</Label>
-                                <Input
-                                    id="key"
-                                    value={data.key}
-                                    onChange={(e) => setData('key', e.target.value.toUpperCase())}
-                                    placeholder="PROJ"
-                                    maxLength={10}
-                                    required
-                                />
-                                <p className="text-sm text-muted-foreground">
-                                    A short, unique identifier for this project (e.g., PROJ, TEST)
-                                </p>
-                                <InputError message={errors.key} />
                             </div>
 
                             <div className="space-y-2">
