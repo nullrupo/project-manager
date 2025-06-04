@@ -256,6 +256,11 @@ class TaskController extends Controller
         // Sync labels
         $task->labels()->sync($validated['label_ids'] ?? []);
 
+        // Check if this is an AJAX/Inertia request that wants to stay on the same page
+        if ($request->wantsJson() || $request->header('X-Inertia')) {
+            return redirect()->back()->with('success', 'Task updated successfully.');
+        }
+
         return redirect()->route('tasks.show', [$project, $task])
             ->with('success', 'Task updated successfully.');
     }
