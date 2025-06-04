@@ -33,24 +33,11 @@ export default function BoardsIndex({ project, boards }: BoardsIndexProps) {
             
             <div className="flex items-center justify-between mb-6">
                 <div>
-                    <h1 className="text-2xl font-semibold">Boards</h1>
+                    <h1 className="text-2xl font-semibold">Board</h1>
                     <p className="text-muted-foreground">
-                        Manage and organize your project boards
+                        Manage your tasks and workflow
                     </p>
                 </div>
-                {project.can_edit ? (
-                    <Link href={route('boards.create', { project: project.id })}>
-                        <Button>
-                            <Plus className="mr-2 h-4 w-4" />
-                            New Board
-                        </Button>
-                    </Link>
-                ) : (
-                    <Button disabled>
-                        <Lock className="mr-2 h-4 w-4" />
-                        New Board
-                    </Button>
-                )}
             </div>
 
             {boards.length === 0 ? (

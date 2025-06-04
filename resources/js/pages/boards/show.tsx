@@ -17,6 +17,7 @@ import { DndContext, DragOverlay, closestCenter, closestCorners, KeyboardSensor,
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
+import { useShortName } from '@/hooks/use-initials';
 
 
 interface BoardShowProps {
@@ -419,6 +420,7 @@ function SortableTask({
 }
 
 export default function BoardShow({ project, board, members, labels }: BoardShowProps) {
+    const getShortName = useShortName();
     const [lists, setLists] = useState<TaskList[]>(board.lists || []);
     const [activeId, setActiveId] = useState<string | null>(null);
     const [activeItem, setActiveItem] = useState<any | null>(null);
@@ -921,31 +923,17 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
 
                     <div className="flex gap-2 ml-4">
                         {board.can_edit ? (
-                            <>
-                                <Link href={route('boards.create', { project: project.id })}>
-                                    <Button variant="outline" size="sm" className="shadow-sm hover:shadow-md">
-                                        <Plus className="h-4 w-4 mr-2" />
-                                        New Board
-                                    </Button>
-                                </Link>
-                                <Link href={route('boards.edit', { project: project.id, board: board.id })}>
-                                    <Button variant="outline" size="sm" className="shadow-sm hover:shadow-md">
-                                        <Settings className="h-4 w-4 mr-2" />
-                                        Board Settings
-                                    </Button>
-                                </Link>
-                            </>
-                        ) : (
-                            <>
-                                <Button variant="outline" size="sm" disabled className="shadow-sm">
-                                    <Lock className="h-4 w-4 mr-2" />
-                                    New Board
-                                </Button>
-                                <Button variant="outline" size="sm" disabled className="shadow-sm">
-                                    <Lock className="h-4 w-4 mr-2" />
+                            <Link href={route('boards.edit', { project: project.id, board: board.id })}>
+                                <Button variant="outline" size="sm" className="shadow-sm hover:shadow-md">
+                                    <Settings className="h-4 w-4 mr-2" />
                                     Board Settings
                                 </Button>
-                            </>
+                            </Link>
+                        ) : (
+                            <Button variant="outline" size="sm" disabled className="shadow-sm">
+                                <Lock className="h-4 w-4 mr-2" />
+                                Board Settings
+                            </Button>
                         )}
                     </div>
                 </div>

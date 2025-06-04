@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Project, Task } from '@/types/project-manager';
 import { CalendarDays, Clock, Edit, MessageSquare, Tag, Trash2, User, Eye } from 'lucide-react';
+import { useShortName } from '@/hooks/use-initials';
 
 interface TaskViewModalProps {
     open: boolean;
@@ -28,6 +29,7 @@ export default function TaskViewModal({
     const { data, setData, post, processing, errors, reset } = useForm({
         content: '',
     });
+    const getShortName = useShortName();
 
     const submitComment = (e: React.FormEvent) => {
         e.preventDefault();
@@ -68,7 +70,7 @@ export default function TaskViewModal({
                                 <span className="break-words">{task.title}</span>
                             </DialogTitle>
                             <DialogDescription className="text-base">
-                                Created by <span className="font-medium">{task.creator?.name}</span> on {new Date(task.created_at).toLocaleDateString('en-US', {
+                                Created by <span className="font-medium">{getShortName(task.creator?.name || '')}</span> on {new Date(task.created_at).toLocaleDateString('en-US', {
                                     year: 'numeric',
                                     month: 'long',
                                     day: 'numeric'
@@ -171,7 +173,7 @@ export default function TaskViewModal({
                                                         <User className="h-5 w-5 text-primary" />
                                                     </div>
                                                     <div>
-                                                        <p className="font-semibold text-sm">{comment.user?.name}</p>
+                                                        <p className="font-semibold text-sm">{getShortName(comment.user?.name || '')}</p>
                                                         <p className="text-xs text-muted-foreground">
                                                             {new Date(comment.created_at).toLocaleString('en-US', {
                                                                 year: 'numeric',
@@ -250,7 +252,7 @@ export default function TaskViewModal({
                                                 <div className="flex flex-wrap gap-1 mt-2">
                                                     {task.assignees.map((assignee) => (
                                                         <Badge key={assignee.id} variant="secondary" className="text-xs font-medium">
-                                                            {assignee.name}
+                                                            {getShortName(assignee.name)}
                                                         </Badge>
                                                     ))}
                                                 </div>

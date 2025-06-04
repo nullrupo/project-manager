@@ -13,6 +13,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useBatchTaskOperations } from '@/hooks/useBatchTaskOperations';
 import { BulkActionsPanel } from '@/components/BulkActionsPanel';
+import { useShortName } from '@/hooks/use-initials';
 
 interface Task {
     id: number;
@@ -52,6 +53,7 @@ interface InboxPageProps {
 // Remove breadcrumbs to eliminate redundant "inbox" text at top
 
 export default function InboxPage({ tasks = [], users = [], projects = [] }: InboxPageProps) {
+    const getShortName = useShortName();
     const [editingTask, setEditingTask] = useState<Task | null>(null);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [taskToDelete, setTaskToDelete] = useState<number | null>(null);
@@ -1263,7 +1265,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                         <SelectItem value="no-assignee">No assignee</SelectItem>
                                         {users.map((user) => (
                                             <SelectItem key={user.id} value={user.id.toString()}>
-                                                {user.name}
+                                                {getShortName(user.name)}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>

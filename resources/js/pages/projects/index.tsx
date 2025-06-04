@@ -10,6 +10,7 @@ import { Head, Link, usePage } from '@inertiajs/react';
 import { CalendarDays, Lock, Plus, User, Users, Globe, Shield, Archive, Star } from 'lucide-react';
 import StarButton from '@/components/star-button';
 import { useState, useMemo } from 'react';
+import { useShortName } from '@/hooks/use-initials';
 
 interface ProjectsIndexProps {
     projects: Project[];
@@ -20,6 +21,7 @@ type ProjectFilter = 'all' | 'personal' | 'team';
 export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
     const { auth } = usePage<SharedData>().props;
     const [activeFilter, setActiveFilter] = useState<ProjectFilter>('all');
+    const getShortName = useShortName();
 
     // Filter projects based on the active filter
     const filteredProjects = useMemo(() => {
@@ -58,7 +60,7 @@ export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
                     className="flex items-center gap-2"
                 >
                     <Globe className="h-4 w-4" />
-                    All Projects
+                    All
                     <Badge variant="secondary" className="ml-1">
                         {projects.length}
                     </Badge>
@@ -198,7 +200,7 @@ export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
                                             </AvatarFallback>
                                         </Avatar>
                                         <span className="text-sm text-muted-foreground">
-                                            {project.owner?.name || 'Unknown'}
+                                            {getShortName(project.owner?.name || 'Unknown')}
                                         </span>
                                     </div>
 

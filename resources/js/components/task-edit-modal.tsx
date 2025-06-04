@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Project, Task, TaskList, User, Label as ProjectLabel } from '@/types/project-manager';
 import { LoaderCircle, Calendar, User as UserIcon, Tag, List, Save, X } from 'lucide-react';
+import { useShortName } from '@/hooks/use-initials';
 
 interface TaskEditModalProps {
     open: boolean;
@@ -43,6 +44,7 @@ export default function TaskEditModal({
     labels,
     lists
 }: TaskEditModalProps) {
+    const getShortName = useShortName();
     const { data, setData, put, processing, errors, reset } = useForm<TaskEditForm>({
         title: task.title,
         description: task.description || '',
@@ -264,7 +266,7 @@ export default function TaskEditModal({
                                                 onCheckedChange={(checked) => handleAssigneeChange(member.id, checked as boolean)}
                                             />
                                             <Label htmlFor={`assignee-${member.id}`} className="text-sm cursor-pointer">
-                                                {member.name}
+                                                {getShortName(member.name)}
                                             </Label>
                                         </div>
                                     ))}

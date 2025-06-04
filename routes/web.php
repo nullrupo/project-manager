@@ -32,14 +32,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('projects/{project}/members/{user}', [ProjectMemberController::class, 'update'])->name('projects.members.update');
     Route::delete('projects/{project}/members/{user}', [ProjectMemberController::class, 'destroy'])->name('projects.members.destroy');
 
-    // Board routes
+    // Board routes (creation disabled - each project has one board)
     Route::get('projects/{project}/boards', [BoardController::class, 'index'])->name('boards.index');
-    Route::get('projects/{project}/boards/create', [BoardController::class, 'create'])->name('boards.create');
-    Route::post('projects/{project}/boards', [BoardController::class, 'store'])->name('boards.store');
     Route::get('projects/{project}/boards/{board}', [BoardController::class, 'show'])->name('boards.show');
     Route::get('projects/{project}/boards/{board}/edit', [BoardController::class, 'edit'])->name('boards.edit');
     Route::put('projects/{project}/boards/{board}', [BoardController::class, 'update'])->name('boards.update');
-    Route::delete('projects/{project}/boards/{board}', [BoardController::class, 'destroy'])->name('boards.destroy');
 
     // List routes
     Route::post('projects/{project}/boards/{board}/lists', [TaskListController::class, 'store'])->name('lists.store');

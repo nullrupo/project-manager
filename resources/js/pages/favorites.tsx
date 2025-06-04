@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Link, router } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import { onFavoriteUpdated } from '@/utils/favorites-events';
+import { useShortName } from '@/hooks/use-initials';
 
 interface FavoriteItem {
     id: number;
@@ -38,6 +39,7 @@ interface FavoritesProps {
 }
 
 export default function Favorites({ favorites, totalCount }: FavoritesProps) {
+    const getShortName = useShortName();
     const [searchTerm, setSearchTerm] = useState('');
 
     // Listen for favorite updates and refresh the page data
@@ -136,7 +138,7 @@ export default function Favorites({ favorites, totalCount }: FavoritesProps) {
                                                                 <CardContent className="pt-0">
                                                                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                                                         <User className="h-3 w-3" />
-                                                                        <span>{project.owner}</span>
+                                                                        <span>{getShortName(project.owner)}</span>
                                                                     </div>
                                                                 </CardContent>
                                                             </Card>
@@ -237,7 +239,7 @@ export default function Favorites({ favorites, totalCount }: FavoritesProps) {
                                                     <CardContent className="pt-0">
                                                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                                             <User className="h-3 w-3" />
-                                                            <span>{project.owner}</span>
+                                                            <span>{getShortName(project.owner)}</span>
                                                         </div>
                                                     </CardContent>
                                                 </Card>

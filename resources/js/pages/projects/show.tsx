@@ -11,7 +11,8 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Project } from '@/types/project-manager';
 import { Head, Link, usePage, router } from '@inertiajs/react';
-import { Archive, Edit, Lock, Plus, Trash2, Users, ListTodo, Tag, Globe, Shield, Calendar, BarChart3, UserPlus, Settings, Crown, Clock, AlertCircle, CheckCircle2, Search, Filter, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, X } from 'lucide-react';
+import { Archive, Edit, Lock, Plus, Trash2, Users, ListTodo, Tag, Globe, Shield, Calendar, BarChart3, UserPlus, Settings, Crown, Clock, AlertCircle, CheckCircle2, Search, Filter, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, X, Eye } from 'lucide-react';
+import { useShortName } from '@/hooks/use-initials';
 import axios from 'axios';
 import InviteMemberModal from '@/components/invite-member-modal';
 import MemberPermissionModal from '@/components/member-permission-modal';
@@ -27,6 +28,7 @@ interface ProjectShowProps {
 export default function ProjectShow({ project }: ProjectShowProps) {
     const { auth } = usePage<SharedData>().props;
     const canEdit = project.can_edit;
+    const getShortName = useShortName();
     const [inviteModalOpen, setInviteModalOpen] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [memberToDelete, setMemberToDelete] = useState<any>(null);
@@ -645,7 +647,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                     </AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col min-w-0">
-                    <span className="text-sm font-medium truncate">{member.name}</span>
+                    <span className="text-sm font-medium truncate">{getShortName(member.name)}</span>
                     <span className="text-xs text-muted-foreground truncate">{member.email}</span>
                 </div>
             </div>
@@ -1142,7 +1144,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                             </AvatarFallback>
                                         </Avatar>
                                         <div className="flex-1">
-                                            <div className="font-medium">{member.name}</div>
+                                            <div className="font-medium">{getShortName(member.name)}</div>
                                             <div className="text-sm text-muted-foreground">{member.email}</div>
                                         </div>
                                         {selectedAssignees.includes(member.id) && (
@@ -1617,10 +1619,10 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                     </AvatarFallback>
                                 </Avatar>
                                 <div>
-                                    <p className="text-sm font-medium">{project.owner?.name}</p>
+                                    <p className="text-sm font-medium">{getShortName(project.owner?.name || '')}</p>
                                     <p className="text-xs text-muted-foreground flex items-center gap-1">
                                         <Crown className="h-3 w-3" />
-                                        Project Owner
+                                        Owner
                                     </p>
                                 </div>
                             </div>
@@ -1685,56 +1687,47 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                 {/* Project Tabs */}
                 <div className="w-full">
                     <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-                        <TabsList className="grid w-full grid-cols-5 h-auto p-1 bg-muted/50 rounded-b-none border-b-0">
+                        <TabsList className="grid w-full grid-cols-5 h-12 p-1 bg-muted/50 rounded-b-none border-b-0">
                         <TabsTrigger
                             value="boards"
-                            className="flex flex-col items-center gap-2 h-20 data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-blue-50 dark:hover:bg-blue-950/50"
+                            className="flex items-center gap-2 h-10 data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-blue-50 dark:hover:bg-blue-950/50"
                         >
-                            <ListTodo className="h-5 w-5" />
-                            <div className="text-center">
-                                <div className="font-medium">Boards</div>
-                                <div className="text-xs opacity-70">{project.boards?.length || 0} board{(project.boards?.length || 0) !== 1 ? 's' : ''}</div>
-                            </div>
+                            <ListTodo className="h-4 w-4" />
+                            <span className="font-medium">Board</span>
                         </TabsTrigger>
                         <TabsTrigger
                             value="members"
-                            className="flex flex-col items-center gap-2 h-20 data-[state=active]:bg-green-500 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-green-50 dark:hover:bg-green-950/50"
+                            className="flex items-center gap-2 h-10 data-[state=active]:bg-green-500 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-green-50 dark:hover:bg-green-950/50"
                         >
-                            <Users className="h-5 w-5" />
-                            <div className="text-center">
-                                <div className="font-medium">Members</div>
-                                <div className="text-xs opacity-70">{project.members?.length || 0} member{(project.members?.length || 0) !== 1 ? 's' : ''}</div>
-                            </div>
+                            <Users className="h-4 w-4" />
+                            <span className="font-medium">Members</span>
+                            <Badge variant="secondary" className="ml-1 text-xs">
+                                {project.members?.length || 0}
+                            </Badge>
                         </TabsTrigger>
                         <TabsTrigger
                             value="labels"
-                            className="flex flex-col items-center gap-2 h-20 data-[state=active]:bg-purple-500 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-purple-50 dark:hover:bg-purple-950/50"
+                            className="flex items-center gap-2 h-10 data-[state=active]:bg-purple-500 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-purple-50 dark:hover:bg-purple-950/50"
                         >
-                            <Tag className="h-5 w-5" />
-                            <div className="text-center">
-                                <div className="font-medium">Labels</div>
-                                <div className="text-xs opacity-70">Organize tasks</div>
-                            </div>
+                            <Tag className="h-4 w-4" />
+                            <span className="font-medium">Labels</span>
+                            <Badge variant="secondary" className="ml-1 text-xs">
+                                {project.labels?.length || 0}
+                            </Badge>
                         </TabsTrigger>
                         <TabsTrigger
                             value="calendar"
-                            className="flex flex-col items-center gap-2 h-20 data-[state=active]:bg-indigo-500 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/50"
+                            className="flex items-center gap-2 h-10 data-[state=active]:bg-indigo-500 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/50"
                         >
-                            <Calendar className="h-5 w-5" />
-                            <div className="text-center">
-                                <div className="font-medium">Calendar</div>
-                                <div className="text-xs opacity-70">Schedule & dates</div>
-                            </div>
+                            <Calendar className="h-4 w-4" />
+                            <span className="font-medium">Calendar</span>
                         </TabsTrigger>
                         <TabsTrigger
                             value="details"
-                            className="flex flex-col items-center gap-2 h-20 data-[state=active]:bg-orange-500 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-orange-50 dark:hover:bg-orange-950/50"
+                            className="flex items-center gap-2 h-10 data-[state=active]:bg-orange-500 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-orange-50 dark:hover:bg-orange-950/50"
                         >
-                            <Settings className="h-5 w-5" />
-                            <div className="text-center">
-                                <div className="font-medium">Details</div>
-                                <div className="text-xs opacity-70">Project info</div>
-                            </div>
+                            <Settings className="h-4 w-4" />
+                            <span className="font-medium">Details</span>
                         </TabsTrigger>
                     </TabsList>
 
@@ -1745,210 +1738,148 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                     <div>
                                         <CardTitle className="flex items-center gap-2">
                                             <ListTodo className="h-5 w-5" />
-                                            Project Boards
+                                            Board
                                         </CardTitle>
                                         <CardDescription>
-                                            Organize tasks with Kanban boards
+                                            Organize and manage your tasks
                                         </CardDescription>
                                     </div>
-                                    {canEdit && (
-                                        <Link href={route('boards.create', { project: project.id })}>
+                                    {project.boards && project.boards.length > 0 && (
+                                        <Link href={route('boards.show', { project: project.id, board: project.boards[0].id })}>
                                             <Button className="shadow-sm hover:shadow-md">
-                                                <Plus className="h-4 w-4 mr-2" />
-                                                Create Board
+                                                <Eye className="h-4 w-4 mr-2" />
+                                                Open Full Board
                                             </Button>
                                         </Link>
                                     )}
                                 </div>
                             </CardHeader>
                             <CardContent>
-                                {/* Filter Section */}
-                                {project.boards && project.boards.length > 0 && (
-                                    <div className="flex flex-col sm:flex-row gap-4 mb-6 p-4 bg-muted/30 rounded-lg border">
-                                        <div className="flex-1">
-                                            <div className="relative">
-                                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                                <Input
-                                                    placeholder="Search boards by name or description..."
-                                                    value={boardSearchQuery}
-                                                    onChange={(e) => setBoardSearchQuery(e.target.value)}
-                                                    className="pl-10"
-                                                />
+
+                                {project.boards && project.boards.length > 0 ? (
+                                    <div className="space-y-4">
+                                        {/* Board Summary */}
+                                        <div className="bg-muted/30 rounded-lg p-4 border">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-3 h-3 bg-blue-500 rounded"></div>
+                                                    <h3 className="font-semibold">{project.boards[0].name}</h3>
+                                                    <Badge variant="secondary" className="text-xs">
+                                                        {project.boards[0].type}
+                                                    </Badge>
+                                                </div>
+                                                <div className="text-sm text-muted-foreground">
+                                                    {project.boards[0].lists?.length || 0} lists
+                                                </div>
+                                            </div>
+                                            {project.boards[0].description && (
+                                                <p className="text-sm text-muted-foreground mb-3">
+                                                    {project.boards[0].description}
+                                                </p>
+                                            )}
+                                            <div className="grid grid-cols-3 gap-4 text-center">
+                                                <div className="bg-background rounded-lg p-3 border">
+                                                    <div className="text-lg font-semibold">
+                                                        {project.boards[0].lists?.reduce((acc, list) => acc + (list.tasks?.length || 0), 0) || 0}
+                                                    </div>
+                                                    <div className="text-xs text-muted-foreground">Total Tasks</div>
+                                                </div>
+                                                <div className="bg-background rounded-lg p-3 border">
+                                                    <div className="text-lg font-semibold">
+                                                        {project.boards[0].lists?.reduce((acc, list) =>
+                                                            acc + (list.tasks?.filter(task => task.status === 'in_progress').length || 0), 0) || 0}
+                                                    </div>
+                                                    <div className="text-xs text-muted-foreground">In Progress</div>
+                                                </div>
+                                                <div className="bg-background rounded-lg p-3 border">
+                                                    <div className="text-lg font-semibold">
+                                                        {project.boards[0].lists?.reduce((acc, list) =>
+                                                            acc + (list.tasks?.filter(task => task.status === 'done').length || 0), 0) || 0}
+                                                    </div>
+                                                    <div className="text-xs text-muted-foreground">Completed</div>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="sm:w-48">
-                                            <Select value={boardTypeFilter} onValueChange={setBoardTypeFilter}>
-                                                <SelectTrigger>
-                                                    <Filter className="h-4 w-4 mr-2" />
-                                                    <SelectValue placeholder="Filter by type" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="all">All Types</SelectItem>
-                                                    <SelectItem value="kanban">Kanban</SelectItem>
-                                                    <SelectItem value="scrum">Scrum</SelectItem>
-                                                    <SelectItem value="custom">Custom</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                        {(boardSearchQuery || boardTypeFilter !== 'all') && (
-                                            <Button
-                                                variant="outline"
-                                                onClick={() => {
-                                                    setBoardSearchQuery('');
-                                                    setBoardTypeFilter('all');
-                                                }}
-                                                className="sm:w-auto"
-                                            >
-                                                Clear Filters
-                                            </Button>
-                                        )}
-                                    </div>
-                                )}
 
-                                {filteredBoards.length > 0 ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        {filteredBoards.map((board) => {
-                                            const getBoardTypeColor = (type: string) => {
-                                                switch (type) {
-                                                    case 'kanban': return 'bg-blue-500';
-                                                    case 'scrum': return 'bg-green-500';
-                                                    case 'custom': return 'bg-purple-500';
-                                                    default: return 'bg-gray-500';
-                                                }
-                                            };
-
-                                            return (
-                                                <Card key={board.id} className="group hover:shadow-lg transition-all duration-300 border-2 hover:border-primary/20 bg-gradient-to-br from-background to-muted/20">
-                                                    <CardHeader className="pb-4">
-                                                        <div className="flex items-start gap-3">
-                                                            {/* User Avatar for board creator/owner */}
-                                                            <Avatar className="h-12 w-12 border-2 border-background shadow-md">
-                                                                <AvatarImage src={project.owner?.avatar} />
-                                                                <AvatarFallback className={`text-white font-semibold ${getBoardTypeColor(board.type)}`}>
-                                                                    {project.owner?.name?.charAt(0).toUpperCase() || board.name.charAt(0).toUpperCase()}
-                                                                </AvatarFallback>
-                                                            </Avatar>
-                                                            <div className="flex-1 min-w-0">
-                                                                <CardTitle className="text-lg font-semibold truncate group-hover:text-primary transition-colors">
-                                                                    {board.name}
-                                                                </CardTitle>
-                                                                <CardDescription className="mt-1 line-clamp-2">
-                                                                    {board.description || 'No description provided'}
-                                                                </CardDescription>
-                                                            </div>
-                                                        </div>
-                                                    </CardHeader>
-                                                    <CardContent className="space-y-4">
-                                                        <div className="flex items-center justify-between">
-                                                            <div className="flex items-center gap-2">
-                                                                <Badge variant="secondary" className="capitalize">
-                                                                    {board.type}
-                                                                </Badge>
-                                                                {board.is_default && (
-                                                                    <Badge variant="default" className="text-xs">
-                                                                        Default
+                                        {/* Simplified Kanban View */}
+                                        <div className="overflow-x-auto">
+                                            <div className="flex gap-4 min-w-max pb-4">
+                                                {project.boards[0].lists?.map((list) => (
+                                                    <div key={list.id} className="w-72 flex-shrink-0">
+                                                        <Card className="h-full">
+                                                            <CardHeader className="pb-3">
+                                                                <div className="flex items-center justify-between">
+                                                                    <CardTitle className="text-base font-semibold flex items-center gap-2">
+                                                                        {list.color && (
+                                                                            <div
+                                                                                className="w-3 h-3 rounded-full"
+                                                                                style={{ backgroundColor: list.color }}
+                                                                            />
+                                                                        )}
+                                                                        {list.name}
+                                                                    </CardTitle>
+                                                                    <Badge variant="secondary" className="text-xs">
+                                                                        {list.tasks?.length || 0}
                                                                     </Badge>
+                                                                </div>
+                                                            </CardHeader>
+                                                            <CardContent className="space-y-2 max-h-96 overflow-y-auto">
+                                                                {list.tasks && list.tasks.length > 0 ? (
+                                                                    list.tasks.slice(0, 5).map((task) => (
+                                                                        <div key={task.id} className="p-3 bg-muted/30 rounded-lg border text-sm">
+                                                                            <div className="font-medium mb-1 line-clamp-2">{task.title}</div>
+                                                                            <div className="flex items-center justify-between">
+                                                                                <Badge variant="outline" className="text-xs">
+                                                                                    {task.priority}
+                                                                                </Badge>
+                                                                                {task.assignees && task.assignees.length > 0 && (
+                                                                                    <div className="flex -space-x-1">
+                                                                                        {task.assignees.slice(0, 2).map((assignee) => (
+                                                                                            <Avatar key={assignee.id} className="h-5 w-5 border border-background">
+                                                                                                <AvatarImage src={assignee.avatar} />
+                                                                                                <AvatarFallback className="text-xs">
+                                                                                                    {assignee.name.charAt(0).toUpperCase()}
+                                                                                                </AvatarFallback>
+                                                                                            </Avatar>
+                                                                                        ))}
+                                                                                        {task.assignees.length > 2 && (
+                                                                                            <div className="h-5 w-5 rounded-full bg-muted border border-background flex items-center justify-center">
+                                                                                                <span className="text-xs">+{task.assignees.length - 2}</span>
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                    ))
+                                                                ) : (
+                                                                    <div className="text-center py-4 text-muted-foreground text-sm">
+                                                                        No tasks
+                                                                    </div>
                                                                 )}
-                                                            </div>
-                                                            <div className="text-sm text-muted-foreground">
-                                                                {board.lists?.length || 0} lists
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Board Stats */}
-                                                        <div className="grid grid-cols-3 gap-2 text-center">
-                                                            <div className="bg-muted/50 rounded-lg p-2">
-                                                                <div className="text-sm font-medium">
-                                                                    {board.lists?.reduce((acc, list) => acc + (list.tasks?.length || 0), 0) || 0}
-                                                                </div>
-                                                                <div className="text-xs text-muted-foreground">Tasks</div>
-                                                            </div>
-                                                            <div className="bg-muted/50 rounded-lg p-2">
-                                                                <div className="text-sm font-medium">
-                                                                    {board.lists?.length || 0}
-                                                                </div>
-                                                                <div className="text-xs text-muted-foreground">Lists</div>
-                                                            </div>
-                                                            <div className="bg-muted/50 rounded-lg p-2">
-                                                                <div className="text-sm font-medium">
-                                                                    {board.lists?.reduce((acc, list) =>
-                                                                        acc + (list.tasks?.filter(task => task.status === 'done').length || 0), 0) || 0}
-                                                                </div>
-                                                                <div className="text-xs text-muted-foreground">Done</div>
-                                                            </div>
-                                                        </div>
-
-                                                        <Link href={route('boards.show', { project: project.id, board: board.id })}>
-                                                            <Button className="w-full group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                                                                <ListTodo className="h-4 w-4 mr-2" />
-                                                                Open Board
-                                                            </Button>
-                                                        </Link>
-                                                    </CardContent>
-                                                </Card>
-                                            );
-                                        })}
-                                    </div>
-                                ) : project.boards && project.boards.length > 0 ? (
-                                    // No results found after filtering
-                                    <div className="text-center py-16 bg-gradient-to-br from-muted/20 to-muted/40 rounded-xl border-2 border-dashed border-muted-foreground/30">
-                                        <div className="w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                                            <Search className="h-10 w-10 text-blue-600" />
+                                                                {list.tasks && list.tasks.length > 5 && (
+                                                                    <div className="text-center py-2">
+                                                                        <span className="text-xs text-muted-foreground">
+                                                                            +{list.tasks.length - 5} more tasks
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                            </CardContent>
+                                                        </Card>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
-                                        <h3 className="text-xl font-semibold mb-3">No Boards Found</h3>
-                                        <p className="text-muted-foreground mb-8 max-w-md mx-auto">
-                                            No boards match your current search criteria. Try adjusting your filters or search terms.
-                                        </p>
-                                        <Button
-                                            variant="outline"
-                                            onClick={() => {
-                                                setBoardSearchQuery('');
-                                                setBoardTypeFilter('all');
-                                            }}
-                                            className="shadow-lg hover:shadow-xl transition-shadow"
-                                        >
-                                            Clear All Filters
-                                        </Button>
                                     </div>
                                 ) : (
                                     <div className="text-center py-16 bg-gradient-to-br from-muted/20 to-muted/40 rounded-xl border-2 border-dashed border-muted-foreground/30">
                                         <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
                                             <ListTodo className="h-10 w-10 text-primary" />
                                         </div>
-                                        <h3 className="text-xl font-semibold mb-3">Create Your First Board</h3>
+                                        <h3 className="text-xl font-semibold mb-3">No Board Available</h3>
                                         <p className="text-muted-foreground mb-8 max-w-md mx-auto">
-                                            Boards help you organize tasks using Kanban, Scrum, or custom workflows.
-                                            Start by creating your first board to manage project tasks effectively.
+                                            This project doesn't have a board yet. A board will be automatically created when you create your first task.
                                         </p>
-                                        {canEdit ? (
-                                            <div className="space-y-4">
-                                                <Link href={route('boards.create', { project: project.id })}>
-                                                    <Button size="lg" className="shadow-lg hover:shadow-xl transition-shadow">
-                                                        <Plus className="h-5 w-5 mr-2" />
-                                                        Create Your First Board
-                                                    </Button>
-                                                </Link>
-                                                <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-3 h-3 bg-blue-500 rounded"></div>
-                                                        <span>Kanban</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-3 h-3 bg-green-500 rounded"></div>
-                                                        <span>Scrum</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-3 h-3 bg-purple-500 rounded"></div>
-                                                        <span>Custom</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <Button size="lg" disabled className="shadow-lg">
-                                                <Lock className="h-5 w-5 mr-2" />
-                                                No Permission to Create Boards
-                                            </Button>
-                                        )}
                                     </div>
                                 )}
                             </CardContent>
@@ -1962,7 +1893,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                     <div>
                                         <CardTitle className="flex items-center gap-2">
                                             <Users className="h-5 w-5" />
-                                            Project Members
+                                            Members
                                         </CardTitle>
                                         <CardDescription>
                                             Manage who has access to this project and their roles
@@ -2000,7 +1931,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                                     </div>
                                                     <div>
                                                         <div className="flex items-center gap-2">
-                                                            <h4 className="font-medium">{member.name}</h4>
+                                                            <h4 className="font-medium">{getShortName(member.name)}</h4>
                                                             <Badge
                                                                 variant={member.id === project.owner_id ? "default" : "secondary"}
                                                                 className="text-xs"
@@ -2557,7 +2488,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                 {/* Project Owner Information */}
                                 <Card className="border-2">
                                     <CardHeader>
-                                        <CardTitle className="text-lg">Project Owner</CardTitle>
+                                        <CardTitle className="text-lg">Owner</CardTitle>
                                     </CardHeader>
                                     <CardContent>
                                         <div className="flex items-center gap-4">
@@ -2568,7 +2499,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                                 </AvatarFallback>
                                             </Avatar>
                                             <div className="flex-1">
-                                                <h4 className="font-semibold text-lg">{project.owner?.name}</h4>
+                                                <h4 className="font-semibold text-lg">{getShortName(project.owner?.name || '')}</h4>
                                                 <p className="text-muted-foreground">{project.owner?.email}</p>
                                                 <div className="flex items-center gap-2 mt-2">
                                                     <Badge variant="default" className="flex items-center gap-1">

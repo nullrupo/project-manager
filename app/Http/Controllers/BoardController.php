@@ -41,9 +41,8 @@ class BoardController extends Controller
      */
     public function create(Project $project): Response
     {
-        return Inertia::render('boards/create', [
-            'project' => $project,
-        ]);
+        // Prevent creation of additional boards - each project should have only one board
+        abort(403, 'Creating additional boards is not allowed. Each project is limited to one board.');
     }
 
     /**
@@ -51,81 +50,8 @@ class BoardController extends Controller
      */
     public function store(Request $request, Project $project): RedirectResponse
     {
-        // Check if user has permission to create boards
-        if (!ProjectPermissionService::can($project, 'can_manage_boards')) {
-            abort(403, 'You do not have permission to create boards in this project.');
-        }
-
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'type' => 'required|string|in:kanban,scrum,custom',
-            'background_color' => 'nullable|string|max:50',
-            'background_image' => 'nullable|string|max:255',
-        ]);
-
-        // Get the highest position value
-        $maxPosition = $project->boards()->max('position') ?? -1;
-
-        // Create the board
-        $board = $project->boards()->create([
-            'name' => $validated['name'],
-            'description' => $validated['description'],
-            'type' => $validated['type'],
-            'position' => $maxPosition + 1,
-            'background_color' => $validated['background_color'],
-            'background_image' => $validated['background_image'],
-        ]);
-
-        // Create default lists for the board
-        if ($validated['type'] === 'kanban') {
-            $board->lists()->create([
-                'name' => 'To Do',
-                'position' => 0,
-                'color' => '#3498db',
-            ]);
-
-            $board->lists()->create([
-                'name' => 'In Progress',
-                'position' => 1,
-                'color' => '#f39c12',
-            ]);
-
-            $board->lists()->create([
-                'name' => 'Done',
-                'position' => 2,
-                'color' => '#2ecc71',
-            ]);
-        } elseif ($validated['type'] === 'scrum') {
-            // Scrum board lists
-            $board->lists()->create([
-                'name' => 'Backlog',
-                'position' => 0,
-                'color' => '#95a5a6',
-            ]);
-
-            $board->lists()->create([
-                'name' => 'Sprint',
-                'position' => 1,
-                'color' => '#3498db',
-            ]);
-
-            $board->lists()->create([
-                'name' => 'In Progress',
-                'position' => 2,
-                'color' => '#f39c12',
-            ]);
-
-            $board->lists()->create([
-                'name' => 'Done',
-                'position' => 3,
-                'color' => '#2ecc71',
-            ]);
-        }
-        // Custom boards start with no default lists - users create their own
-
-        return redirect()->route('boards.show', [$project, $board])
-            ->with('success', 'Board created successfully.');
+        // Prevent creation of additional boards - each project should have only one board
+        abort(403, 'Creating additional boards is not allowed. Each project is limited to one board.');
     }
 
     /**
