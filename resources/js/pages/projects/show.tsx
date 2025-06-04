@@ -11,10 +11,11 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Project } from '@/types/project-manager';
 import { Head, Link, usePage, router } from '@inertiajs/react';
-import { Archive, Edit, Lock, Plus, Trash2, Users, ListTodo, Tag, Globe, Shield, Calendar, BarChart3, UserPlus, Settings, Crown, Clock, AlertCircle, CheckCircle2, Search, Filter, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu } from 'lucide-react';
+import { Archive, Edit, Lock, Plus, Trash2, Users, ListTodo, Tag, Globe, Shield, Calendar, BarChart3, UserPlus, Settings, Crown, Clock, AlertCircle, CheckCircle2, Search, Filter, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, X } from 'lucide-react';
+import axios from 'axios';
 import InviteMemberModal from '@/components/invite-member-modal';
 import MemberPermissionModal from '@/components/member-permission-modal';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useSensor, useSensors, PointerSensor, MouseSensor } from '@dnd-kit/core';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
@@ -35,6 +36,93 @@ export default function ProjectShow({ project }: ProjectShowProps) {
     const [boardTypeFilter, setBoardTypeFilter] = useState('all');
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+
+    // Drag and drop state
+    const [activeTask, setActiveTask] = useState<any>(null);
+    const [draggedTask, setDraggedTask] = useState<any>(null);
+    const [isUpdatingTask, setIsUpdatingTask] = useState(false);
+    const [isDragInProgress, setIsDragInProgress] = useState(false);
+
+    // Local state for optimistic updates
+    const [localTaskUpdates, setLocalTaskUpdates] = useState<{[key: number]: any}>({});
+
+    // Track if any resize handle is being used
+    const [isAnyHandleResizing, setIsAnyHandleResizing] = useState(false);
+
+    // Track if component is mounted to prevent hydration issues
+    const [isMounted, setIsMounted] = useState(false);
+
+    // Use ref to track recent drag operations
+    const recentDragRef = useRef(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
+    // Shared priority color function
+    const getPriorityColor = (priority: string) => {
+        switch (priority) {
+            case 'urgent': return 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 border-l-red-500';
+            case 'high': return 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200 border-l-orange-500';
+            case 'medium': return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 border-l-yellow-500';
+            case 'low': return 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 border-l-green-500';
+            default: return 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 border-l-blue-500';
+        }
+    };
+
+    // Task assignment modal state
+    const [assignTaskModalOpen, setAssignTaskModalOpen] = useState(false);
+    const [taskToAssign, setTaskToAssign] = useState<any>(null);
+
+    // Task duration modal state
+    const [durationModalOpen, setDurationModalOpen] = useState(false);
+    const [taskToExtend, setTaskToExtend] = useState<any>(null);
+
+    // Task detail modal state
+    const [taskDetailModalOpen, setTaskDetailModalOpen] = useState(false);
+    const [selectedTaskForDetail, setSelectedTaskForDetail] = useState<any>(null);
+
+    // Member panel state
+    const [memberPanelOpen, setMemberPanelOpen] = useState(false);
+
+    // Get tab from URL parameters, default to 'boards'
+    const getActiveTabFromUrl = () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const tab = urlParams.get('tab');
+        const validTabs = ['boards', 'members', 'labels', 'calendar', 'details'];
+        return validTabs.includes(tab || '') ? tab : 'boards';
+    };
+
+    const [activeTab, setActiveTab] = useState(getActiveTabFromUrl);
+
+    // Update URL when tab changes
+    const handleTabChange = (newTab: string) => {
+        setActiveTab(newTab);
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', newTab);
+        window.history.pushState({}, '', url.toString());
+    };
+
+    // Listen for browser back/forward navigation
+    useEffect(() => {
+        const handlePopState = () => {
+            setActiveTab(getActiveTabFromUrl());
+        };
+
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, []);
+
+    const breadcrumbs: BreadcrumbItem[] = [
+        {
+            title: 'Projects',
+            href: route('projects.index'),
+        },
+        {
+            title: project.name,
+            href: route('projects.show', { project: project.id }),
+        },
+    ];
 
     const handleDeleteMember = () => {
         if (memberToDelete) {
@@ -156,7 +244,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
         return tasks;
     };
 
-    // Get tasks for a specific date (only single-day tasks - multi-day tasks are handled separately)
+    // Get tasks for a specific date (only single-day tasks that aren't rendered as strips)
     const getTasksForDate = (date: Date) => {
         const dateStr = date.toISOString().split('T')[0];
         const allTasks = getAllProjectTasks();
@@ -167,35 +255,47 @@ export default function ProjectShow({ project }: ProjectShowProps) {
 
             const taskDueDate = task.due_date.split('T')[0];
 
-            // Skip multi-day tasks completely - they will be rendered as continuous strips
-            if (task.start_date && task.duration_days && task.duration_days > 1) {
-                return false;
-            }
+            // Only include single-day tasks that aren't already rendered as strips
+            // Multi-day tasks and tasks with start_date are rendered as strips
+            const isRenderedAsStrip = task.start_date && task.duration_days && task.duration_days >= 1;
 
-            // For single-day tasks, just check due date
-            return taskDueDate === dateStr;
+            return taskDueDate === dateStr && !isRenderedAsStrip;
         });
     };
 
-    // Get all multi-day tasks that should be rendered as continuous strips
-    const getMultiDayTasks = () => {
+    // Get all tasks that should be rendered as continuous strips (now includes all tasks)
+    const getAllTasksAsStrips = () => {
         const allTasks = getAllProjectTasks();
         if (!allTasks || allTasks.length === 0) return [];
 
-        return allTasks.filter(task =>
-            task && task.start_date && task.duration_days && task.duration_days > 1
-        );
+        return allTasks.filter(task => {
+            if (!task || !task.due_date) return false;
+
+            // Ensure all tasks have the required properties for strip rendering
+            const hasStartDate = task.start_date;
+            const hasDuration = task.duration_days && task.duration_days >= 1;
+
+            // If task doesn't have start_date or duration, set defaults
+            if (!hasStartDate) {
+                task.start_date = task.due_date;
+            }
+            if (!hasDuration) {
+                task.duration_days = 1;
+            }
+
+            return true;
+        });
     };
 
-    // Calculate row positions for multi-day tasks to prevent overlapping
-    const getMultiDayTasksWithRows = () => {
-        const multiDayTasks = getMultiDayTasks();
-        if (!multiDayTasks.length) return [];
+    // Calculate row positions for all tasks to prevent overlapping
+    const getAllTasksWithRows = () => {
+        const allTasks = getAllTasksAsStrips();
+        if (!allTasks.length) return [];
 
 
 
         // Sort tasks by start date, then by duration (longer tasks first for better packing)
-        const sortedTasks = [...multiDayTasks].sort((a, b) => {
+        const sortedTasks = [...allTasks].sort((a, b) => {
             const dateA = new Date(a.start_date.split('T')[0]);
             const dateB = new Date(b.start_date.split('T')[0]);
             const dateDiff = dateA.getTime() - dateB.getTime();
@@ -276,9 +376,9 @@ export default function ProjectShow({ project }: ProjectShowProps) {
         return tasksWithRows;
     };
 
-    // Check if a task spans multiple days
+    // Check if a task spans multiple days (now all tasks are treated as strips)
     const isMultiDayTask = (task: any) => {
-        return task.start_date && task.duration_days && task.duration_days > 1;
+        return task.duration_days && task.duration_days > 1;
     };
 
     // Get the position of a date within a multi-day task
@@ -316,6 +416,9 @@ export default function ProjectShow({ project }: ProjectShowProps) {
             return;
         }
 
+        setIsDragInProgress(true);
+        recentDragRef.current = true;
+
         // Check if dragging a member
         if (active.id.toString().startsWith('member-')) {
             const memberId = active.id.toString().split('-')[1];
@@ -326,12 +429,8 @@ export default function ProjectShow({ project }: ProjectShowProps) {
         }
 
         let task;
-        if (active.id.toString().startsWith('calendar-task-')) {
-            // Dragging from calendar (old single-day tasks)
-            const taskId = active.id.toString().split('-')[2];
-            task = getAllProjectTasks().find(t => t.id.toString() === taskId);
-        } else if (active.id.toString().startsWith('multiday-task-')) {
-            // Dragging multi-day task strip
+        if (active.id.toString().startsWith('multiday-task-')) {
+            // Dragging task strip (both single day and multi-day)
             const taskId = active.id.toString().split('-')[2];
             task = getAllProjectTasks().find(t => t.id.toString() === taskId);
         } else {
@@ -344,8 +443,21 @@ export default function ProjectShow({ project }: ProjectShowProps) {
         setDraggedTask(task);
     };
 
+    const handleDragCancel = () => {
+        setIsDragInProgress(false);
+        recentDragRef.current = false;
+        setActiveTask(null);
+        setDraggedTask(null);
+    };
+
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
+
+        // Always reset drag state with longer delay to prevent click events
+        setTimeout(() => {
+            setIsDragInProgress(false);
+            recentDragRef.current = false;
+        }, 300); // Longer delay to prevent click events
 
         if (!over) {
             setActiveTask(null);
@@ -366,19 +478,48 @@ export default function ProjectShow({ project }: ProjectShowProps) {
 
             // Check if dropped on a task
             let targetTask = null;
-            if (over.id.toString().startsWith('task-drop-')) {
-                const taskId = over.id.toString().split('-')[2];
+            if (over.id.toString().startsWith('multiday-task-drop-')) {
+                const taskId = over.id.toString().split('-')[3];
                 targetTask = getAllProjectTasks().find(t => t.id.toString() === taskId);
-            } else if (over.id.toString().startsWith('multiday-task-drop-')) {
+            } else if (over.id.toString().startsWith('side-task-drop-')) {
+                const taskId = over.id.toString().split('-')[3];
+                targetTask = getAllProjectTasks().find(t => t.id.toString() === taskId);
+            } else if (over.id.toString().startsWith('day-task-drop-')) {
                 const taskId = over.id.toString().split('-')[3];
                 targetTask = getAllProjectTasks().find(t => t.id.toString() === taskId);
             }
 
             if (targetTask) {
-                // Assign member to task
-                setTaskToAssign(targetTask);
-                setAssignTaskModalOpen(true);
-                console.log(`Assigning ${member.name} to task: ${targetTask.title}`);
+                // Directly assign member to task without modal
+                const currentAssignees = targetTask.assignees?.map((a: any) => a.id) || [];
+                const newAssignees = currentAssignees.includes(member.id)
+                    ? currentAssignees.filter(id => id !== member.id) // Remove if already assigned
+                    : [...currentAssignees, member.id]; // Add if not assigned
+
+                // Update task with new assignees
+                router.put(route('tasks.update', { project: project.id, task: targetTask.id }), {
+                    title: targetTask.title,
+                    description: targetTask.description || '',
+                    priority: targetTask.priority,
+                    status: targetTask.status,
+                    estimate: targetTask.estimate,
+                    due_date: targetTask.due_date,
+                    start_date: targetTask.start_date,
+                    duration_days: targetTask.duration_days,
+                    list_id: targetTask.list_id,
+                    assignee_ids: newAssignees,
+                    label_ids: targetTask.labels?.map((l: any) => l.id) || [],
+                    is_archived: targetTask.is_archived || false,
+                }, {
+                    preserveState: true,
+                    preserveScroll: true,
+                    onSuccess: () => {
+                        console.log(`Successfully ${currentAssignees.includes(member.id) ? 'removed' : 'assigned'} ${member.name} ${currentAssignees.includes(member.id) ? 'from' : 'to'} task: ${targetTask.title}`);
+                    },
+                    onError: (errors) => {
+                        console.error('Failed to assign task:', errors);
+                    }
+                });
             }
 
             setActiveTask(null);
@@ -391,11 +532,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
         let isFromCalendar = false;
 
         // Check if dragging from calendar
-        if (active.id.toString().startsWith('calendar-task-')) {
-            const taskId = active.id.toString().split('-')[2];
-            task = getAllProjectTasks().find(t => t.id.toString() === taskId);
-            isFromCalendar = true;
-        } else if (active.id.toString().startsWith('multiday-task-')) {
+        if (active.id.toString().startsWith('multiday-task-')) {
             const taskId = active.id.toString().split('-')[2];
             task = getAllProjectTasks().find(t => t.id.toString() === taskId);
             isFromCalendar = true;
@@ -418,6 +555,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
             // For existing tasks, preserve duration if it exists
             let startDate = newDueDate;
             let durationDays = 1;
+            let finalDueDate = newDueDate;
 
             if (task.start_date && task.duration_days) {
                 // Preserve existing duration
@@ -428,37 +566,44 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                 const newStartDate = new Date(startDate);
                 const calculatedDueDate = new Date(newStartDate);
                 calculatedDueDate.setDate(calculatedDueDate.getDate() + durationDays - 1);
-                const finalDueDate = calculatedDueDate.toISOString().split('T')[0];
-
-                // Apply optimistic update immediately
-                setLocalTaskUpdates(prev => ({
-                    ...prev,
-                    [task.id]: {
-                        start_date: startDate,
-                        due_date: finalDueDate,
-                        duration_days: durationDays
-                    }
-                }));
-
-                // Temporarily disable server updates to prevent infinite loop
-                console.log('Task moved successfully with duration - server update disabled');
-                setIsUpdatingTask(false);
+                finalDueDate = calculatedDueDate.toISOString().split('T')[0];
             } else {
                 // Simple single-day task
-                // Apply optimistic update immediately
-                setLocalTaskUpdates(prev => ({
-                    ...prev,
-                    [task.id]: {
-                        due_date: newDueDate,
-                        start_date: newDueDate,
-                        duration_days: 1
-                    }
-                }));
-
-                // Temporarily disable server updates to prevent infinite loop
-                console.log('Task due date updated successfully - server update disabled');
-                setIsUpdatingTask(false);
+                startDate = newDueDate;
+                finalDueDate = newDueDate;
+                durationDays = 1;
             }
+
+            // Apply optimistic update immediately for real-time feedback
+            setLocalTaskUpdates(prev => ({
+                ...prev,
+                [task.id]: {
+                    start_date: startDate,
+                    due_date: finalDueDate,
+                    duration_days: durationDays
+                }
+            }));
+
+            // Send update to server to persist changes
+            axios.patch(route('tasks.update-due-date', { project: project.id, task: task.id }), {
+                start_date: startDate,
+                due_date: finalDueDate,
+                duration_days: durationDays
+            })
+            .then(response => {
+                console.log('Task date updated successfully on server');
+                setIsUpdatingTask(false);
+            })
+            .catch(error => {
+                console.error('Failed to update task date on server:', error);
+                // Revert optimistic update on error
+                setLocalTaskUpdates(prev => {
+                    const updated = { ...prev };
+                    delete updated[task.id];
+                    return updated;
+                });
+                setIsUpdatingTask(false);
+            });
         }
 
         setActiveTask(null);
@@ -509,9 +654,14 @@ export default function ProjectShow({ project }: ProjectShowProps) {
 
     // Draggable Task Component
     const DraggableTask = ({ task }: { task: any }) => {
-        const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+        const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } = useDraggable({
             id: task.id.toString(),
             data: { task }
+        });
+
+        const { setNodeRef: setDropRef, isOver } = useDroppable({
+            id: `side-task-drop-${task.id}`,
+            data: { task, type: 'task' }
         });
 
         const style = {
@@ -519,7 +669,11 @@ export default function ProjectShow({ project }: ProjectShowProps) {
             opacity: isDragging ? 0.5 : 1,
         };
 
-
+        // Combine refs
+        const setNodeRef = (node: HTMLElement | null) => {
+            setDragRef(node);
+            setDropRef(node);
+        };
 
         return (
             <div
@@ -527,11 +681,25 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                 style={style}
                 {...listeners}
                 {...attributes}
-                className={`p-2 border-l-4 rounded-md transition-colors group relative cursor-grab active:cursor-grabbing hover:shadow-md ${getPriorityColor(task.priority)} ${isDragging ? 'ring-2 ring-blue-500 shadow-lg' : ''}`}
-                title={`Drag to calendar (ID: ${task.id}) - Click and drag me!`}
+                className={`p-2 border-l-4 rounded-md transition-all duration-150 group relative cursor-grab active:cursor-grabbing hover:shadow-md hover:scale-[1.02] ${getPriorityColor(task.priority)} ${isDragging ? 'ring-2 ring-blue-500 shadow-lg' : ''} ${isOver ? 'ring-2 ring-green-400 bg-green-50 dark:bg-green-950/20' : ''}`}
+                title={`Drag to calendar (ID: ${task.id}) - Click and drag me! | Right-click to assign`}
+                onClick={(e) => {
+                    // Only open modal if not dragging
+                    if (!isDragInProgress && !recentDragRef.current) {
+                        e.stopPropagation();
+                        setSelectedTaskForDetail(task);
+                        setTaskDetailModalOpen(true);
+                    }
+                }}
+                onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setTaskToAssign(task);
+                    setAssignTaskModalOpen(true);
+                }}
             >
-                <div className="flex items-start justify-between mb-1">
-                    <h4 className="font-medium text-xs truncate flex-1 mr-2">{task.title}</h4>
+                <div className="flex items-start justify-between mb-1 pr-8">
+                    <h4 className="font-medium text-xs truncate flex-1">{task.title}</h4>
                     <div className="flex items-center gap-1 flex-shrink-0">
                         {task.assignees?.slice(0, 2).map((assignee: any) => (
                             <Avatar key={assignee.id} className="h-4 w-4 border">
@@ -548,7 +716,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                         )}
                     </div>
                 </div>
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <div className="flex items-center justify-between text-xs text-muted-foreground pr-8">
                     <span className="truncate flex-1 mr-2">{task.boardName} • {task.listName}</span>
                     <div className="flex items-center gap-1 flex-shrink-0">
                         {task.duration_days && task.duration_days > 1 && (
@@ -563,18 +731,17 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                 </div>
 
                 {/* Assignment button */}
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                <button
+                    className="absolute top-0 right-0 h-full w-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-l from-background to-transparent hover:bg-muted/50 rounded-r-md"
                     onClick={(e) => {
                         e.stopPropagation();
                         setTaskToAssign(task);
                         setAssignTaskModalOpen(true);
                     }}
+                    title="Assign task"
                 >
-                    <Users className="h-4 w-4" />
-                </Button>
+                    <Users className="h-3 w-3" />
+                </button>
             </div>
         );
     };
@@ -593,7 +760,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
         return (
             <div
                 ref={setNodeRef}
-                className={`min-h-[180px] p-2 border-r border-b border-border last:border-r-0 transition-all duration-200 ${
+                className={`min-h-[140px] p-1 border-r border-b border-border last:border-r-0 transition-all duration-200 overflow-hidden ${
                     !day.isCurrentMonth
                         ? 'bg-muted/20 text-muted-foreground'
                         : 'bg-background hover:bg-muted/30'
@@ -607,148 +774,60 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                     {day.date.getDate()}
                 </div>
 
-                <div className="space-y-1">
-                    {dayTasks.slice(0, 2).map((task) => {
+                <div className="space-y-0.5 relative">
+                    {/* Show small task strips for this day */}
+                    {dayTasks.slice(0, 4).map((task, index) => {
+                        const { setNodeRef: setTaskDropRef, isOver: isTaskOver } = useDroppable({
+                            id: `day-task-drop-${task.id}`,
+                            data: { task, type: 'task' }
+                        });
 
-                        const taskPosition = getTaskDatePosition(task, day.date);
-                        const isMultiDay = isMultiDayTask(task);
+                        const taskDropFeedback = isTaskOver && draggedTask?.type === 'member';
 
-                        // Different styling for multi-day tasks
-                        let multiDayClasses = '';
-                        let durationText = '';
+                        return (
+                            <div
+                                key={`day-task-${task.id}-${day.date.toISOString()}`}
+                                ref={setTaskDropRef}
+                                className={`group relative mb-0.5 rounded-sm border-l-2 cursor-pointer transition-all duration-150 ${getPriorityColor(task.priority)} ${taskDropFeedback ? 'ring-2 ring-green-400 bg-green-50 dark:bg-green-950/20' : ''}`}
+                                style={{
+                                    height: '16px', // Slightly larger for better visibility
+                                    zIndex: 10 + index // Ensure proper stacking
+                                }}
+                                title={`${task.title} - ${task.priority} priority${task.assignees?.length ? ` | Assigned to: ${task.assignees.map(a => a.name).join(', ')}` : ' | Unassigned'} | Right-click to assign`}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (!isDragInProgress && !recentDragRef.current) {
+                                        setSelectedTaskForDetail(task);
+                                        setTaskDetailModalOpen(true);
+                                    }
+                                }}
+                                onContextMenu={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setTaskToAssign(task);
+                                    setAssignTaskModalOpen(true);
+                                }}
+                            >
+                                {/* Main content - always visible */}
+                                <div className="flex items-center h-full px-1.5 relative">
+                                    <span className="text-xs truncate flex-1 opacity-90">
+                                        {task.title}
+                                    </span>
 
-                        if (isMultiDay) {
-                            durationText = ` (${task.duration_days}d)`;
-                            switch (taskPosition) {
-                                case 'start':
-                                    multiDayClasses = 'rounded-l border-r-0';
-                                    break;
-                                case 'middle':
-                                    multiDayClasses = 'rounded-none border-r-0 border-l-0 border-l-2';
-                                    break;
-                                case 'end':
-                                    multiDayClasses = 'rounded-r border-l-0 border-l-2';
-                                    break;
-                                default:
-                                    multiDayClasses = 'rounded';
-                            }
-                        }
-
-                        // Make calendar tasks draggable and droppable for member assignment
-                        const CalendarTask = ({ task, day, taskPosition, isMultiDay, multiDayClasses, durationText }: any) => {
-                            const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } = useDraggable({
-                                id: `calendar-task-${task.id}-${day.date.toISOString()}`,
-                                data: { task, source: 'calendar' }
-                            });
-
-                            const { setNodeRef: setDropRef, isOver } = useDroppable({
-                                id: `task-drop-${task.id}-${day.date.toISOString()}`,
-                                data: { task, type: 'task' }
-                            });
-
-                            const style = {
-                                transform: CSS.Translate.toString(transform),
-                                opacity: isDragging ? 0.5 : 1,
-                            };
-
-                            // Combine refs
-                            const setNodeRef = (node: HTMLElement | null) => {
-                                setDragRef(node);
-                                setDropRef(node);
-                            };
-
-                            return (
-                                <div
-                                    ref={setNodeRef}
-                                    style={style}
-                                    key={`${task.id}-${day.date.toISOString()}`}
-                                    onClick={(e) => {
-                                        // Only navigate if not dragging and not clicking on resize handles
-                                        if (!isDragging && !(e.target as HTMLElement).closest('.resize-handle')) {
-                                            router.visit(route('tasks.show', { project: project.id, task: task.id }));
-                                        }
-                                    }}
-                                    onContextMenu={(e) => {
-                                        e.preventDefault();
-                                        setTaskToExtend(task);
-                                        setDurationModalOpen(true);
-                                    }}
-                                    className={`group h-8 text-sm px-3 truncate flex items-center gap-1 border-l-4 hover:opacity-90 transition-all duration-200 ease-out shadow-sm relative ${getPriorityColor(task.priority)} ${multiDayClasses || 'rounded'} ${isDragging ? 'ring-2 ring-blue-400 shadow-lg scale-105' : 'hover:shadow-md'} ${isOver ? 'ring-2 ring-green-400 bg-green-50 dark:bg-green-950/20' : ''}`}
-                                    title={`${task.title} - ${task.priority} priority${durationText} | Drag to move, right-click for duration`}
-                                >
-                                    {/* Main draggable area - excludes resize handles */}
-                                    <div
-                                        {...listeners}
-                                        {...attributes}
-                                        className="flex items-center gap-1 flex-1 cursor-grab active:cursor-grabbing"
-                                    >
-                                        {task.assignees?.[0] && taskPosition !== 'middle' && (
-                                            <Avatar className="h-3 w-3 flex-shrink-0">
-                                                <AvatarImage src={task.assignees[0].avatar} />
-                                                <AvatarFallback className="text-xs">
-                                                    {task.assignees[0].name.charAt(0).toUpperCase()}
-                                                </AvatarFallback>
-                                            </Avatar>
-                                        )}
-                                        <span className="truncate">
-                                            {taskPosition === 'start' && isMultiDay ? `${task.title} ${durationText}` :
-                                             taskPosition === 'middle' ? '━━━' :
-                                             taskPosition === 'end' ? `━━ ${task.title}` :
-                                             task.title}
-                                        </span>
-                                    </div>
-
-                                    {/* Assignment button - appears on hover */}
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="absolute right-1 top-1 opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setTaskToAssign(task);
-                                            setAssignTaskModalOpen(true);
-                                        }}
-                                        title="Assign task"
-                                    >
-                                        <Users className="h-3 w-3" />
-                                    </Button>
-
-                                    {/* Resize handles for all tasks - outside draggable area */}
-                                    <>
-                                        {/* Left handle - for moving start date or shrinking from start */}
-                                        {(taskPosition === 'start' || taskPosition === 'single') && (
-                                            <ResizeHandle
-                                                task={task}
-                                                direction="start"
-                                                onResize={(newDuration) => handleTaskResize(task, newDuration)}
-                                            />
-                                        )}
-                                        {/* Right handle - for extending/shrinking from end */}
-                                        {(taskPosition === 'end' || taskPosition === 'single') && (
-                                            <ResizeHandle
-                                                task={task}
-                                                direction="end"
-                                                onResize={(newDuration) => handleTaskResize(task, newDuration)}
-                                            />
-                                        )}
-                                    </>
+                                    {/* Show assignee count if any */}
+                                    {task.assignees?.length > 0 && (
+                                        <div className="flex items-center gap-0.5 ml-1 flex-shrink-0">
+                                            <Users className="h-2 w-2 opacity-60" />
+                                            <span className="text-xs opacity-60">{task.assignees.length}</span>
+                                        </div>
+                                    )}
                                 </div>
-                            );
-                        };
-
-                        return <CalendarTask
-                            key={`calendar-task-${task.id}-${day.date.toISOString()}`}
-                            task={task}
-                            day={day}
-                            taskPosition={taskPosition}
-                            isMultiDay={isMultiDay}
-                            multiDayClasses={multiDayClasses}
-                            durationText={durationText}
-                        />;
+                            </div>
+                        );
                     })}
-                    {dayTasks.length > 2 && (
-                        <div className="text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors" title={`${dayTasks.length - 2} more tasks`}>
-                            +{dayTasks.length - 2} more
+                    {dayTasks.length > 4 && (
+                        <div className="text-xs text-muted-foreground opacity-60 px-1">
+                            +{dayTasks.length - 4} more
                         </div>
                     )}
                 </div>
@@ -756,7 +835,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
         );
     };
 
-    // Continuous Multi-Day Task Strip Component
+    // Task Strip Component (handles both single day and multi-day tasks)
     const MultiDayTaskStrip = ({ task, calendarDays }: { task: any; calendarDays: any[] }) => {
         // Use local updates if available for real-time feedback, but preserve taskRow
         const localUpdate = localTaskUpdates[task.id] || {};
@@ -790,6 +869,9 @@ export default function ProjectShow({ project }: ProjectShowProps) {
             id: `multiday-task-drop-${currentTask.id}`,
             data: { task: currentTask, type: 'task' }
         });
+
+        // Show visual feedback when member is being dragged over
+        const showDropFeedback = isOver && draggedTask?.type === 'member';
 
         const style = {
             transform: CSS.Translate.toString(transform),
@@ -855,75 +937,77 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                     <div
                         key={`${currentTask.id}-segment-${index}-${currentTask.start_date}-${currentTask.due_date}`}
                         ref={index === 0 ? setNodeRef : undefined}
-                        className={`group absolute z-20 h-8 ${getPriorityColor(currentTask.priority)} border-l-4 text-sm flex items-center cursor-grab active:cursor-grabbing hover:opacity-90 transition-all duration-200 ease-out shadow-sm ${
+                        className={`group absolute h-6 ${getPriorityColor(currentTask.priority)} border-l-2 text-xs flex items-center cursor-grab active:cursor-grabbing transition-all duration-150 ease-out shadow-sm ${
                             segment.isFirst && segment.isLast ? 'rounded' :
                             segment.isFirst ? 'rounded-l' :
                             segment.isLast ? 'rounded-r' : ''
-                        } ${isDragging ? 'ring-2 ring-blue-400 shadow-lg scale-105' : 'hover:shadow-md'} ${isOver && segment.isFirst ? 'ring-2 ring-green-400 bg-green-50 dark:bg-green-950/20' : ''}`}
+                        } ${isDragging ? 'ring-2 ring-blue-400 shadow-lg scale-105' : 'hover:shadow-md hover:z-30'} ${showDropFeedback && segment.isFirst ? 'ring-2 ring-green-400 bg-green-50 dark:bg-green-950/20' : ''}`}
                         style={{
-                            top: `${segment.row * 180 + 70 + (currentTask.taskRow || 0) * 36}px`, // Position below day number with task row offset
-                            left: `calc(${(segment.startCol / 7) * 100}% + 8px)`, // Add padding from left edge
-                            width: `calc(${(segment.span / 7) * 100}% - 16px)`, // Reduce width to add padding on both sides
+                            top: `${segment.row * 140 + 40 + (currentTask.taskRow || 0) * 22}px`, // Updated for new calendar height
+                            left: `calc(${(segment.startCol / 7) * 100}% + 4px)`, // Add padding from left edge
+                            width: `calc(${(segment.span / 7) * 100}% - 8px)`, // Reduce width to add padding on both sides
                             ...(index === 0 ? style : {}),
                             zIndex: 20 + (currentTask.taskRow || 0) // Ensure proper layering
                         }}
                         {...(index === 0 ? { ...listeners, ...attributes } : {})}
                         onClick={(e) => {
-                            if (!isDragging && !(e.target as HTMLElement).closest('.resize-handle')) {
-                                try {
-                                    router.visit(route('tasks.show', { project: project.id, task: task.id }));
-                                } catch (error) {
-                                    console.warn('Task route not available:', error);
-                                }
+                            if (!isDragging && !isDragInProgress && !recentDragRef.current && !(e.target as HTMLElement).closest('.resize-handle')) {
+                                setSelectedTaskForDetail(task);
+                                setTaskDetailModalOpen(true);
                             }
                         }}
-                        title={`${currentTask.title} - ${currentTask.priority} priority (${currentTask.duration_days}d) | ${currentTask.assignees?.length ? `Assigned to: ${currentTask.assignees.map(a => a.name).join(', ')}` : 'Unassigned'} | Drag to move, resize handles to extend/shrink`}
+                        onContextMenu={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setTaskToAssign(currentTask);
+                            setAssignTaskModalOpen(true);
+                        }}
+                        title={`${currentTask.title} - ${currentTask.priority} priority (${currentTask.duration_days}d) | ${currentTask.assignees?.length ? `Assigned to: ${currentTask.assignees.map(a => a.name).join(', ')}` : 'Unassigned'} | Drag to move, resize handles to extend/shrink | Right-click to assign`}
                     >
                         {/* Task content - only show on first segment */}
                         {segment.isFirst && (
-                            <div className="flex items-center gap-2 flex-1 min-w-0 px-3">
-                                {currentTask.assignees?.[0] && (
-                                    <Avatar className="h-5 w-5 flex-shrink-0 border border-white/20">
-                                        <AvatarImage src={currentTask.assignees[0].avatar} />
-                                        <AvatarFallback className="text-xs font-medium">
-                                            {currentTask.assignees[0].name.charAt(0).toUpperCase()}
-                                        </AvatarFallback>
-                                    </Avatar>
-                                )}
-                                <div className="flex-1 min-w-0">
-                                    <div className="font-medium truncate text-sm">
+                            <div className="flex items-center gap-1 flex-1 min-w-0 px-2 pr-8">
+                                {/* Basic view - always visible */}
+                                <div className="flex items-center gap-1 flex-1 min-w-0 group-hover:hidden">
+                                    <span className="font-medium truncate text-xs">
                                         {currentTask.title}
+                                    </span>
+                                    {currentTask.duration_days > 1 && (
+                                        <span className="text-xs opacity-60">({currentTask.duration_days}d)</span>
+                                    )}
+                                </div>
+
+                                {/* Hover view - shows assignee info */}
+                                <div className="hidden group-hover:flex items-center gap-1 flex-1 min-w-0">
+                                    {currentTask.assignees?.[0] && (
+                                        <Avatar className="h-4 w-4 flex-shrink-0 border border-white/20">
+                                            <AvatarImage src={currentTask.assignees[0].avatar} />
+                                            <AvatarFallback className="text-xs font-medium">
+                                                {currentTask.assignees[0].name.charAt(0).toUpperCase()}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                        <div className="font-medium truncate text-xs">
+                                            {currentTask.title}
+                                        </div>
                                     </div>
-                                    <div className="text-xs opacity-75 flex items-center gap-2">
-                                        <span>{currentTask.duration_days}d</span>
-                                        <span>•</span>
-                                        <span className="capitalize">{currentTask.priority}</span>
+                                    <div className="text-xs opacity-75 flex items-center gap-1 flex-shrink-0">
+                                        {currentTask.duration_days > 1 && <span>{currentTask.duration_days}d</span>}
                                         {currentTask.assignees?.length > 1 && (
-                                            <>
-                                                <span>•</span>
-                                                <span>+{currentTask.assignees.length - 1} more</span>
-                                            </>
+                                            <span>+{currentTask.assignees.length - 1}</span>
                                         )}
                                     </div>
                                 </div>
                             </div>
                         )}
 
-                        {/* Assignment button - only show on first segment */}
-                        {segment.isFirst && (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="absolute right-1 top-1 opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setTaskToAssign(currentTask);
-                                    setAssignTaskModalOpen(true);
-                                }}
-                                title="Assign task"
-                            >
-                                <Users className="h-3 w-3" />
-                            </Button>
+                        {/* Show assignee indicator on first segment */}
+                        {segment.isFirst && currentTask.assignees?.length > 0 && (
+                            <div className="absolute right-1 top-1 flex items-center gap-0.5 opacity-80">
+                                <Users className="h-2.5 w-2.5" />
+                                <span className="text-xs">{currentTask.assignees.length}</span>
+                            </div>
                         )}
 
                         {/* Resize handles - only on first and last segments */}
@@ -1207,6 +1291,108 @@ export default function ProjectShow({ project }: ProjectShowProps) {
         );
     };
 
+    // Task Detail Modal Component
+    const TaskDetailModal = ({ task, project, open, onOpenChange }: {
+        task: any;
+        project: Project;
+        open: boolean;
+        onOpenChange: (open: boolean) => void;
+    }) => {
+        if (!task) return null;
+
+        return (
+            <div className={`fixed inset-0 z-50 ${open ? 'block' : 'hidden'}`}>
+                <div className="fixed inset-0 bg-black/50" onClick={() => onOpenChange(false)} />
+                <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <Card>
+                        <CardHeader>
+                            <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                    <CardTitle className="text-xl">{task.title}</CardTitle>
+                                    <CardDescription className="mt-2">
+                                        {task.project?.name || 'Inbox'} • {task.boardName} • {task.listName}
+                                    </CardDescription>
+                                </div>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => onOpenChange(false)}
+                                    className="h-8 w-8 p-0"
+                                >
+                                    <X className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            {/* Task Details */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Priority</label>
+                                    <Badge variant="outline" className={`mt-1 ${getPriorityColor(task.priority)}`}>
+                                        {task.priority}
+                                    </Badge>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Status</label>
+                                    <Badge variant="outline" className="mt-1 capitalize">
+                                        {task.status.replace('_', ' ')}
+                                    </Badge>
+                                </div>
+                                {task.due_date && (
+                                    <div>
+                                        <label className="text-sm font-medium text-muted-foreground">Due Date</label>
+                                        <p className="mt-1 text-sm">{new Date(task.due_date).toLocaleDateString()}</p>
+                                    </div>
+                                )}
+                                {task.duration_days && task.duration_days > 1 && (
+                                    <div>
+                                        <label className="text-sm font-medium text-muted-foreground">Duration</label>
+                                        <p className="mt-1 text-sm">{task.duration_days} days</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Description */}
+                            {task.description && (
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Description</label>
+                                    <p className="mt-1 text-sm whitespace-pre-wrap">{task.description}</p>
+                                </div>
+                            )}
+
+                            {/* Assignees */}
+                            {task.assignees && task.assignees.length > 0 && (
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Assignees</label>
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                        {task.assignees.map((assignee: any) => (
+                                            <div key={assignee.id} className="flex items-center gap-2 bg-muted rounded-lg p-2">
+                                                <Avatar className="h-6 w-6">
+                                                    <AvatarImage src={assignee.avatar} />
+                                                    <AvatarFallback className="text-xs">
+                                                        {assignee.name.charAt(0).toUpperCase()}
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                                <span className="text-sm">{assignee.name}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </CardContent>
+                        <CardFooter className="flex justify-end">
+                            <Button
+                                onClick={() => onOpenChange(false)}
+                            >
+                                Close
+                            </Button>
+                        </CardFooter>
+                    </Card>
+                </div>
+            </div>
+        );
+    };
+
     // Enhanced Resize Handle Component with colored edges
     const ResizeHandle = ({ task, direction, onResize }: { task: any; direction: 'start' | 'end'; onResize: (newDuration: number) => void }) => {
         const [isResizing, setIsResizing] = useState(false);
@@ -1227,7 +1413,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
             // Create handlers with captured values
             const mouseMoveHandler = (e: MouseEvent) => {
                 const deltaX = e.clientX - startXPos;
-                const dayWidth = 140;
+                const dayWidth = 120; // Updated for smaller calendar
                 const daysDelta = Math.round(deltaX / dayWidth);
 
                 let newDuration = originalDur;
@@ -1247,7 +1433,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
 
             const mouseUpHandler = (e: MouseEvent) => {
                 const deltaX = e.clientX - startXPos;
-                const dayWidth = 140;
+                const dayWidth = 120; // Updated for smaller calendar
                 const daysDelta = Math.round(deltaX / dayWidth);
 
                 let newDuration = originalDur;
@@ -1293,7 +1479,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
 
         return (
             <div
-                className={`resize-handle absolute ${direction === 'start' ? 'left-0' : 'right-0'} top-0 bottom-0 w-1 cursor-col-resize transition-all duration-200 ease-out ${isResizing ? 'w-2 opacity-100 bg-white/40' : 'opacity-0 hover:opacity-100 hover:w-2 hover:bg-white/30'} ${direction === 'start' ? 'rounded-l' : 'rounded-r'}`}
+                className={`resize-handle absolute ${direction === 'start' ? 'left-0' : 'right-0'} top-0 bottom-0 w-2 cursor-col-resize transition-all duration-200 ease-out ${isResizing ? 'opacity-100 bg-white/40' : 'opacity-0 group-hover:opacity-60 hover:bg-white/20'} ${direction === 'start' ? 'rounded-l' : 'rounded-r'}`}
                 onMouseDown={handleMouseDown}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
@@ -1344,23 +1530,37 @@ export default function ProjectShow({ project }: ProjectShowProps) {
             }
         }));
 
-        // Send update to server immediately for testing
+        // Send update to server to persist changes
         try {
-            setIsUpdatingTask(true);
-
-            // Temporarily disable server updates to prevent infinite loop
-            console.log('Task resize completed locally - server update disabled to prevent infinite loop');
-            setIsUpdatingTask(false);
+            await axios.patch(route('tasks.update-due-date', { project: project.id, task: task.id }), {
+                start_date: startDate.toISOString().split('T')[0],
+                due_date: newDueDate.toISOString().split('T')[0],
+                duration_days: newDuration
+            });
+            console.log('Task duration updated successfully on server');
         } catch (error) {
-            console.error('Error updating task:', error);
-            setIsUpdatingTask(false);
+            console.error('Failed to update task duration on server:', error);
+            // Revert optimistic update on error
+            setLocalTaskUpdates(prev => {
+                const updated = { ...prev };
+                if (updated[task.id]) {
+                    // Restore original values
+                    updated[task.id] = {
+                        ...updated[task.id],
+                        start_date: currentTask.start_date,
+                        due_date: currentTask.due_date,
+                        duration_days: currentTask.duration_days
+                    };
+                }
+                return updated;
+            });
         }
     };
 
 
 
     return (
-        <AppLayout>
+        <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={project.name} />
             <div className="space-y-6">
                 <div className="flex justify-between items-start">
@@ -1934,6 +2134,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                             sensors={sensors}
                             onDragStart={handleDragStart}
                             onDragEnd={handleDragEnd}
+                            onDragCancel={handleDragCancel}
                         >
                             <Card className="rounded-t-none border-t-0">
                                 <CardHeader className="pb-4">
@@ -2109,10 +2310,10 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                                         </div>
                                                     )}
 
-                                                    {/* Multi-day task strips overlay */}
-                                                    {weeks && weeks.length > 0 && getMultiDayTasksWithRows().map((task) => (
+                                                    {/* All task strips overlay */}
+                                                    {weeks && weeks.length > 0 && getAllTasksWithRows().map((task) => (
                                                         <MultiDayTaskStrip
-                                                            key={`multiday-${task.id}`}
+                                                            key={`task-strip-${task.id}`}
                                                             task={task}
                                                             calendarDays={weeks.flat()}
                                                         />
@@ -2140,7 +2341,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                                             </div>
                                                             <div className="flex items-center gap-2">
                                                                 <Users className="w-4 h-4 text-muted-foreground" />
-                                                                <span>Hover over tasks and click <Users className="w-3 h-3 inline" /> to assign users</span>
+                                                                <span>Right-click on tasks to assign users</span>
                                                             </div>
                                                             <div className="flex items-center gap-2">
                                                                 <div className="w-4 h-4 rounded-full bg-muted border flex items-center justify-center">
@@ -2150,15 +2351,15 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                                             </div>
                                                             <div className="flex items-center gap-2">
                                                                 <div className="w-4 h-4 bg-muted rounded cursor-pointer"></div>
-                                                                <span>Click on tasks in calendar to view/edit</span>
-                                                            </div>
-                                                            <div className="flex items-center gap-2">
-                                                                <div className="w-4 h-4 bg-muted rounded cursor-pointer"></div>
-                                                                <span>Right-click on tasks to set duration</span>
+                                                                <span>Left-click on tasks to view/edit details</span>
                                                             </div>
                                                             <div className="flex items-center gap-2">
                                                                 <div className="w-8 h-4 bg-blue-100 border-l-2 border-blue-500 rounded-l flex items-center justify-center text-xs">━━</div>
                                                                 <span>Multi-day tasks span across calendar days</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-4 h-4 bg-muted rounded cursor-pointer border-2 border-dashed border-blue-300"></div>
+                                                                <span>Drag task edges to resize duration</span>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -2195,27 +2396,44 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                             {/* Drag Overlay */}
                             <DragOverlay>
                                 {activeTask ? (
-                                    <div className="p-3 border-l-4 border-l-blue-500 bg-blue-50 dark:bg-blue-950/20 rounded-lg shadow-lg opacity-90">
-                                        <div className="flex items-start justify-between mb-2">
-                                            <h4 className="font-medium text-sm">{activeTask.title}</h4>
-                                            <div className="flex items-center gap-1">
-                                                {activeTask.assignees?.slice(0, 2).map((assignee: any) => (
-                                                    <Avatar key={assignee.id} className="h-5 w-5 border">
-                                                        <AvatarImage src={assignee.avatar} />
-                                                        <AvatarFallback className="text-xs">
-                                                            {assignee.name.charAt(0).toUpperCase()}
-                                                        </AvatarFallback>
-                                                    </Avatar>
-                                                ))}
+                                    activeTask.type === 'member' ? (
+                                        // Member drag overlay
+                                        <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/20 border rounded-lg shadow-lg opacity-90">
+                                            <Avatar className="h-8 w-8 border">
+                                                <AvatarImage src={activeTask.avatar} />
+                                                <AvatarFallback className="text-sm font-medium">
+                                                    {activeTask.name?.charAt(0).toUpperCase()}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            <div className="flex flex-col min-w-0">
+                                                <span className="text-sm font-medium truncate">{activeTask.name}</span>
+                                                <span className="text-xs text-muted-foreground truncate">Drag to assign to task</span>
                                             </div>
                                         </div>
-                                        <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                            <span>{activeTask.boardName} • {activeTask.listName}</span>
-                                            <Badge variant="outline" className="text-xs">
-                                                {activeTask.priority}
-                                            </Badge>
+                                    ) : (
+                                        // Task drag overlay
+                                        <div className="p-3 border-l-4 border-l-blue-500 bg-blue-50 dark:bg-blue-950/20 rounded-lg shadow-lg opacity-90">
+                                            <div className="flex items-start justify-between mb-2">
+                                                <h4 className="font-medium text-sm">{activeTask.title}</h4>
+                                                <div className="flex items-center gap-1">
+                                                    {activeTask.assignees?.slice(0, 2).map((assignee: any) => (
+                                                        <Avatar key={assignee.id} className="h-5 w-5 border">
+                                                            <AvatarImage src={assignee.avatar} />
+                                                            <AvatarFallback className="text-xs">
+                                                                {assignee.name.charAt(0).toUpperCase()}
+                                                            </AvatarFallback>
+                                                        </Avatar>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                                <span>{activeTask.boardName} • {activeTask.listName}</span>
+                                                <Badge variant="outline" className="text-xs">
+                                                    {activeTask.priority}
+                                                </Badge>
+                                            </div>
                                         </div>
-                                    </div>
+                                    )
                                 ) : null}
                             </DragOverlay>
                         </DndContext>
@@ -2416,6 +2634,14 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                 project={project}
                 open={durationModalOpen}
                 onOpenChange={setDurationModalOpen}
+            />
+
+            {/* Task Detail Modal */}
+            <TaskDetailModal
+                task={selectedTaskForDetail}
+                project={project}
+                open={taskDetailModalOpen}
+                onOpenChange={setTaskDetailModalOpen}
             />
         </AppLayout>
     );
