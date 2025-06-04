@@ -3,6 +3,7 @@
 use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SidebarPreferencesController;
+use App\Http\Controllers\Settings\InboxPreferencesController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -28,4 +29,11 @@ Route::middleware('auth')->group(function () {
     Route::get('settings/sidebar-preferences', [SidebarPreferencesController::class, 'show'])->name('sidebar-preferences.show');
     Route::patch('settings/sidebar-preferences', [SidebarPreferencesController::class, 'update'])->name('sidebar-preferences.update');
     Route::post('settings/sidebar-preferences/reset', [SidebarPreferencesController::class, 'reset'])->name('sidebar-preferences.reset');
+
+    // Inbox preferences routes
+    Route::get('settings/inbox', function () {
+        return Inertia::render('settings/inbox');
+    })->name('inbox.settings');
+    Route::get('settings/inbox-preferences', [InboxPreferencesController::class, 'show'])->name('inbox-preferences.show');
+    Route::patch('settings/inbox-preferences', [InboxPreferencesController::class, 'update'])->name('inbox-preferences.update');
 });

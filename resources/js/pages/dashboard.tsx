@@ -1,16 +1,9 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
-import { type BreadcrumbItem, type RecentActivity } from '@/types';
+import { type RecentActivity } from '@/types';
 import { Head, Link } from '@inertiajs/react';
 import { LayoutDashboard, ListTodo, Plus, Users, FolderPlus, PlusCircle, CheckCircle, MessageCircle, Clock } from 'lucide-react';
-
-const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Dashboard',
-        href: route('dashboard'),
-    },
-];
 
 interface DashboardProps {
     recentActivities: RecentActivity[];
@@ -50,7 +43,7 @@ export default function Dashboard({ recentActivities }: DashboardProps) {
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <AppLayout>
             <Head title="Dashboard" />
             <div className="space-y-6">
                 <div className="flex justify-between items-center py-2">

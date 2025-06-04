@@ -13,18 +13,11 @@ interface ProjectsIndexProps {
     projects: Project[];
 }
 
-const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Projects',
-        href: route('projects.index'),
-    },
-];
-
 export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
     const { auth } = usePage<SharedData>().props;
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <AppLayout>
             <Head title="Projects" />
             <div className="flex items-center justify-between mb-6">
                 <h1 className="text-2xl font-semibold">Projects</h1>
