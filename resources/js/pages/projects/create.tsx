@@ -19,6 +19,8 @@ interface ProjectCreateForm {
     background_color: string;
     icon: string;
     visibility: 'private' | 'public';
+    completion_behavior: 'simple' | 'review' | 'custom';
+    requires_review: boolean;
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -40,6 +42,8 @@ export default function ProjectCreate() {
         background_color: '#3498db',
         icon: '',
         visibility: 'private',
+        completion_behavior: 'simple',
+        requires_review: false,
     });
 
     // Sync visibility with is_public
@@ -126,6 +130,39 @@ export default function ProjectCreate() {
                                     </div>
                                 </RadioGroup>
                                 <InputError message={errors.is_public} />
+                            </div>
+
+                            {/* Task Completion Behavior */}
+                            <div className="space-y-3">
+                                <Label className="text-sm font-medium">Task Completion Behavior</Label>
+                                <RadioGroup
+                                    value={data.completion_behavior}
+                                    onValueChange={(value: 'simple' | 'review' | 'custom') => setData('completion_behavior', value)}
+                                    className="space-y-3"
+                                >
+                                    <div className="flex items-center space-x-3 rounded-lg border p-4 hover:bg-muted/50 transition-colors">
+                                        <RadioGroupItem value="simple" id="simple" />
+                                        <div className="flex-1">
+                                            <Label htmlFor="simple" className="font-medium cursor-pointer">Simple</Label>
+                                            <p className="text-sm text-muted-foreground">Tasks can be marked as done directly. Best for personal projects.</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center space-x-3 rounded-lg border p-4 hover:bg-muted/50 transition-colors">
+                                        <RadioGroupItem value="review" id="review" />
+                                        <div className="flex-1">
+                                            <Label htmlFor="review" className="font-medium cursor-pointer">Review Workflow</Label>
+                                            <p className="text-sm text-muted-foreground">Tasks go through a review process before being marked as done. Best for team projects.</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center space-x-3 rounded-lg border p-4 hover:bg-muted/50 transition-colors">
+                                        <RadioGroupItem value="custom" id="custom" />
+                                        <div className="flex-1">
+                                            <Label htmlFor="custom" className="font-medium cursor-pointer">Custom</Label>
+                                            <p className="text-sm text-muted-foreground">Advanced completion workflow with custom statuses.</p>
+                                        </div>
+                                    </div>
+                                </RadioGroup>
+                                <InputError message={errors.completion_behavior} />
                             </div>
 
                             {/* Background Color */}

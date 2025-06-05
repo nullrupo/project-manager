@@ -21,6 +21,9 @@ return new class extends Migration
             $table->string('background_color')->nullable();
             $table->boolean('is_public')->default(false);
             $table->boolean('is_archived')->default(false);
+            $table->enum('completion_behavior', ['simple', 'review', 'custom'])->default('simple');
+            $table->boolean('requires_review')->default(false);
+            $table->foreignId('default_reviewer_id')->nullable()->constrained('users')->onDelete('set null');
             $table->timestamps();
         });
     }

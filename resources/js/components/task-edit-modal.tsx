@@ -30,6 +30,7 @@ interface TaskEditForm {
     estimate: number | null;
     due_date: string;
     list_id: number;
+    reviewer_id: string;
     assignee_ids: number[];
     label_ids: number[];
     is_archived: boolean;
@@ -53,6 +54,7 @@ export default function TaskEditModal({
         estimate: task.estimate,
         due_date: task.due_date ? task.due_date.split('T')[0] : '',
         list_id: task.list_id || 0,
+        reviewer_id: task.reviewer_id?.toString() || 'default',
         assignee_ids: task.assignees?.map(a => a.id) || [],
         label_ids: task.labels?.map(l => l.id) || [],
         is_archived: task.is_archived,
@@ -246,6 +248,31 @@ export default function TaskEditModal({
                                 </SelectContent>
                             </Select>
                         </div>
+
+                        {/* Reviewer field - only show for review projects */}
+                        {project.completion_behavior === 'review' && (
+                            <div className="space-y-1">
+                                <Label className="text-sm font-medium">Reviewer</Label>
+                                <Select value={data.reviewer_id} onValueChange={(value) => setData('reviewer_id', value)}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Use project default" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="default">
+                                            Use project default ({project.default_reviewer?.name || 'None'})
+                                        </SelectItem>
+                                        {members.map((member) => (
+                                            <SelectItem key={member.id} value={member.id.toString()}>
+                                                {getShortName(member.name)}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">
+                                    Override the project's default reviewer for this task.
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                     {/* Team & Labels */}

@@ -162,6 +162,7 @@ class InboxController extends Controller
             'description' => 'nullable|string',
             'priority' => 'required|string|in:low,medium,high,urgent',
             'status' => 'required|string|in:to_do,in_progress,done',
+            'review_status' => 'nullable|string|in:pending,approved,rejected',
             'due_date' => 'nullable|date',
             'project_id' => 'nullable|exists:projects,id',
             'assignee_ids' => 'nullable|array',
@@ -209,7 +210,8 @@ class InboxController extends Controller
             }
         }
 
-        $task->update([
+        // Handle status and review_status updates
+        $updateData = [
             'title' => $validated['title'],
             'description' => $validated['description'] ?? null,
             'priority' => $validated['priority'],
@@ -219,7 +221,21 @@ class InboxController extends Controller
             'list_id' => $listId,
             'position' => $position,
             'is_inbox' => $shouldBeInInbox,
-        ]);
+        ];
+
+        // Handle review status if provided
+        if (isset($validated['review_status'])) {
+            $updateData['review_status'] = $validated['review_status'];
+        }
+
+        // Set completed_at timestamp when marking as done
+        if ($validated['status'] === 'done' && $task->status !== 'done') {
+            $updateData['completed_at'] = now();
+        } elseif ($validated['status'] !== 'done' && $task->status === 'done') {
+            $updateData['completed_at'] = null;
+        }
+
+        $task->update($updateData);
 
         // Sync assignees if provided
         if (isset($validated['assignee_ids'])) {
@@ -371,5 +387,30 @@ class InboxController extends Controller
 
         return redirect()->route('inbox')
             ->with('success', "Inbox cleaned! {$cleanupCount} tasks moved to archives and projects.");
+    }
+
+    /**
+     * Toggle task completion using the flexible completion logic.
+     */
+    public function toggleCompletion(Task $task): \Illuminate\Http\JsonResponse
+    {
+        // Check if the task is an inbox task
+        if (!$task->is_inbox) {
+            abort(404, 'Task not found in inbox.');
+        }
+
+        // Check if user has permission to update this task
+        if ($task->created_by !== Auth::id() && !$task->assignees->contains(Auth::id())) {
+            abort(403, 'You do not have permission to update this task.');
+        }
+
+        // Use the task's toggle completion method
+        $updateData = $task->toggleCompletion();
+        $task->update($updateData);
+
+        return response()->json([
+            'success' => true,
+            'task' => $task->fresh(['project', 'assignees', 'labels', 'creator'])
+        ]);
     }
 }

@@ -1669,12 +1669,19 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                             </Button>
                         )}
                         {canEdit ? (
-                            <Link href={route('projects.destroy', { project: project.id })} method="delete" as="button">
-                                <Button variant="destructive" size="sm" className="shadow-sm hover:shadow-md">
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    Delete
-                                </Button>
-                            </Link>
+                            <Button
+                                variant="destructive"
+                                size="sm"
+                                className="shadow-sm hover:shadow-md"
+                                onClick={() => {
+                                    if (confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
+                                        router.delete(route('projects.destroy', { project: project.id }));
+                                    }
+                                }}
+                            >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                            </Button>
                         ) : (
                             <Button variant="destructive" size="sm" disabled className="shadow-sm">
                                 <Lock className="h-4 w-4 mr-2" />

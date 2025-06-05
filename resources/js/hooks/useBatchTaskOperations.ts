@@ -44,50 +44,40 @@ export function useBatchTaskOperations(
         };
     }, [selectedTasks, tasks]);
 
-    // Smart batch completion toggle
+    // Smart batch completion toggle using flexible completion logic
     const bulkToggleCompletion = useCallback((options: BatchOperationOptions = {}) => {
         if (isProcessing) return;
-        
+
         const taskIds = Array.from(selectedTasks);
-        const { allCompleted } = getSelectedTasksCompletionState();
-        
-        // If all tasks are completed, mark them as not done
-        // If any task is not completed, mark all as done
-        const newStatus = allCompleted ? 'to_do' : 'done';
-        
+
         setIsProcessing(true);
         let completedUpdates = 0;
         const totalUpdates = taskIds.length;
 
         taskIds.forEach(taskId => {
-            const task = tasks.find(t => t.id === taskId);
-            if (task) {
-                router.put(route(`${routePrefix}.update`, { task: taskId }), {
-                    ...task,
-                    status: newStatus,
-                }, { 
-                    preserveState: true,
-                    preserveScroll: true,
-                    onSuccess: () => {
-                        completedUpdates++;
-                        if (completedUpdates === totalUpdates) {
-                            setIsProcessing(false);
-                            if (!options.preserveSelection) {
-                                setSelectedTasks(new Set());
-                                setShowBulkActions(false);
-                            }
-                            options.onSuccess?.();
-                        }
-                    },
-                    onError: (errors) => {
+            // Use the toggle completion endpoint for flexible behavior
+            router.post(route(`${routePrefix}.toggle-completion`, { task: taskId }), {}, {
+                preserveState: true,
+                preserveScroll: true,
+                onSuccess: () => {
+                    completedUpdates++;
+                    if (completedUpdates === totalUpdates) {
                         setIsProcessing(false);
-                        console.error('Failed to update task:', taskId, errors);
-                        options.onError?.(errors);
+                        if (!options.preserveSelection) {
+                            setSelectedTasks(new Set());
+                            setShowBulkActions(false);
+                        }
+                        options.onSuccess?.();
                     }
-                });
-            }
+                },
+                onError: (errors) => {
+                    setIsProcessing(false);
+                    console.error('Failed to toggle task completion:', taskId, errors);
+                    options.onError?.(errors);
+                }
+            });
         });
-    }, [selectedTasks, tasks, getSelectedTasksCompletionState, routePrefix, isProcessing, setSelectedTasks, setShowBulkActions]);
+    }, [selectedTasks, routePrefix, isProcessing, setSelectedTasks, setShowBulkActions]);
 
     // Batch delete
     const bulkDelete = useCallback((options: BatchOperationOptions = {}) => {

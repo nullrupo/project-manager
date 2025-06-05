@@ -32,9 +32,13 @@ class Task extends Model
         'list_id',
         'project_id',
         'created_by',
+        'reviewer_id',
+        'section_id',
+        'parent_task_id',
         'position',
         'priority',
         'status',
+        'review_status',
         'estimate',
         'due_date',
         'start_date',
@@ -117,5 +121,168 @@ class Task extends Model
     public function comments(): HasMany
     {
         return $this->hasMany(Comment::class);
+    }
+
+    /**
+     * Get the reviewer for the task.
+     */
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewer_id');
+    }
+
+    /**
+     * Get the section that owns the task.
+     */
+    public function section(): BelongsTo
+    {
+        return $this->belongsTo(Section::class);
+    }
+
+    /**
+     * Get the parent task.
+     */
+    public function parentTask(): BelongsTo
+    {
+        return $this->belongsTo(Task::class, 'parent_task_id');
+    }
+
+    /**
+     * Get the subtasks.
+     */
+    public function subtasks(): HasMany
+    {
+        return $this->hasMany(Task::class, 'parent_task_id');
+    }
+
+    /**
+     * Get the checklist items for the task.
+     */
+    public function checklistItems(): HasMany
+    {
+        return $this->hasMany(ChecklistItem::class);
+    }
+
+    /**
+     * Get the effective reviewer for this task.
+     * Falls back to parent task reviewer, then project default reviewer.
+     */
+    public function getEffectiveReviewer(): ?User
+    {
+        // If task has a specific reviewer, use it
+        if ($this->reviewer_id) {
+            return $this->reviewer;
+        }
+
+        // If this is a subtask, inherit from parent task
+        if ($this->parent_task_id && $this->parentTask) {
+            return $this->parentTask->getEffectiveReviewer();
+        }
+
+        // Fall back to project's default reviewer
+        if ($this->project && $this->project->default_reviewer_id) {
+            return $this->project->defaultReviewer;
+        }
+
+        return null;
+    }
+
+    /**
+     * Toggle task completion based on project completion behavior
+     */
+    public function toggleCompletion(): array
+    {
+        $project = $this->project;
+
+        // For inbox tasks or projects with simple completion behavior
+        if (!$project || $project->completion_behavior === 'simple') {
+            $newStatus = $this->status === 'done' ? 'to_do' : 'done';
+            $updateData = [
+                'status' => $newStatus,
+                'review_status' => null,
+            ];
+
+            if ($newStatus === 'done') {
+                $updateData['completed_at'] = now();
+            } else {
+                $updateData['completed_at'] = null;
+            }
+
+            return $updateData;
+        }
+
+        // For projects with review workflow
+        if ($project->completion_behavior === 'review') {
+            return $this->handleReviewWorkflow();
+        }
+
+        // Default fallback to simple behavior
+        return $this->toggleCompletion();
+    }
+
+    /**
+     * Handle review workflow completion logic
+     */
+    private function handleReviewWorkflow(): array
+    {
+        $currentUser = auth()->user();
+        $effectiveReviewer = $this->getEffectiveReviewer();
+        $isReviewer = $effectiveReviewer && $currentUser && $currentUser->id === $effectiveReviewer->id;
+        $isProjectOwner = $this->project && $currentUser && $currentUser->id === $this->project->owner_id;
+
+        // If task is done, unchecking moves it back to to_do
+        if ($this->status === 'done') {
+            return [
+                'status' => 'to_do',
+                'review_status' => null,
+                'completed_at' => null,
+            ];
+        }
+
+        // If task is in review (in_progress with pending review)
+        if ($this->status === 'in_progress' && $this->review_status === 'pending') {
+            // Only reviewer or project owner can approve
+            if ($isReviewer || $isProjectOwner) {
+                return [
+                    'status' => 'done',
+                    'review_status' => 'approved',
+                    'completed_at' => now(),
+                ];
+            } else {
+                // Non-reviewers can't approve, keep in pending state
+                return [
+                    'status' => $this->status,
+                    'review_status' => $this->review_status,
+                    'completed_at' => $this->completed_at,
+                ];
+            }
+        }
+
+        // If task is to_do or in_progress without review, submit for review
+        return [
+            'status' => 'in_progress',
+            'review_status' => 'pending',
+            'completed_at' => null,
+        ];
+    }
+
+    /**
+     * Get the display status for the task (considering review status)
+     */
+    public function getDisplayStatus(): string
+    {
+        if ($this->status === 'in_progress' && $this->review_status === 'pending') {
+            return 'review';
+        }
+
+        return $this->status;
+    }
+
+    /**
+     * Check if task is considered completed for UI purposes
+     */
+    public function isCompleted(): bool
+    {
+        return $this->status === 'done';
     }
 }

@@ -35,6 +35,9 @@ class Project extends Model
         'background_color',
         'is_public',
         'is_archived',
+        'completion_behavior',
+        'requires_review',
+        'default_reviewer_id',
     ];
 
     /**
@@ -45,6 +48,7 @@ class Project extends Model
     protected $casts = [
         'is_public' => 'boolean',
         'is_archived' => 'boolean',
+        'requires_review' => 'boolean',
     ];
 
     /**
@@ -95,5 +99,21 @@ class Project extends Model
     public function labels(): HasMany
     {
         return $this->hasMany(Label::class);
+    }
+
+    /**
+     * Get the default reviewer for the project.
+     */
+    public function defaultReviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'default_reviewer_id');
+    }
+
+    /**
+     * Get the sections for the project.
+     */
+    public function sections(): HasMany
+    {
+        return $this->hasMany(Section::class);
     }
 }

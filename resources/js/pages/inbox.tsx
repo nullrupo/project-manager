@@ -21,11 +21,14 @@ interface Task {
     description: string | null;
     priority: 'low' | 'medium' | 'high' | 'urgent';
     status: 'to_do' | 'in_progress' | 'done';
+    review_status?: 'pending' | 'approved' | 'rejected' | null;
     due_date: string | null;
     project?: {
         id: number;
         name: string;
         key: string;
+        completion_behavior?: 'simple' | 'review' | 'custom';
+        requires_review?: boolean;
     };
     assignees?: { id: number; name: string }[];
     is_inbox: boolean;
@@ -54,6 +57,27 @@ interface InboxPageProps {
 
 export default function InboxPage({ tasks = [], users = [], projects = [] }: InboxPageProps) {
     const getShortName = useShortName();
+
+    // Helper function to get display status
+    const getDisplayStatus = (task: Task): string => {
+        if (task.status === 'in_progress' && task.review_status === 'pending') {
+            return 'review';
+        }
+        return task.status;
+    };
+
+    // Helper function to get status color
+    const getStatusColor = (task: Task): string => {
+        const displayStatus = getDisplayStatus(task);
+        switch (displayStatus) {
+            case 'to_do': return 'bg-gray-100 text-gray-800 border-gray-200';
+            case 'in_progress': return 'bg-blue-100 text-blue-800 border-blue-200';
+            case 'review': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+            case 'done': return 'bg-green-100 text-green-800 border-green-200';
+            default: return 'bg-gray-100 text-gray-800 border-gray-200';
+        }
+    };
+
     const [editingTask, setEditingTask] = useState<Task | null>(null);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [taskToDelete, setTaskToDelete] = useState<number | null>(null);
@@ -382,12 +406,21 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
         setShowBulkActions(newSelected.size > 0);
     };
 
-    // Toggle task completion status
+    // Toggle task completion status using flexible completion logic
     const toggleTaskCompletion = (taskId: number) => {
         const task = tasks.find(t => t.id === taskId);
         if (task) {
-            const newStatus = task.status === 'done' ? 'to_do' : 'done';
-            quickUpdateStatus(taskId, newStatus);
+            // Use the new toggle completion endpoint for flexible behavior
+            router.post(route('inbox.tasks.toggle-completion', { task: taskId }), {}, {
+                preserveState: true,
+                preserveScroll: true,
+                onSuccess: () => {
+                    // Task will be updated automatically via Inertia
+                },
+                onError: (errors) => {
+                    console.error('Failed to toggle task completion:', errors);
+                }
+            });
         }
     };
 
@@ -476,13 +509,22 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
     );
 
     // Quick status update
-    const quickUpdateStatus = (taskId: number, newStatus: string) => {
+    const quickUpdateStatus = (taskId: number, newStatus: string, reviewStatus: string | null = null) => {
         const task = tasks.find(t => t.id === taskId);
         if (task) {
-            router.put(route('inbox.tasks.update', { task: taskId }), {
+            const updateData = {
                 ...task,
                 status: newStatus,
-            }, { preserveState: true });
+            };
+
+            if (reviewStatus !== null) {
+                updateData.review_status = reviewStatus;
+            }
+
+            router.put(route('inbox.tasks.update', { task: taskId }), updateData, {
+                preserveState: true,
+                preserveScroll: true
+            });
         }
     };
 
@@ -794,6 +836,11 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                                     {isOverdue && (
                                                         <Badge variant="destructive" className="text-xs">
                                                             Overdue
+                                                        </Badge>
+                                                    )}
+                                                    {getDisplayStatus(task) !== task.status && (
+                                                        <Badge variant="outline" className={`text-xs ${getStatusColor(task)}`}>
+                                                            {getDisplayStatus(task).charAt(0).toUpperCase() + getDisplayStatus(task).slice(1)}
                                                         </Badge>
                                                     )}
                                                 </div>

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Project;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -57,6 +58,8 @@ class ProjectController extends Controller
             'is_public' => 'boolean',
             'background_color' => 'nullable|string|max:50',
             'icon' => 'nullable|string|max:50',
+            'completion_behavior' => 'nullable|string|in:simple,review,custom',
+            'requires_review' => 'boolean',
         ]);
 
         // Auto-generate a unique project key from name
@@ -115,6 +118,7 @@ class ProjectController extends Controller
         // Load the project with its relationships
         $project->load([
             'owner',
+            'defaultReviewer',
             'members' => function ($query) {
                 $query->withPivot([
                     'role',
@@ -126,6 +130,9 @@ class ProjectController extends Controller
                     'can_comment'
                 ]);
             },
+            'sections' => function ($query) {
+                $query->orderBy('position');
+            },
             'boards' => function ($query) {
                 $query->orderBy('position');
             },
@@ -133,11 +140,14 @@ class ProjectController extends Controller
                 $query->orderBy('position');
             },
             'boards.lists.tasks' => function ($query) {
-                $query->orderBy('position');
+                $query->whereNull('parent_task_id')->orderBy('position');
             },
             'boards.lists.tasks.assignees',
             'boards.lists.tasks.labels',
             'boards.lists.tasks.creator',
+            'boards.lists.tasks.reviewer',
+            'boards.lists.tasks.subtasks',
+            'boards.lists.tasks.checklistItems',
         ]);
 
         // Add permission information using the new permission system
@@ -164,8 +174,17 @@ class ProjectController extends Controller
             abort(403, 'You do not have permission to edit this project.');
         }
 
+        // Load project with relationships
+        $project->load(['defaultReviewer', 'members']);
+
+        // Get project members for reviewer selection
+        $members = $project->members()->get();
+        $members->push($project->owner);
+        $members = $members->unique('id');
+
         return Inertia::render('projects/edit', [
             'project' => $project,
+            'members' => $members,
         ]);
     }
 
@@ -185,7 +204,20 @@ class ProjectController extends Controller
             'is_public' => 'boolean',
             'background_color' => 'nullable|string|max:50',
             'icon' => 'nullable|string|max:50',
+            'completion_behavior' => 'required|string|in:simple,review,custom',
+            'requires_review' => 'boolean',
+            'default_reviewer_id' => 'nullable|string',
         ]);
+
+        // Handle the "none" value for default_reviewer_id
+        if ($validated['default_reviewer_id'] === 'none' || empty($validated['default_reviewer_id'])) {
+            $validated['default_reviewer_id'] = null;
+        }
+
+        // Validate that the reviewer exists if provided
+        if ($validated['default_reviewer_id'] && !User::find($validated['default_reviewer_id'])) {
+            return back()->withErrors(['default_reviewer_id' => 'The selected reviewer is invalid.']);
+        }
 
         $project->update($validated);
 

@@ -5,7 +5,7 @@ import { Separator } from '@/components/ui/separator';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Project, Task } from '@/types/project-manager';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, useForm, router } from '@inertiajs/react';
 import { CalendarDays, Clock, Edit, MessageSquare, Tag, Trash2, User } from 'lucide-react';
 import { FormEventHandler } from 'react';
 
@@ -113,16 +113,18 @@ export default function TaskShow({ project, task }: TaskShowProps) {
                                                             <Edit className="h-3 w-3 mr-1" />
                                                             Edit
                                                         </Button>
-                                                        <Link
-                                                            href={route('comments.destroy', { project: project.id, task: task.id, comment: comment.id })}
-                                                            method="delete"
-                                                            as="button"
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => {
+                                                                if (confirm('Are you sure you want to delete this comment?')) {
+                                                                    router.delete(route('comments.destroy', { project: project.id, task: task.id, comment: comment.id }));
+                                                                }
+                                                            }}
                                                         >
-                                                            <Button variant="ghost" size="sm">
-                                                                <Trash2 className="h-3 w-3 mr-1" />
-                                                                Delete
-                                                            </Button>
-                                                        </Link>
+                                                            <Trash2 className="h-3 w-3 mr-1" />
+                                                            Delete
+                                                        </Button>
                                                     </div>
                                                 </div>
                                                 <div className="text-sm whitespace-pre-wrap">{comment.content}</div>

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\BoardController;
 use App\Http\Controllers\CalendarController;
+use App\Http\Controllers\ChecklistItemController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FavoritesController;
@@ -10,6 +11,7 @@ use App\Http\Controllers\LabelController;
 use App\Http\Controllers\MyTasksController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectMemberController;
+use App\Http\Controllers\SectionController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TaskListController;
 use App\Http\Controllers\TeamController;
@@ -52,6 +54,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('projects/{project}/tasks/{task}/edit', [TaskController::class, 'edit'])->name('tasks.edit');
     Route::put('projects/{project}/tasks/{task}', [TaskController::class, 'update'])->name('tasks.update');
     Route::patch('projects/{project}/tasks/{task}/due-date', [TaskController::class, 'updateDueDate'])->name('tasks.update-due-date');
+    Route::post('projects/{project}/tasks/{task}/toggle-completion', [TaskController::class, 'toggleCompletion'])->name('tasks.toggle-completion');
     Route::delete('projects/{project}/tasks/{task}', [TaskController::class, 'destroy'])->name('tasks.destroy');
     Route::post('projects/{project}/tasks/positions', [TaskController::class, 'updatePositions'])->name('tasks.positions');
 
@@ -68,6 +71,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('projects/{project}/labels/{label}', [LabelController::class, 'update'])->name('labels.update');
     Route::delete('projects/{project}/labels/{label}', [LabelController::class, 'destroy'])->name('labels.destroy');
 
+    // Section routes
+    Route::post('projects/{project}/sections', [SectionController::class, 'store'])->name('sections.store');
+    Route::put('projects/{project}/sections/{section}', [SectionController::class, 'update'])->name('sections.update');
+    Route::delete('projects/{project}/sections/{section}', [SectionController::class, 'destroy'])->name('sections.destroy');
+    Route::post('projects/{project}/sections/reorder', [SectionController::class, 'reorder'])->name('sections.reorder');
+
+    // Checklist item routes
+    Route::post('tasks/{task}/checklist-items', [ChecklistItemController::class, 'store'])->name('checklist-items.store');
+    Route::put('tasks/{task}/checklist-items/{checklistItem}', [ChecklistItemController::class, 'update'])->name('checklist-items.update');
+    Route::delete('tasks/{task}/checklist-items/{checklistItem}', [ChecklistItemController::class, 'destroy'])->name('checklist-items.destroy');
+    Route::post('tasks/{task}/checklist-items/{checklistItem}/toggle', [ChecklistItemController::class, 'toggleCompletion'])->name('checklist-items.toggle');
+
     // My Tasks routes
     Route::get('my-tasks', [MyTasksController::class, 'index'])->name('my-tasks');
 
@@ -76,6 +91,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('inbox/tasks', [InboxController::class, 'store'])->name('inbox.tasks.store');
     Route::put('inbox/tasks/{task}', [InboxController::class, 'update'])->name('inbox.tasks.update');
     Route::delete('inbox/tasks/{task}', [InboxController::class, 'destroy'])->name('inbox.tasks.destroy');
+    Route::post('inbox/tasks/{task}/toggle-completion', [InboxController::class, 'toggleCompletion'])->name('inbox.tasks.toggle-completion');
     Route::post('inbox/tasks/{task}/move-to-project', [InboxController::class, 'moveToProject'])->name('inbox.tasks.move-to-project');
     Route::post('inbox/cleanup', [InboxController::class, 'cleanup'])->name('inbox.cleanup');
 

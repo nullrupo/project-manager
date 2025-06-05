@@ -263,6 +263,45 @@ export default function TaskViewModal({
                                     </div>
                                 </div>
 
+                                {/* Reviewer - only show for review projects */}
+                                {project.completion_behavior === 'review' && (
+                                    <div className="bg-background rounded-lg p-4 border">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                                <Eye className="h-5 w-5 text-blue-600" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="text-sm font-medium text-muted-foreground">Reviewer</p>
+                                                {task.reviewer ? (
+                                                    <Badge variant="secondary" className="text-xs font-medium mt-1">
+                                                        {getShortName(task.reviewer.name)}
+                                                    </Badge>
+                                                ) : project.default_reviewer ? (
+                                                    <Badge variant="outline" className="text-xs font-medium mt-1">
+                                                        {getShortName(project.default_reviewer.name)} (default)
+                                                    </Badge>
+                                                ) : (
+                                                    <p className="text-sm text-muted-foreground mt-1">No reviewer assigned</p>
+                                                )}
+                                                {task.review_status && (
+                                                    <div className="mt-2">
+                                                        <Badge
+                                                            variant="outline"
+                                                            className={`text-xs ${
+                                                                task.review_status === 'approved' ? 'text-green-600 border-green-600' :
+                                                                task.review_status === 'rejected' ? 'text-red-600 border-red-600' :
+                                                                'text-yellow-600 border-yellow-600'
+                                                            }`}
+                                                        >
+                                                            {task.review_status.charAt(0).toUpperCase() + task.review_status.slice(1)}
+                                                        </Badge>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* Due Date */}
                                 <div className="bg-background rounded-lg p-4 border">
                                     <div className="flex items-center gap-3">

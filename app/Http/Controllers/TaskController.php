@@ -80,6 +80,9 @@ class TaskController extends Controller
             'status' => 'required|string',
             'estimate' => 'nullable|integer|min:0',
             'due_date' => 'nullable|date',
+            'reviewer_id' => 'nullable|string',
+            'section_id' => 'nullable|exists:sections,id',
+            'parent_task_id' => 'nullable|exists:tasks,id',
             'assignee_ids' => 'nullable|array',
             'assignee_ids.*' => 'exists:users,id',
             'label_ids' => 'nullable|array',
@@ -89,6 +92,12 @@ class TaskController extends Controller
         // Get the highest position value
         $maxPosition = $list->tasks()->max('position') ?? -1;
 
+        // Handle reviewer_id
+        $reviewerId = $validated['reviewer_id'] ?? null;
+        if ($reviewerId === 'default' || empty($reviewerId)) {
+            $reviewerId = null;
+        }
+
         // Create the task
         $task = new Task([
             'title' => $validated['title'],
@@ -97,6 +106,9 @@ class TaskController extends Controller
             'status' => $validated['status'],
             'estimate' => $validated['estimate'] ?? null,
             'due_date' => $validated['due_date'] ?? null,
+            'reviewer_id' => $reviewerId,
+            'section_id' => $validated['section_id'] ?? null,
+            'parent_task_id' => $validated['parent_task_id'] ?? null,
             'position' => $maxPosition + 1,
         ]);
 
@@ -140,6 +152,11 @@ class TaskController extends Controller
             'assignees',
             'labels',
             'creator',
+            'reviewer',
+            'section',
+            'parentTask',
+            'subtasks',
+            'checklistItems',
             'comments' => function ($query) {
                 $query->whereNull('parent_id')->orderBy('created_at', 'desc');
             },
@@ -224,11 +241,15 @@ class TaskController extends Controller
             'description' => 'nullable|string',
             'priority' => 'required|string|in:low,medium,high,urgent',
             'status' => 'required|string',
+            'review_status' => 'nullable|string|in:pending,approved,rejected',
             'estimate' => 'nullable|integer|min:0',
             'due_date' => 'nullable|date',
             'start_date' => 'nullable|date',
             'duration_days' => 'nullable|integer|min:1',
             'list_id' => 'required|exists:lists,id',
+            'reviewer_id' => 'nullable|string',
+            'section_id' => 'nullable|exists:sections,id',
+            'parent_task_id' => 'nullable|exists:tasks,id',
             'assignee_ids' => 'nullable|array',
             'assignee_ids.*' => 'exists:users,id',
             'label_ids' => 'nullable|array',
@@ -236,8 +257,14 @@ class TaskController extends Controller
             'is_archived' => 'boolean',
         ]);
 
+        // Handle reviewer_id
+        $reviewerId = $validated['reviewer_id'] ?? null;
+        if ($reviewerId === 'default' || empty($reviewerId)) {
+            $reviewerId = null;
+        }
+
         // Update the task
-        $task->update([
+        $updateData = [
             'title' => $validated['title'],
             'description' => $validated['description'],
             'priority' => $validated['priority'],
@@ -247,8 +274,25 @@ class TaskController extends Controller
             'start_date' => $validated['start_date'] ?? null,
             'duration_days' => $validated['duration_days'] ?? null,
             'list_id' => $validated['list_id'],
+            'reviewer_id' => $reviewerId,
+            'section_id' => $validated['section_id'] ?? null,
+            'parent_task_id' => $validated['parent_task_id'] ?? null,
             'is_archived' => $validated['is_archived'] ?? false,
-        ]);
+        ];
+
+        // Handle review status if provided
+        if (isset($validated['review_status'])) {
+            $updateData['review_status'] = $validated['review_status'];
+        }
+
+        // Set completed_at timestamp when marking as done
+        if ($validated['status'] === 'done' && $task->status !== 'done') {
+            $updateData['completed_at'] = now();
+        } elseif ($validated['status'] !== 'done' && $task->status === 'done') {
+            $updateData['completed_at'] = null;
+        }
+
+        $task->update($updateData);
 
         // Sync assignees
         $task->assignees()->sync($validated['assignee_ids'] ?? []);
@@ -367,6 +411,31 @@ class TaskController extends Controller
             'review', 'testing', 'qa', 'pending review' => 'in_progress', // Treat review as in_progress
             default => null, // Don't change status for unrecognized list names
         };
+    }
+
+    /**
+     * Toggle task completion using the flexible completion logic.
+     */
+    public function toggleCompletion(Project $project, Task $task): \Illuminate\Http\JsonResponse
+    {
+        // Check if the task belongs to the project
+        if ($task->project_id !== $project->id) {
+            abort(404, 'Task not found in this project.');
+        }
+
+        // Check if user has permission to manage tasks in this project
+        if (!ProjectPermissionService::can($project, 'can_manage_tasks')) {
+            abort(403, 'You do not have permission to manage tasks in this project.');
+        }
+
+        // Use the task's toggle completion method
+        $updateData = $task->toggleCompletion();
+        $task->update($updateData);
+
+        return response()->json([
+            'success' => true,
+            'task' => $task->fresh(['project', 'assignees', 'labels', 'creator', 'list'])
+        ]);
     }
 
     /**

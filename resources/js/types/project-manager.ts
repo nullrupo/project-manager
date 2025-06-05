@@ -10,11 +10,16 @@ export interface Project {
     background_color: string | null;
     is_public: boolean;
     is_archived: boolean;
+    completion_behavior: 'simple' | 'review' | 'custom';
+    requires_review: boolean;
+    default_reviewer_id: number | null;
     created_at: string;
     updated_at: string;
     owner?: User;
+    default_reviewer?: User;
     members?: User[];
     boards?: Board[];
+    sections?: Section[];
     can_edit?: boolean;
     can_manage_members?: boolean;
     can_manage_tasks?: boolean;
@@ -70,9 +75,13 @@ export interface Task {
     list_id: number | null;
     project_id: number | null;
     created_by: number;
+    reviewer_id: number | null;
+    section_id: number | null;
+    parent_task_id: number | null;
     position: number;
     priority: 'low' | 'medium' | 'high' | 'urgent';
     status: 'to_do' | 'in_progress' | 'done';
+    review_status?: 'pending' | 'approved' | 'rejected' | null;
     estimate: number | null;
     due_date: string | null;
     start_date: string | null;
@@ -85,6 +94,11 @@ export interface Task {
     list?: TaskList;
     project?: Project;
     creator?: User;
+    reviewer?: User;
+    section?: Section;
+    parent_task?: Task;
+    subtasks?: Task[];
+    checklist_items?: ChecklistItem[];
     assignees?: User[];
     labels?: Label[];
     comments?: Comment[];
@@ -115,4 +129,28 @@ export interface Comment {
     user?: User;
     parent?: Comment;
     replies?: Comment[];
+}
+
+export interface Section {
+    id: number;
+    name: string;
+    description: string | null;
+    project_id: number;
+    position: number;
+    is_collapsed: boolean;
+    created_at: string;
+    updated_at: string;
+    project?: Project;
+    tasks?: Task[];
+}
+
+export interface ChecklistItem {
+    id: number;
+    title: string;
+    task_id: number;
+    is_completed: boolean;
+    position: number;
+    created_at: string;
+    updated_at: string;
+    task?: Task;
 }
