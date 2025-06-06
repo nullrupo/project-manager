@@ -8,8 +8,8 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Project, User } from '@/types/project-manager';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Head, useForm } from '@inertiajs/react';
-import { LoaderCircle } from 'lucide-react';
+import { Head, useForm, router } from '@inertiajs/react';
+import { LoaderCircle, Trash2 } from 'lucide-react';
 import { FormEventHandler } from 'react';
 
 interface ProjectEditProps {
@@ -47,6 +47,12 @@ export default function ProjectEdit({ project, members }: ProjectEditProps) {
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
         put(route('projects.update', project.id));
+    };
+
+    const handleDeleteProject = () => {
+        if (confirm('Are you sure you want to delete this project? This action cannot be undone and will permanently delete all tasks, boards, and project data.')) {
+            router.delete(route('projects.destroy', { project: project.id }));
+        }
     };
 
     return (
@@ -172,6 +178,33 @@ export default function ProjectEdit({ project, members }: ProjectEditProps) {
                                         </div>
                                     </>
                                 )}
+                            </div>
+
+                            {/* Danger Zone */}
+                            <div className="space-y-4 border-t pt-4 mt-6">
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-medium text-destructive">Danger Zone</Label>
+                                    <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h4 className="text-sm font-medium text-destructive">Delete Project</h4>
+                                                <p className="text-xs text-muted-foreground mt-1">
+                                                    Permanently delete this project and all its data. This action cannot be undone.
+                                                </p>
+                                            </div>
+                                            <Button
+                                                type="button"
+                                                variant="destructive"
+                                                size="sm"
+                                                onClick={handleDeleteProject}
+                                                className="ml-4"
+                                            >
+                                                <Trash2 className="h-4 w-4 mr-2" />
+                                                Delete Project
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </CardContent>
                         <CardFooter className="flex justify-between">

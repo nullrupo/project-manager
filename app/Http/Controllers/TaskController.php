@@ -39,7 +39,7 @@ class TaskController extends Controller
     /**
      * Show the form for creating a new task.
      */
-    public function create(Project $project, Board $board, TaskList $list): Response
+    public function create(Request $request, Project $project, Board $board, TaskList $list): Response
     {
         // Check if the board belongs to the project and the list belongs to the board
         if ($board->project_id !== $project->id || $list->board_id !== $board->id) {
@@ -60,6 +60,8 @@ class TaskController extends Controller
             'list' => $list,
             'members' => $members,
             'labels' => $labels,
+            'tab' => $request->get('tab', 'list'), // Pass tab parameter
+            'status' => $request->get('status'), // Pass status parameter if provided
         ]);
     }
 
@@ -127,7 +129,10 @@ class TaskController extends Controller
             $task->labels()->attach($validated['label_ids']);
         }
 
-        return redirect()->route('boards.show', [$project, $board])
+        // Check if there's a tab parameter to preserve navigation state
+        $tab = $request->get('tab', 'list'); // Default to list tab
+
+        return redirect()->route('projects.show', ['project' => $project->id, 'tab' => $tab])
             ->with('success', 'Task created successfully.');
     }
 

@@ -5,25 +5,392 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Project } from '@/types/project-manager';
 import { Head, Link, usePage, router } from '@inertiajs/react';
-import { Archive, Edit, Lock, Plus, Trash2, Users, ListTodo, Tag, Globe, Shield, Calendar, BarChart3, UserPlus, Settings, Crown, Clock, AlertCircle, CheckCircle2, Search, Filter, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, X, Eye } from 'lucide-react';
+import { Archive, Edit, Lock, Plus, Trash2, Users, ListTodo, Tag, Globe, Shield, Calendar, BarChart3, UserPlus, Settings, Crown, Clock, AlertCircle, CheckCircle2, Search, Filter, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Menu, X, Eye, GripVertical, MoreHorizontal, Save, Layers, ToggleLeft, ToggleRight } from 'lucide-react';
 import { useShortName } from '@/hooks/use-initials';
 import axios from 'axios';
 import InviteMemberModal from '@/components/invite-member-modal';
 import MemberPermissionModal from '@/components/member-permission-modal';
-import { useState, useEffect, useRef } from 'react';
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useSensor, useSensors, PointerSensor, MouseSensor } from '@dnd-kit/core';
-import { useDraggable, useDroppable } from '@dnd-kit/core';
+import { useState, useEffect, useRef, memo, useCallback } from 'react';
+import {
+    DndContext,
+    DragOverlay,
+    useSensor,
+    useSensors,
+    PointerSensor,
+    MouseSensor,
+    KeyboardSensor,
+    closestCenter,
+    rectIntersection,
+    getFirstCollision,
+    pointerWithin,
+    useDraggable,
+    useDroppable,
+} from '@dnd-kit/core';
+import {
+    SortableContext,
+    sortableKeyboardCoordinates,
+    verticalListSortingStrategy,
+    horizontalListSortingStrategy,
+    useSortable,
+    arrayMove,
+} from '@dnd-kit/sortable';
+import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import { CSS } from '@dnd-kit/utilities';
+import TaskWithSubtasks from '@/components/task-with-subtasks';
+import TaskEditModal from '@/components/task-edit-modal';
+import TaskViewModal from '@/components/task-view-modal';
 
 interface ProjectShowProps {
     project: Project;
 }
+
+// Simple Section Edit Form Component
+const SectionEditForm = ({ section, project, onClose }: { section: any, project: Project, onClose: () => void }) => {
+    const [formData, setFormData] = useState({
+        name: section.name || '',
+        description: section.description || ''
+    });
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+
+        router.put(route('sections.update', { project: project.id, section: section.id }), formData, {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                onClose();
+            },
+            onFinish: () => {
+                setIsSubmitting(false);
+            }
+        });
+    };
+
+    return (
+        <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+                <label className="text-sm font-medium">Section Name</label>
+                <Input
+                    value={formData.name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="Section name..."
+                    required
+                />
+            </div>
+
+            <div className="space-y-2">
+                <label className="text-sm font-medium">Description</label>
+                <Textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="Section description..."
+                    rows={3}
+                />
+            </div>
+
+            <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={onClose}>
+                    Cancel
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? 'Saving...' : 'Save Changes'}
+                </Button>
+            </div>
+        </form>
+    );
+};
+
+// TaskInspector Component (moved outside to prevent recreation on re-renders)
+const TaskInspector = memo(({
+    inspectorTask,
+    onClose,
+    project
+}: {
+    inspectorTask: any;
+    onClose: () => void;
+    project: any;
+}) => {
+    if (!inspectorTask) return null;
+
+    const [taskData, setTaskData] = useState({
+        title: '',
+        description: '',
+        priority: 'medium',
+        status: 'to_do',
+        due_date: '',
+        estimate: '',
+        list_id: ''
+    });
+
+    // Save state tracking
+    const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    // Sync taskData with inspectorTask when it changes
+    useEffect(() => {
+        if (inspectorTask) {
+            setTaskData({
+                title: inspectorTask.title || '',
+                description: inspectorTask.description || '',
+                priority: inspectorTask.priority || 'medium',
+                status: inspectorTask.status || 'to_do',
+                due_date: inspectorTask.due_date ? inspectorTask.due_date.split('T')[0] : '',
+                estimate: inspectorTask.estimate || '',
+                list_id: inspectorTask.list_id || inspectorTask.list?.id || ''
+            });
+            setHasUnsavedChanges(false);
+            setSaveState('idle');
+        }
+    }, [inspectorTask?.id]); // Only re-run when the task ID changes
+
+
+
+    const handleFieldChange = useCallback((field: string, value: any) => {
+        console.log('📝 handleFieldChange called!', { field, value });
+
+        setTaskData(prev => ({ ...prev, [field]: value }));
+        setHasUnsavedChanges(true);
+        setSaveState('idle');
+
+        console.log('📝 Field changed, manual save required');
+    }, []);
+
+    // Manual save function using Inertia (no auto-save)
+    const handleManualSave = useCallback(() => {
+        if (!inspectorTask || !hasUnsavedChanges) return;
+
+        console.log('💾 Manual save triggered');
+        setSaveState('saving');
+
+        // Prepare the data with all required fields matching TaskController validation
+        const updateData = {
+            title: taskData.title || 'Untitled Task',
+            description: taskData.description || '',
+            priority: taskData.priority || 'medium',
+            status: taskData.status || 'to_do',
+            estimate: taskData.estimate || null,
+            due_date: taskData.due_date || null,
+            start_date: null,
+            duration_days: null,
+            list_id: taskData.list_id || inspectorTask.list_id || inspectorTask.list?.id,
+            reviewer_id: null,
+            section_id: null,
+            parent_task_id: null,
+            assignee_ids: inspectorTask.assignees?.map((a: any) => a.id) || [],
+            label_ids: inspectorTask.labels?.map((l: any) => l.id) || [],
+            is_archived: inspectorTask.is_archived || false
+        };
+
+        console.log('💾 Sending update data:', updateData);
+
+        // Use Inertia's put method for proper Laravel integration
+        router.put(route('tasks.update', { project: project.id, task: inspectorTask.id }), updateData, {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                console.log('✅ Task saved successfully');
+                setHasUnsavedChanges(false);
+                setSaveState('saved');
+
+                // Clear saved state after 2 seconds
+                setTimeout(() => setSaveState('idle'), 2000);
+            },
+            onError: (errors) => {
+                console.error('❌ Save failed:', errors);
+                setSaveState('error');
+
+                // Clear error state after 3 seconds
+                setTimeout(() => setSaveState('idle'), 3000);
+            }
+        });
+    }, [inspectorTask, hasUnsavedChanges, taskData, project.id, router]);
+
+
+
+
+
+    return (
+        <div ref={containerRef} className="w-80 border-l bg-background flex flex-col h-full">
+            <div className="p-4 border-b">
+                <div className="flex items-center justify-between">
+                    <h3 className="font-semibold">Task Details</h3>
+                    <div className="flex items-center gap-2">
+                        {/* Save state indicator */}
+                        {saveState === 'saving' && (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <div className="animate-spin h-3 w-3 border border-current border-t-transparent rounded-full"></div>
+                                Saving...
+                            </div>
+                        )}
+                        {saveState === 'saved' && (
+                            <div className="flex items-center gap-1 text-xs text-green-600">
+                                <CheckCircle2 className="h-3 w-3" />
+                                Saved
+                            </div>
+                        )}
+                        {saveState === 'error' && (
+                            <div className="flex items-center gap-1 text-xs text-red-600">
+                                <AlertCircle className="h-3 w-3" />
+                                Error
+                            </div>
+                        )}
+                        {hasUnsavedChanges && saveState === 'idle' && (
+                            <div className="text-xs text-amber-600">
+                                Unsaved changes
+                            </div>
+                        )}
+                        <Button variant="ghost" size="sm" onClick={onClose}>
+                            <X className="h-4 w-4" />
+                        </Button>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {/* Title */}
+                <div className="space-y-2">
+                    <label className="text-sm font-medium">Title</label>
+                    <Input
+                        value={taskData.title}
+                        onChange={(e) => handleFieldChange('title', e.target.value)}
+                        placeholder="Task title..."
+                    />
+                </div>
+
+                {/* Description */}
+                <div className="space-y-2">
+                    <label className="text-sm font-medium">Description</label>
+                    <Textarea
+                        value={taskData.description}
+                        onChange={(e) => handleFieldChange('description', e.target.value)}
+                        placeholder="Task description..."
+                        rows={4}
+                    />
+                </div>
+
+                {/* Priority */}
+                <div className="space-y-2">
+                    <label className="text-sm font-medium">Priority</label>
+                    <Select value={taskData.priority} onValueChange={(value) => handleFieldChange('priority', value)}>
+                        <SelectTrigger>
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="low">Low</SelectItem>
+                            <SelectItem value="medium">Medium</SelectItem>
+                            <SelectItem value="high">High</SelectItem>
+                            <SelectItem value="urgent">Urgent</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                {/* Status */}
+                <div className="space-y-2">
+                    <label className="text-sm font-medium">Status</label>
+                    <Select value={taskData.status} onValueChange={(value) => handleFieldChange('status', value)}>
+                        <SelectTrigger>
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="to_do">To Do</SelectItem>
+                            <SelectItem value="in_progress">In Progress</SelectItem>
+                            <SelectItem value="done">Done</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                {/* Due Date */}
+                <div className="space-y-2">
+                    <label className="text-sm font-medium">Due Date</label>
+                    <Input
+                        type="date"
+                        value={taskData.due_date}
+                        onChange={(e) => handleFieldChange('due_date', e.target.value)}
+                    />
+                </div>
+
+                {/* Estimate */}
+                <div className="space-y-2">
+                    <label className="text-sm font-medium">Estimate (hours)</label>
+                    <Input
+                        type="number"
+                        value={taskData.estimate}
+                        onChange={(e) => handleFieldChange('estimate', e.target.value ? parseInt(e.target.value) : null)}
+                        placeholder="0"
+                    />
+                </div>
+
+                {/* Assignees */}
+                {inspectorTask.assignees && inspectorTask.assignees.length > 0 && (
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium">Assignees</label>
+                        <div className="flex flex-wrap gap-2">
+                            {inspectorTask.assignees.map((assignee: any) => (
+                                <Badge key={assignee.id} variant="secondary" className="flex items-center gap-1">
+                                    <Avatar className="h-4 w-4">
+                                        <AvatarImage src={assignee.avatar} />
+                                        <AvatarFallback className="text-xs">
+                                            {assignee.name.charAt(0).toUpperCase()}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                    {assignee.name}
+                                </Badge>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Manual Save Button */}
+            <div className="p-4 border-t bg-muted/20">
+                <Button
+                    onClick={handleManualSave}
+                    disabled={!hasUnsavedChanges || saveState === 'saving'}
+                    className="w-full"
+                    variant={hasUnsavedChanges ? "default" : "outline"}
+                >
+                    {saveState === 'saving' ? (
+                        <>
+                            <div className="animate-spin h-4 w-4 border border-current border-t-transparent rounded-full mr-2"></div>
+                            Saving...
+                        </>
+                    ) : (
+                        <>
+                            <Save className="h-4 w-4 mr-2" />
+                            {hasUnsavedChanges ? 'Save Changes' : 'All Changes Saved'}
+                        </>
+                    )}
+                </Button>
+            </div>
+        </div>
+    );
+}, (prevProps, nextProps) => {
+    // Custom comparison to prevent unnecessary re-renders
+    return (
+        prevProps.inspectorTask?.id === nextProps.inspectorTask?.id &&
+        prevProps.inspectorTask?.title === nextProps.inspectorTask?.title &&
+        prevProps.inspectorTask?.description === nextProps.inspectorTask?.description &&
+        prevProps.inspectorTask?.priority === nextProps.inspectorTask?.priority &&
+        prevProps.inspectorTask?.status === nextProps.inspectorTask?.status &&
+        prevProps.inspectorTask?.due_date === nextProps.inspectorTask?.due_date &&
+        prevProps.inspectorTask?.estimate === nextProps.inspectorTask?.estimate &&
+        prevProps.onClose === nextProps.onClose &&
+        prevProps.project?.id === nextProps.project?.id
+    );
+});
 
 export default function ProjectShow({ project }: ProjectShowProps) {
     const { auth } = usePage<SharedData>().props;
@@ -38,6 +405,573 @@ export default function ProjectShow({ project }: ProjectShowProps) {
     const [boardTypeFilter, setBoardTypeFilter] = useState('all');
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+
+    // Board state
+    const [lists, setLists] = useState(project.boards?.[0]?.lists || []);
+    const [activeId, setActiveId] = useState<string | null>(null);
+    const [activeItem, setActiveItem] = useState<any | null>(null);
+
+    // Task modal states for board
+    const [taskEditModalOpen, setTaskEditModalOpen] = useState(false);
+    const [taskViewModalOpen, setTaskViewModalOpen] = useState(false);
+    const [selectedTask, setSelectedTask] = useState<any>(null);
+
+    // List tab state
+    const [listViewMode, setListViewMode] = useState<'status' | 'sections'>('sections');
+    const [inspectorOpen, setInspectorOpen] = useState(false);
+    const [inspectorTask, setInspectorTask] = useState<any>(null);
+    const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+    const [autoSaveTimeout, setAutoSaveTimeout] = useState<NodeJS.Timeout | null>(null);
+
+    // List tab drag and drop state
+    const [listActiveId, setListActiveId] = useState<string | null>(null);
+    const [listActiveItem, setListActiveItem] = useState<any | null>(null);
+
+    // Drag and drop sensors
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8,
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
+
+    // Board drag handlers
+    const handleBoardDragStart = (event: any) => {
+        const { active } = event;
+        setActiveId(active.id);
+
+        if (active.id.startsWith('list-')) {
+            const listId = parseInt(active.id.replace('list-', ''));
+            const list = lists.find(l => l.id === listId);
+            setActiveItem({ type: 'list', list });
+        } else if (active.id.startsWith('task-')) {
+            const taskId = parseInt(active.id.replace('task-', ''));
+            const task = lists.flatMap(l => l.tasks || []).find(t => t.id === taskId);
+            setActiveItem({ type: 'task', task });
+        }
+    };
+
+    const handleBoardDragEnd = (event: any) => {
+        const { active, over } = event;
+        setActiveId(null);
+        setActiveItem(null);
+
+        if (!over) return;
+
+        // Handle task movement between lists
+        if (active.id.startsWith('task-') && over.id.startsWith('list-')) {
+            const taskId = parseInt(active.id.replace('task-', ''));
+            const newListId = parseInt(over.id.replace('list-', ''));
+
+            // Update task list via API
+            router.put(route('tasks.update', { project: project.id, task: taskId }), {
+                list_id: newListId
+            }, {
+                preserveState: true,
+                preserveScroll: true,
+                onSuccess: () => {
+                    // Refresh the page to get updated data
+                    router.reload();
+                },
+                onError: (error) => {
+                    console.error('Failed to move task:', error);
+                }
+            });
+        }
+    };
+
+    // List tab drag handlers
+    const handleListDragStart = (event: any) => {
+        const { active } = event;
+        setListActiveId(active.id);
+
+        if (active.id.startsWith('list-task-')) {
+            const taskId = parseInt(active.id.replace('list-task-', ''));
+            const allTasks = project.boards?.[0]?.lists?.flatMap(list => list.tasks || []) || [];
+            const task = allTasks.find(t => t.id === taskId);
+            setListActiveItem({ type: 'task', task });
+        }
+    };
+
+    const handleListDragEnd = (event: any) => {
+        const { active, over } = event;
+        setListActiveId(null);
+        setListActiveItem(null);
+
+        if (!over) return;
+
+        // Handle task movement between sections
+        if (active.id.startsWith('list-task-') && over.id.startsWith('list-section-')) {
+            const taskId = parseInt(active.id.replace('list-task-', ''));
+            const sectionId = over.id.replace('list-section-', '');
+
+            // Find the target list/section
+            let targetListId = null;
+
+            if (listViewMode === 'sections') {
+                // Moving to a specific list (section)
+                targetListId = parseInt(sectionId);
+            } else {
+                // Moving to a status group - use the first available list
+                const firstList = project.boards?.[0]?.lists?.[0];
+                if (firstList) {
+                    targetListId = firstList.id;
+                }
+            }
+
+            if (targetListId) {
+                const updates: any = { list_id: targetListId };
+
+                // If moving to status-based section, also update status
+                if (listViewMode === 'status') {
+                    updates.status = sectionId;
+                }
+
+                router.put(route('tasks.update', { project: project.id, task: taskId }), updates, {
+                    preserveState: true,
+                    preserveScroll: true,
+                    onSuccess: () => {
+                        router.reload();
+                    },
+                    onError: (error) => {
+                        console.error('Failed to move task:', error);
+                    }
+                });
+            }
+        }
+    };
+
+    // Task handlers for board
+    const handleEditTask = (task: any) => {
+        setSelectedTask(task);
+        setTaskEditModalOpen(true);
+    };
+
+    const handleViewTask = (task: any) => {
+        setSelectedTask(task);
+        setTaskViewModalOpen(true);
+    };
+
+    const handleEditFromView = (task: any) => {
+        setTaskViewModalOpen(false);
+        setTaskEditModalOpen(true);
+    };
+
+    // Inspector functions
+    const openInspector = (task: any) => {
+        setInspectorTask(task);
+        setInspectorOpen(true);
+    };
+
+    const closeInspector = useCallback(() => {
+        setInspectorOpen(false);
+        setInspectorTask(null);
+    }, []);
+
+
+
+    // Section management functions
+    const toggleSectionCollapse = (sectionId: string) => {
+        setCollapsedSections(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(sectionId)) {
+                newSet.delete(sectionId);
+            } else {
+                newSet.add(sectionId);
+            }
+            return newSet;
+        });
+    };
+
+    // Get tasks organized by sections or status
+    const getOrganizedTasks = () => {
+        if (!project.boards?.[0]?.lists) return [];
+
+        const allTasks = project.boards[0].lists.flatMap(list => list.tasks || []);
+
+        if (listViewMode === 'status') {
+            return [
+                {
+                    id: 'to_do',
+                    name: 'To Do',
+                    type: 'status',
+                    tasks: allTasks.filter(task => task.status === 'to_do' && !task.parent_task_id)
+                },
+                {
+                    id: 'in_progress',
+                    name: 'In Progress',
+                    type: 'status',
+                    tasks: allTasks.filter(task => task.status === 'in_progress' && !task.parent_task_id)
+                },
+                {
+                    id: 'done',
+                    name: 'Done',
+                    type: 'status',
+                    tasks: allTasks.filter(task => task.status === 'done' && !task.parent_task_id)
+                }
+            ];
+        } else {
+            // Group by board lists (sections)
+            return project.boards[0].lists.map(list => ({
+                id: list.id.toString(),
+                name: list.name,
+                type: 'section',
+                color: list.color,
+                tasks: (list.tasks || []).filter(task => !task.parent_task_id)
+            }));
+        }
+    };
+
+    // Sortable List Component
+    const SortableList = ({ list, children }: { list: any, children: React.ReactNode }) => {
+        return (
+            <div className="w-80 flex-shrink-0">
+                <Card className="h-full bg-muted/20 border-2 border-dashed border-muted-foreground/20 transition-all duration-200 hover:border-muted-foreground/40">
+                    <CardHeader className="pb-3">
+                        <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-3 flex-1">
+                                <CardTitle className="text-lg font-semibold select-none">{list.name}</CardTitle>
+                                {list.color && (
+                                    <div
+                                        className="w-3 h-3 rounded-full"
+                                        style={{ backgroundColor: list.color }}
+                                    />
+                                )}
+                            </div>
+                            <Badge variant="secondary" className="text-xs">
+                                {list.tasks?.length || 0}
+                            </Badge>
+                        </div>
+                        {list.color && (
+                            <div
+                                className="w-full h-1 rounded-full mt-2"
+                                style={{ backgroundColor: list.color }}
+                            />
+                        )}
+                    </CardHeader>
+                    <CardContent className="pb-3 space-y-2">
+                        <div className="min-h-[300px] max-h-[600px] overflow-y-auto">
+                            {children}
+                        </div>
+                    </CardContent>
+                    <CardFooter className="pt-3 border-t">
+                        {project.can_manage_tasks ? (
+                            <Button
+                                variant="ghost"
+                                className="w-full border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/5"
+                                size="sm"
+                                onClick={() => {
+                                    router.get(route('tasks.create', { project: project.id, board: list.board_id, list: list.id, tab: 'boards' }));
+                                }}
+                            >
+                                <Plus className="h-4 w-4 mr-2" />
+                                Add Task
+                            </Button>
+                        ) : (
+                            <Button
+                                variant="ghost"
+                                className="w-full border-2 border-dashed border-muted-foreground/30"
+                                size="sm"
+                                disabled
+                            >
+                                <Lock className="h-4 w-4 mr-2" />
+                                Add Task
+                            </Button>
+                        )}
+                    </CardFooter>
+                </Card>
+            </div>
+        );
+    };
+
+    // Sortable Task Component
+    const SortableTask = ({ task }: { task: any }) => {
+        return (
+            <div className="mb-3 rounded-lg border bg-card p-4 shadow-sm hover:shadow-md transition-all duration-200 group cursor-pointer relative">
+                {/* Action buttons - positioned absolutely */}
+                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex gap-1">
+                    {/* View button - always available */}
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 bg-background/80 hover:bg-background"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewTask(task);
+                        }}
+                    >
+                        <Eye className="h-3 w-3" />
+                    </Button>
+
+                    {/* Edit button - only if can edit */}
+                    {project.can_manage_tasks && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 bg-background/80 hover:bg-background"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditTask(task);
+                            }}
+                        >
+                            <Edit className="h-3 w-3" />
+                        </Button>
+                    )}
+                </div>
+
+                <div className="space-y-2 pr-12">
+                    <div className="flex items-center justify-between">
+                        <div className="font-medium text-sm line-clamp-2 flex-1">{task.title}</div>
+                        {task.status === 'done' && (
+                            <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0 ml-2" />
+                        )}
+                    </div>
+
+                    {task.description && (
+                        <div className="text-xs text-muted-foreground line-clamp-2">
+                            {task.description}
+                        </div>
+                    )}
+
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">
+                                {task.priority}
+                            </Badge>
+                            {task.due_date && (
+                                <Badge variant="outline" className="text-xs">
+                                    {new Date(task.due_date).toLocaleDateString()}
+                                </Badge>
+                            )}
+                        </div>
+
+                        {task.assignees && task.assignees.length > 0 && (
+                            <div className="flex -space-x-1">
+                                {task.assignees.slice(0, 2).map((assignee: any) => (
+                                    <Avatar key={assignee.id} className="h-5 w-5 border border-background">
+                                        <AvatarImage src={assignee.avatar} />
+                                        <AvatarFallback className="text-xs">
+                                            {assignee.name.charAt(0).toUpperCase()}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                ))}
+                                {task.assignees.length > 2 && (
+                                    <div className="h-5 w-5 rounded-full bg-muted border border-background flex items-center justify-center">
+                                        <span className="text-xs">+{task.assignees.length - 2}</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    // Enhanced Task Component for List View with Drag and Drop
+    const ListTaskItem = ({ task, level = 0, sectionId }: { task: any, level?: number, sectionId?: string }) => {
+        const [isExpanded, setIsExpanded] = useState(true);
+        const hasSubtasks = task.subtasks && task.subtasks.length > 0;
+
+        // Drag and drop functionality
+        const {
+            attributes,
+            listeners,
+            setNodeRef,
+            transform,
+            transition,
+            isDragging,
+        } = useSortable({
+            id: `list-task-${task.id}`,
+            data: {
+                type: 'task',
+                task,
+                sectionId
+            },
+        });
+
+        const style = {
+            transform: CSS.Transform.toString(transform),
+            transition,
+            opacity: isDragging ? 0.5 : 1,
+        };
+
+        const handleTaskClick = () => {
+            if (!isDragging) {
+                openInspector(task);
+            }
+        };
+
+        const handleToggleCompletion = (e: React.MouseEvent) => {
+            e.stopPropagation();
+            router.post(route('tasks.toggle-completion', { project: project.id, task: task.id }), {}, {
+                preserveState: true,
+                preserveScroll: true,
+            });
+        };
+
+        const handleDeleteTask = (e: React.MouseEvent) => {
+            e.stopPropagation();
+            if (confirm('Are you sure you want to delete this task?')) {
+                router.delete(route('tasks.destroy', { project: project.id, task: task.id }));
+            }
+        };
+
+        const getPriorityColor = (priority: string) => {
+            switch (priority) {
+                case 'urgent': return 'border-l-red-500 bg-red-50 dark:bg-red-950/20';
+                case 'high': return 'border-l-orange-500 bg-orange-50 dark:bg-orange-950/20';
+                case 'medium': return 'border-l-yellow-500 bg-yellow-50 dark:bg-yellow-950/20';
+                case 'low': return 'border-l-green-500 bg-green-50 dark:bg-green-950/20';
+                default: return 'border-l-gray-500 bg-gray-50 dark:bg-gray-950/20';
+            }
+        };
+
+        return (
+            <div className="space-y-1" style={{ marginLeft: `${level * 24}px` }}>
+                <div
+                    ref={setNodeRef}
+                    style={style}
+                    {...attributes}
+                    className={`group relative p-3 border-l-4 rounded-lg cursor-pointer transition-all hover:shadow-md ${getPriorityColor(task.priority)} ${task.status === 'done' ? 'opacity-75' : ''} ${isDragging ? 'ring-2 ring-blue-500 shadow-lg' : ''}`}
+                    onClick={handleTaskClick}
+                >
+                    {/* Drag handle */}
+                    <div
+                        {...listeners}
+                        className="absolute left-1 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+                    >
+                        <GripVertical className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div className="flex items-start gap-3">
+                        {/* Expand/Collapse button for subtasks */}
+                        {hasSubtasks && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setIsExpanded(!isExpanded);
+                                }}
+                            >
+                                {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                            </Button>
+                        )}
+
+                        {/* Completion checkbox */}
+                        <Checkbox
+                            checked={task.status === 'done'}
+                            onCheckedChange={handleToggleCompletion}
+                            onClick={(e) => e.stopPropagation()}
+                            className="mt-1"
+                        />
+
+                        {/* Task content */}
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                                <h4 className={`font-medium text-sm ${task.status === 'done' ? 'line-through text-muted-foreground' : ''}`}>
+                                    {task.title}
+                                </h4>
+
+                                {/* Action buttons */}
+                                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                                    {project.can_manage_tasks && (
+                                        <>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-6 w-6 p-0"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    router.get(route('tasks.create', {
+                                                        project: project.id,
+                                                        board: task.list?.board_id || project.boards[0].id,
+                                                        list: task.list_id,
+                                                        parent_task_id: task.id,
+                                                        tab: 'list'
+                                                    }));
+                                                }}
+                                                title="Add subtask"
+                                            >
+                                                <Plus className="h-3 w-3" />
+                                            </Button>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                                        <MoreHorizontal className="h-3 w-3" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleEditTask(task);
+                                                    }}>
+                                                        <Edit className="h-4 w-4 mr-2" />
+                                                        Edit
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem
+                                                        onClick={handleDeleteTask}
+                                                        className="text-destructive"
+                                                    >
+                                                        <Trash2 className="h-4 w-4 mr-2" />
+                                                        Delete
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Task metadata */}
+                            <div className="flex items-center gap-2 mt-1">
+                                <Badge variant="outline" className="text-xs">
+                                    {task.priority}
+                                </Badge>
+                                {task.due_date && (
+                                    <Badge variant="outline" className="text-xs">
+                                        {new Date(task.due_date).toLocaleDateString()}
+                                    </Badge>
+                                )}
+                                {task.assignees && task.assignees.length > 0 && (
+                                    <div className="flex -space-x-1">
+                                        {task.assignees.slice(0, 2).map((assignee: any) => (
+                                            <Avatar key={assignee.id} className="h-5 w-5 border border-background">
+                                                <AvatarImage src={assignee.avatar} />
+                                                <AvatarFallback className="text-xs">
+                                                    {assignee.name.charAt(0).toUpperCase()}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                        ))}
+                                        {task.assignees.length > 2 && (
+                                            <div className="h-5 w-5 rounded-full bg-muted border border-background flex items-center justify-center">
+                                                <span className="text-xs">+{task.assignees.length - 2}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Subtasks */}
+                {hasSubtasks && isExpanded && (
+                    <div className="space-y-1">
+                        {task.subtasks.map((subtask: any) => (
+                            <ListTaskItem key={subtask.id} task={subtask} level={level + 1} sectionId={sectionId} />
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    };
 
     // Drag and drop state
     const [activeTask, setActiveTask] = useState<any>(null);
@@ -87,12 +1021,16 @@ export default function ProjectShow({ project }: ProjectShowProps) {
     // Member panel state
     const [memberPanelOpen, setMemberPanelOpen] = useState(false);
 
+    // Section editing state
+    const [sectionEditModalOpen, setSectionEditModalOpen] = useState(false);
+    const [editingSection, setEditingSection] = useState<any>(null);
+
     // Get tab from URL parameters, default to 'boards'
     const getActiveTabFromUrl = () => {
         const urlParams = new URLSearchParams(window.location.search);
         const tab = urlParams.get('tab');
-        const validTabs = ['boards', 'members', 'labels', 'calendar', 'details'];
-        return validTabs.includes(tab || '') ? tab : 'boards';
+        const validTabs = ['list', 'boards', 'calendar', 'members', 'labels', 'details'];
+        return validTabs.includes(tab || '') ? tab : 'list';
     };
 
     const [activeTab, setActiveTab] = useState(getActiveTabFromUrl);
@@ -115,6 +1053,22 @@ export default function ProjectShow({ project }: ProjectShowProps) {
         return () => window.removeEventListener('popstate', handlePopState);
     }, []);
 
+    // Update lists when project data changes
+    useEffect(() => {
+        if (project.boards?.[0]?.lists) {
+            setLists(project.boards[0].lists);
+        }
+    }, [project.boards]);
+
+    // Cleanup auto-save timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (autoSaveTimeout) {
+                clearTimeout(autoSaveTimeout);
+            }
+        };
+    }, [autoSaveTimeout]);
+
     const breadcrumbs: BreadcrumbItem[] = [
         {
             title: 'Projects',
@@ -130,6 +1084,21 @@ export default function ProjectShow({ project }: ProjectShowProps) {
         if (memberToDelete) {
             router.delete(route('projects.members.destroy', { project: project.id, user: memberToDelete.id }));
             setMemberToDelete(null);
+        }
+    };
+
+    // Section editing handlers
+    const handleEditSection = (section: any) => {
+        setEditingSection(section);
+        setSectionEditModalOpen(true);
+    };
+
+    const handleDeleteSection = (section: any) => {
+        if (confirm('Are you sure you want to delete this section? All tasks in this section will be moved to "No Section".')) {
+            router.delete(route('sections.destroy', { project: project.id, section: section.id }), {
+                preserveState: true,
+                preserveScroll: true,
+            });
         }
     };
 
@@ -396,8 +1365,8 @@ export default function ProjectShow({ project }: ProjectShowProps) {
         return 'middle';
     };
 
-    // Drag and drop handlers
-    const sensors = useSensors(
+    // Drag and drop handlers for calendar
+    const calendarSensors = useSensors(
         useSensor(PointerSensor, {
             activationConstraint: {
                 distance: 3,
@@ -1534,10 +2503,17 @@ export default function ProjectShow({ project }: ProjectShowProps) {
 
         // Send update to server to persist changes
         try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
             await axios.patch(route('tasks.update-due-date', { project: project.id, task: task.id }), {
                 start_date: startDate.toISOString().split('T')[0],
                 due_date: newDueDate.toISOString().split('T')[0],
                 duration_days: newDuration
+            }, {
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken || '',
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                }
             });
             console.log('Task duration updated successfully on server');
         } catch (error) {
@@ -1582,12 +2558,12 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                     {project.is_public ? (
                                         <div className="flex items-center gap-1 text-sm text-muted-foreground">
                                             <Globe className="h-4 w-4" />
-                                            <span>Public Project</span>
+                                            <span>Public</span>
                                         </div>
                                     ) : (
                                         <div className="flex items-center gap-1 text-sm text-muted-foreground">
                                             <Shield className="h-4 w-4" />
-                                            <span>Private Project</span>
+                                            <span>Private</span>
                                         </div>
                                     )}
                                     {project.is_archived && (
@@ -1600,8 +2576,25 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                         <Calendar className="h-4 w-4" />
                                         <span>Created {new Date(project.created_at).toLocaleDateString()}</span>
                                     </div>
+                                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                        <Crown className="h-4 w-4" />
+                                        <span>Owner: {getShortName(project.owner?.name || '')}</span>
+                                    </div>
                                 </div>
                             </div>
+                            {canEdit ? (
+                                <Link href={route('projects.edit', { project: project.id })}>
+                                    <Button variant="outline" size="sm" className="shadow-sm hover:shadow-md">
+                                        <Settings className="h-4 w-4 mr-2" />
+                                        Settings
+                                    </Button>
+                                </Link>
+                            ) : (
+                                <Button variant="outline" size="sm" disabled className="shadow-sm">
+                                    <Lock className="h-4 w-4 mr-2" />
+                                    Settings
+                                </Button>
+                            )}
                         </div>
                         {project.description && (
                             <p className="text-muted-foreground mt-2 text-base leading-relaxed">
@@ -1609,84 +2602,30 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                             </p>
                         )}
 
-                        {/* Project Owner and Members Preview */}
-                        <div className="flex items-center gap-4 mt-4">
-                            <div className="flex items-center gap-2">
-                                <Avatar className="h-8 w-8">
-                                    <AvatarImage src={project.owner?.avatar} />
-                                    <AvatarFallback>
-                                        {project.owner?.name?.charAt(0).toUpperCase() || 'U'}
-                                    </AvatarFallback>
-                                </Avatar>
-                                <div>
-                                    <p className="text-sm font-medium">{getShortName(project.owner?.name || '')}</p>
-                                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                        <Crown className="h-3 w-3" />
-                                        Owner
-                                    </p>
+                        {/* Members Preview */}
+                        {project.members && project.members.length > 1 && (
+                            <div className="flex items-center gap-2 mt-3">
+                                <div className="flex -space-x-2">
+                                    {project.members.slice(1, 6).map((member) => (
+                                        <Avatar key={member.id} className="h-8 w-8 border-2 border-background">
+                                            <AvatarImage src={member.avatar} />
+                                            <AvatarFallback className="text-xs">
+                                                {member.name.charAt(0).toUpperCase()}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                    ))}
+                                    {project.members.length > 6 && (
+                                        <div className="h-8 w-8 rounded-full bg-muted border-2 border-background flex items-center justify-center">
+                                            <span className="text-xs text-muted-foreground">
+                                                +{project.members.length - 6}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
+                                <span className="text-sm text-muted-foreground">
+                                    {project.members.length - 1} other member{project.members.length - 1 !== 1 ? 's' : ''}
+                                </span>
                             </div>
-
-                            {project.members && project.members.length > 1 && (
-                                <div className="flex items-center gap-2">
-                                    <div className="flex -space-x-2">
-                                        {project.members.slice(1, 6).map((member) => (
-                                            <Avatar key={member.id} className="h-8 w-8 border-2 border-background">
-                                                <AvatarImage src={member.avatar} />
-                                                <AvatarFallback className="text-xs">
-                                                    {member.name.charAt(0).toUpperCase()}
-                                                </AvatarFallback>
-                                            </Avatar>
-                                        ))}
-                                        {project.members.length > 6 && (
-                                            <div className="h-8 w-8 rounded-full bg-muted border-2 border-background flex items-center justify-center">
-                                                <span className="text-xs text-muted-foreground">
-                                                    +{project.members.length - 6}
-                                                </span>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <span className="text-sm text-muted-foreground">
-                                        {project.members.length - 1} other member{project.members.length - 1 !== 1 ? 's' : ''}
-                                    </span>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="flex gap-2 ml-4">
-                        {canEdit ? (
-                            <Link href={route('projects.edit', { project: project.id })}>
-                                <Button variant="outline" size="sm" className="shadow-sm hover:shadow-md">
-                                    <Settings className="h-4 w-4 mr-2" />
-                                    Settings
-                                </Button>
-                            </Link>
-                        ) : (
-                            <Button variant="outline" size="sm" disabled className="shadow-sm">
-                                <Lock className="h-4 w-4 mr-2" />
-                                Settings
-                            </Button>
-                        )}
-                        {canEdit ? (
-                            <Button
-                                variant="destructive"
-                                size="sm"
-                                className="shadow-sm hover:shadow-md"
-                                onClick={() => {
-                                    if (confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
-                                        router.delete(route('projects.destroy', { project: project.id }));
-                                    }
-                                }}
-                            >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
-                            </Button>
-                        ) : (
-                            <Button variant="destructive" size="sm" disabled className="shadow-sm">
-                                <Lock className="h-4 w-4 mr-2" />
-                                Delete
-                            </Button>
                         )}
                     </div>
                 </div>
@@ -1694,13 +2633,32 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                 {/* Project Tabs */}
                 <div className="w-full">
                     <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-                        <TabsList className="grid w-full grid-cols-5 h-12 p-1 bg-muted/50 rounded-b-none border-b-0">
+                        <TabsList className="grid w-full grid-cols-6 h-12 p-1 bg-muted/50 rounded-b-none border-b-0">
+                        <TabsTrigger
+                            value="list"
+                            className="flex items-center gap-2 h-10 data-[state=active]:bg-teal-500 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-teal-50 dark:hover:bg-teal-950/50"
+                        >
+                            <Menu className="h-4 w-4" />
+                            <span className="font-medium">List</span>
+                            {project.boards && project.boards[0]?.lists && (
+                                <Badge variant="secondary" className="ml-1 text-xs">
+                                    {project.boards[0].lists.reduce((acc, list) => acc + (list.tasks?.length || 0), 0)}
+                                </Badge>
+                            )}
+                        </TabsTrigger>
                         <TabsTrigger
                             value="boards"
                             className="flex items-center gap-2 h-10 data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-blue-50 dark:hover:bg-blue-950/50"
                         >
                             <ListTodo className="h-4 w-4" />
                             <span className="font-medium">Board</span>
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="calendar"
+                            className="flex items-center gap-2 h-10 data-[state=active]:bg-indigo-500 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/50"
+                        >
+                            <Calendar className="h-4 w-4" />
+                            <span className="font-medium">Calendar</span>
                         </TabsTrigger>
                         <TabsTrigger
                             value="members"
@@ -1723,13 +2681,6 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                             </Badge>
                         </TabsTrigger>
                         <TabsTrigger
-                            value="calendar"
-                            className="flex items-center gap-2 h-10 data-[state=active]:bg-indigo-500 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/50"
-                        >
-                            <Calendar className="h-4 w-4" />
-                            <span className="font-medium">Calendar</span>
-                        </TabsTrigger>
-                        <TabsTrigger
                             value="details"
                             className="flex items-center gap-2 h-10 data-[state=active]:bg-orange-500 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-orange-50 dark:hover:bg-orange-950/50"
                         >
@@ -1738,146 +2689,329 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                         </TabsTrigger>
                     </TabsList>
 
+                    <TabsContent value="list" className="mt-0">
+                        <div className="flex h-[calc(100vh-200px)]">
+                            {/* Main List Content */}
+                            <div className={`flex-1 ${inspectorOpen ? 'mr-0' : ''}`}>
+                                <Card className="rounded-t-none border-t-0 h-full">
+                                    <CardHeader className="pb-4">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <CardTitle className="flex items-center gap-2">
+                                                    <Menu className="h-5 w-5" />
+                                                    Task List
+                                                </CardTitle>
+                                                <CardDescription>
+                                                    Hierarchical outline view with inspector panel
+                                                </CardDescription>
+                                            </div>
+
+                                            {/* View Mode Toggle and Actions */}
+                                            <div className="flex items-center gap-2">
+                                                {project.can_manage_tasks && (
+                                                    <Button
+                                                        size="sm"
+                                                        onClick={() => {
+                                                            router.get(route('tasks.create', {
+                                                                project: project.id,
+                                                                board: project.boards[0].id,
+                                                                list: project.boards[0].lists[0].id,
+                                                                tab: 'list'
+                                                            }));
+                                                        }}
+                                                    >
+                                                        <Plus className="h-4 w-4 mr-2" />
+                                                        Add Task
+                                                    </Button>
+                                                )}
+                                                <Separator orientation="vertical" className="h-6" />
+                                                <Button
+                                                    variant={listViewMode === 'sections' ? 'default' : 'outline'}
+                                                    size="sm"
+                                                    onClick={() => setListViewMode('sections')}
+                                                >
+                                                    <Layers className="h-4 w-4 mr-2" />
+                                                    Sections
+                                                </Button>
+                                                <Button
+                                                    variant={listViewMode === 'status' ? 'default' : 'outline'}
+                                                    size="sm"
+                                                    onClick={() => setListViewMode('status')}
+                                                >
+                                                    <ListTodo className="h-4 w-4 mr-2" />
+                                                    Status
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent className="flex-1 overflow-y-auto">
+                                        {project.boards && project.boards.length > 0 ? (
+                                            <DndContext
+                                                sensors={sensors}
+                                                collisionDetection={closestCenter}
+                                                onDragStart={handleListDragStart}
+                                                onDragEnd={handleListDragEnd}
+                                                modifiers={[restrictToWindowEdges]}
+                                            >
+                                                <div className="space-y-4">
+                                                    {getOrganizedTasks().map((section) => {
+                                                        // Create droppable section component
+                                                        const DroppableSection = () => {
+                                                            const { setNodeRef, isOver } = useDroppable({
+                                                                id: `list-section-${section.id}`,
+                                                                data: {
+                                                                    type: 'section',
+                                                                    section,
+                                                                    sectionId: section.id
+                                                                }
+                                                            });
+
+                                                            return (
+                                                                <div
+                                                                    ref={setNodeRef}
+                                                                    className={`space-y-3 ${isOver ? 'bg-blue-50 dark:bg-blue-950/20 rounded-lg p-2' : ''}`}
+                                                                >
+                                                                    {/* Section Header */}
+                                                                    <div className="flex items-center gap-3 pb-2 border-b">
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="sm"
+                                                                            className="h-6 w-6 p-0"
+                                                                            onClick={() => toggleSectionCollapse(section.id)}
+                                                                        >
+                                                                            {collapsedSections.has(section.id) ?
+                                                                                <ChevronRight className="h-4 w-4" /> :
+                                                                                <ChevronDown className="h-4 w-4" />
+                                                                            }
+                                                                        </Button>
+
+                                                                        <div className="flex items-center gap-2">
+                                                                            {section.color && (
+                                                                                <div
+                                                                                    className="w-3 h-3 rounded-full"
+                                                                                    style={{ backgroundColor: section.color }}
+                                                                                />
+                                                                            )}
+                                                                            <h3 className="text-lg font-semibold">{section.name}</h3>
+                                                                        </div>
+
+                                                                        <Badge variant="secondary" className="text-xs">
+                                                                            {section.tasks?.length || 0} tasks
+                                                                        </Badge>
+
+                                                                        {/* Section Actions */}
+                                                                        {project.can_manage_tasks && section.type === 'section' && (
+                                                                            <DropdownMenu>
+                                                                                <DropdownMenuTrigger asChild>
+                                                                                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                                                                        <MoreHorizontal className="h-4 w-4" />
+                                                                                    </Button>
+                                                                                </DropdownMenuTrigger>
+                                                                                <DropdownMenuContent align="end">
+                                                                                    <DropdownMenuItem onClick={() => {
+                                                                                        router.get(route('tasks.create', {
+                                                                                            project: project.id,
+                                                                                            board: project.boards[0].id,
+                                                                                            list: section.id,
+                                                                                            tab: 'list'
+                                                                                        }));
+                                                                                    }}>
+                                                                                        <Plus className="h-4 w-4 mr-2" />
+                                                                                        Add Task
+                                                                                    </DropdownMenuItem>
+                                                                                    <DropdownMenuItem onClick={() => handleEditSection(section)}>
+                                                                                        <Edit className="h-4 w-4 mr-2" />
+                                                                                        Edit Section
+                                                                                    </DropdownMenuItem>
+                                                                                    <DropdownMenuSeparator />
+                                                                                    <DropdownMenuItem
+                                                                                        className="text-destructive"
+                                                                                        onClick={() => handleDeleteSection(section)}
+                                                                                    >
+                                                                                        <Trash2 className="h-4 w-4 mr-2" />
+                                                                                        Delete Section
+                                                                                    </DropdownMenuItem>
+                                                                                </DropdownMenuContent>
+                                                                            </DropdownMenu>
+                                                                        )}
+                                                                    </div>
+
+                                                                    {/* Tasks in this section */}
+                                                                    {!collapsedSections.has(section.id) && (
+                                                                        <div className="space-y-2">
+                                                                            {section.tasks && section.tasks.length > 0 ? (
+                                                                                <SortableContext
+                                                                                    items={section.tasks.map(task => `list-task-${task.id}`)}
+                                                                                    strategy={verticalListSortingStrategy}
+                                                                                >
+                                                                                    {section.tasks.map((task) => (
+                                                                                        <ListTaskItem key={task.id} task={task} sectionId={section.id} />
+                                                                                    ))}
+                                                                                </SortableContext>
+                                                                            ) : (
+                                                                                <div className="text-center py-8 text-muted-foreground text-sm border border-dashed rounded-lg">
+                                                                                    <ListTodo className="h-8 w-8 mx-auto mb-2" />
+                                                                                    <p>No tasks in this section</p>
+                                                                                    {project.can_manage_tasks && (
+                                                                                        <Button
+                                                                                            variant="ghost"
+                                                                                            size="sm"
+                                                                                            className="mt-2"
+                                                                                            onClick={() => {
+                                                                                                if (section.type === 'section') {
+                                                                                                    router.get(route('tasks.create', {
+                                                                                                        project: project.id,
+                                                                                                        board: project.boards[0].id,
+                                                                                                        list: section.id,
+                                                                                                        tab: 'list'
+                                                                                                    }));
+                                                                                                } else {
+                                                                                                    // For status-based sections, use the first available list
+                                                                                                    const firstList = project.boards[0]?.lists?.[0];
+                                                                                                    if (firstList) {
+                                                                                                        router.get(route('tasks.create', {
+                                                                                                            project: project.id,
+                                                                                                            board: project.boards[0].id,
+                                                                                                            list: firstList.id,
+                                                                                                            status: section.id,
+                                                                                                            tab: 'list'
+                                                                                                        }));
+                                                                                                    }
+                                                                                                }
+                                                                                            }}
+                                                                                        >
+                                                                                            <Plus className="h-4 w-4 mr-2" />
+                                                                                            Add Task
+                                                                                        </Button>
+                                                                                    )}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                            };
+
+                                            return <DroppableSection key={section.id} />;
+                                        })}
+                                </div>
+
+                                {/* Drag overlay for visual feedback */}
+                                <DragOverlay>
+                                    {listActiveId && listActiveItem?.type === 'task' && listActiveItem.task && (
+                                        <div className="p-3 border-l-4 rounded-lg shadow-lg opacity-80 border-2 border-primary bg-background">
+                                            <div className="space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="font-medium">{listActiveItem.task.title}</div>
+                                                    {listActiveItem.task.status === 'done' && (
+                                                        <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                                                    )}
+                                                </div>
+                                                {listActiveItem.task.description && (
+                                                    <div className="text-sm text-muted-foreground line-clamp-2">
+                                                        {listActiveItem.task.description}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </DragOverlay>
+                            </DndContext>
+                        ) : (
+                            <div className="text-center py-16 bg-gradient-to-br from-muted/20 to-muted/40 rounded-xl border-2 border-dashed border-muted-foreground/30">
+                                <div className="w-20 h-20 bg-teal-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                                    <Menu className="h-10 w-10 text-teal-600" />
+                                </div>
+                                <h3 className="text-xl font-semibold mb-3">No Tasks Available</h3>
+                                <p className="text-muted-foreground mb-8 max-w-md mx-auto">
+                                    This project doesn't have any tasks yet. Create your first task to see the hierarchical list view.
+                                </p>
+                            </div>
+                        )}
+                                    </CardContent>
+                                </Card>
+                            </div>
+
+                            {/* Inspector Panel */}
+                            {inspectorOpen && (
+                                <TaskInspector
+                                    inspectorTask={inspectorTask}
+                                    onClose={closeInspector}
+                                    project={project}
+                                />
+                            )}
+                        </div>
+                    </TabsContent>
+
                     <TabsContent value="boards" className="mt-0">
                         <Card className="rounded-t-none border-t-0">
                             <CardHeader className="pb-4">
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <CardTitle className="flex items-center gap-2">
-                                            <ListTodo className="h-5 w-5" />
-                                            Board
-                                        </CardTitle>
-                                        <CardDescription>
-                                            Organize and manage your tasks
-                                        </CardDescription>
-                                    </div>
-                                    {project.boards && project.boards.length > 0 && (
-                                        <Link href={route('boards.show', { project: project.id, board: project.boards[0].id })}>
-                                            <Button className="shadow-sm hover:shadow-md">
-                                                <Eye className="h-4 w-4 mr-2" />
-                                                Open Full Board
-                                            </Button>
-                                        </Link>
-                                    )}
+                                <div>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <ListTodo className="h-5 w-5" />
+                                        Board
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Organize and manage your tasks
+                                    </CardDescription>
                                 </div>
                             </CardHeader>
                             <CardContent>
-
                                 {project.boards && project.boards.length > 0 ? (
-                                    <div className="space-y-4">
-                                        {/* Board Summary */}
-                                        <div className="bg-muted/30 rounded-lg p-4 border">
-                                            <div className="flex items-center justify-between mb-3">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-3 h-3 bg-blue-500 rounded"></div>
-                                                    <h3 className="font-semibold">{project.boards[0].name}</h3>
-                                                    <Badge variant="secondary" className="text-xs">
-                                                        {project.boards[0].type}
-                                                    </Badge>
-                                                </div>
-                                                <div className="text-sm text-muted-foreground">
-                                                    {project.boards[0].lists?.length || 0} lists
-                                                </div>
-                                            </div>
-                                            {project.boards[0].description && (
-                                                <p className="text-sm text-muted-foreground mb-3">
-                                                    {project.boards[0].description}
-                                                </p>
-                                            )}
-                                            <div className="grid grid-cols-3 gap-4 text-center">
-                                                <div className="bg-background rounded-lg p-3 border">
-                                                    <div className="text-lg font-semibold">
-                                                        {project.boards[0].lists?.reduce((acc, list) => acc + (list.tasks?.length || 0), 0) || 0}
-                                                    </div>
-                                                    <div className="text-xs text-muted-foreground">Total Tasks</div>
-                                                </div>
-                                                <div className="bg-background rounded-lg p-3 border">
-                                                    <div className="text-lg font-semibold">
-                                                        {project.boards[0].lists?.reduce((acc, list) =>
-                                                            acc + (list.tasks?.filter(task => task.status === 'in_progress').length || 0), 0) || 0}
-                                                    </div>
-                                                    <div className="text-xs text-muted-foreground">In Progress</div>
-                                                </div>
-                                                <div className="bg-background rounded-lg p-3 border">
-                                                    <div className="text-lg font-semibold">
-                                                        {project.boards[0].lists?.reduce((acc, list) =>
-                                                            acc + (list.tasks?.filter(task => task.status === 'done').length || 0), 0) || 0}
-                                                    </div>
-                                                    <div className="text-xs text-muted-foreground">Completed</div>
-                                                </div>
-                                            </div>
+                                    <DndContext
+                                        sensors={sensors}
+                                        collisionDetection={closestCenter}
+                                        onDragStart={handleBoardDragStart}
+                                        onDragEnd={handleBoardDragEnd}
+                                        modifiers={[restrictToWindowEdges]}
+                                    >
+                                        <div className="flex gap-4 overflow-x-auto pb-4 w-full pr-4">
+                                            <SortableContext
+                                                items={lists.map(list => `list-${list.id}`)}
+                                                strategy={horizontalListSortingStrategy}
+                                            >
+                                                {lists.map((list) => (
+                                                    <SortableList key={list.id} list={list}>
+                                                        <SortableContext
+                                                            items={(list.tasks || []).map(task => `task-${task.id}`)}
+                                                            strategy={verticalListSortingStrategy}
+                                                        >
+                                                            {list.tasks && list.tasks.length > 0 ? (
+                                                                list.tasks.map((task) => (
+                                                                    <SortableTask key={task.id} task={task} />
+                                                                ))
+                                                            ) : (
+                                                                <div className="text-center py-8 text-muted-foreground text-sm">
+                                                                    No tasks yet. Click "Add Task" to create one.
+                                                                </div>
+                                                            )}
+                                                        </SortableContext>
+                                                    </SortableList>
+                                                ))}
+                                            </SortableContext>
                                         </div>
 
-                                        {/* Simplified Kanban View */}
-                                        <div className="overflow-x-auto">
-                                            <div className="flex gap-4 min-w-max pb-4">
-                                                {project.boards[0].lists?.map((list) => (
-                                                    <div key={list.id} className="w-72 flex-shrink-0">
-                                                        <Card className="h-full">
-                                                            <CardHeader className="pb-3">
-                                                                <div className="flex items-center justify-between">
-                                                                    <CardTitle className="text-base font-semibold flex items-center gap-2">
-                                                                        {list.color && (
-                                                                            <div
-                                                                                className="w-3 h-3 rounded-full"
-                                                                                style={{ backgroundColor: list.color }}
-                                                                            />
-                                                                        )}
-                                                                        {list.name}
-                                                                    </CardTitle>
-                                                                    <Badge variant="secondary" className="text-xs">
-                                                                        {list.tasks?.length || 0}
-                                                                    </Badge>
-                                                                </div>
-                                                            </CardHeader>
-                                                            <CardContent className="space-y-2 max-h-96 overflow-y-auto">
-                                                                {list.tasks && list.tasks.length > 0 ? (
-                                                                    list.tasks.slice(0, 5).map((task) => (
-                                                                        <div key={task.id} className="p-3 bg-muted/30 rounded-lg border text-sm">
-                                                                            <div className="font-medium mb-1 line-clamp-2">{task.title}</div>
-                                                                            <div className="flex items-center justify-between">
-                                                                                <Badge variant="outline" className="text-xs">
-                                                                                    {task.priority}
-                                                                                </Badge>
-                                                                                {task.assignees && task.assignees.length > 0 && (
-                                                                                    <div className="flex -space-x-1">
-                                                                                        {task.assignees.slice(0, 2).map((assignee) => (
-                                                                                            <Avatar key={assignee.id} className="h-5 w-5 border border-background">
-                                                                                                <AvatarImage src={assignee.avatar} />
-                                                                                                <AvatarFallback className="text-xs">
-                                                                                                    {assignee.name.charAt(0).toUpperCase()}
-                                                                                                </AvatarFallback>
-                                                                                            </Avatar>
-                                                                                        ))}
-                                                                                        {task.assignees.length > 2 && (
-                                                                                            <div className="h-5 w-5 rounded-full bg-muted border border-background flex items-center justify-center">
-                                                                                                <span className="text-xs">+{task.assignees.length - 2}</span>
-                                                                                            </div>
-                                                                                        )}
-                                                                                    </div>
-                                                                                )}
-                                                                            </div>
-                                                                        </div>
-                                                                    ))
-                                                                ) : (
-                                                                    <div className="text-center py-4 text-muted-foreground text-sm">
-                                                                        No tasks
-                                                                    </div>
-                                                                )}
-                                                                {list.tasks && list.tasks.length > 5 && (
-                                                                    <div className="text-center py-2">
-                                                                        <span className="text-xs text-muted-foreground">
-                                                                            +{list.tasks.length - 5} more tasks
-                                                                        </span>
-                                                                    </div>
-                                                                )}
-                                                            </CardContent>
-                                                        </Card>
+                                        {/* Drag overlay for visual feedback */}
+                                        <DragOverlay>
+                                            {activeId && activeItem?.type === 'task' && activeItem.task && (
+                                                <div className="mb-2 rounded-md border bg-card p-3 shadow-sm opacity-80 border-2 border-primary">
+                                                    <div className="space-y-2">
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="font-medium">{activeItem.task.title}</div>
+                                                            {activeItem.task.status === 'done' && (
+                                                                <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                                                            )}
+                                                        </div>
+                                                        {activeItem.task.description && (
+                                                            <div className="text-sm text-muted-foreground line-clamp-2">
+                                                                {activeItem.task.description}
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
+                                                </div>
+                                            )}
+                                        </DragOverlay>
+                                    </DndContext>
                                 ) : (
                                     <div className="text-center py-16 bg-gradient-to-br from-muted/20 to-muted/40 rounded-xl border-2 border-dashed border-muted-foreground/30">
                                         <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -1893,180 +3027,9 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                         </Card>
                     </TabsContent>
 
-                    <TabsContent value="members" className="mt-0">
-                        <Card className="rounded-t-none border-t-0">
-                            <CardHeader className="pb-4">
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <CardTitle className="flex items-center gap-2">
-                                            <Users className="h-5 w-5" />
-                                            Members
-                                        </CardTitle>
-                                        <CardDescription>
-                                            Manage who has access to this project and their roles
-                                        </CardDescription>
-                                    </div>
-                                    {project.can_manage_members && (
-                                        <Button
-                                            onClick={() => setInviteModalOpen(true)}
-                                            className="shadow-sm hover:shadow-md"
-                                        >
-                                            <UserPlus className="h-4 w-4 mr-2" />
-                                            Invite Member
-                                        </Button>
-                                    )}
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                {project.members && project.members.length > 0 ? (
-                                    <div className="space-y-3">
-                                        {project.members.map((member) => (
-                                            <div key={member.id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="relative">
-                                                        <Avatar className="h-10 w-10">
-                                                            <AvatarImage src={member.avatar} />
-                                                            <AvatarFallback className="text-sm">
-                                                                {member.name.charAt(0).toUpperCase()}
-                                                            </AvatarFallback>
-                                                        </Avatar>
-                                                        {member.id === project.owner_id && (
-                                                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full flex items-center justify-center">
-                                                                <Crown className="h-2 w-2 text-white" />
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div>
-                                                        <div className="flex items-center gap-2">
-                                                            <h4 className="font-medium">{getShortName(member.name)}</h4>
-                                                            <Badge
-                                                                variant={member.id === project.owner_id ? "default" : "secondary"}
-                                                                className="text-xs"
-                                                            >
-                                                                {member.id === project.owner_id ? 'Owner' : (member.pivot?.role || 'Member')}
-                                                            </Badge>
-                                                        </div>
-                                                        <p className="text-sm text-muted-foreground">{member.email}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-1">
-                                                    {project.can_manage_members && member.id !== project.owner_id ? (
-                                                        <>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                className="h-8 w-8 p-0"
-                                                                title="Manage permissions"
-                                                                onClick={() => {
-                                                                    setEditingMember(member);
-                                                                    setPermissionModalOpen(true);
-                                                                }}
-                                                            >
-                                                                <Settings className="h-4 w-4" />
-                                                            </Button>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                                                                title="Remove member"
-                                                                onClick={() => {
-                                                                    setMemberToDelete(member);
-                                                                    setDeleteDialogOpen(true);
-                                                                }}
-                                                            >
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </Button>
-                                                        </>
-                                                    ) : member.id !== project.owner_id ? (
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            className="h-8 w-8 p-0"
-                                                            disabled
-                                                            title="No permission to manage"
-                                                        >
-                                                            <Lock className="h-4 w-4" />
-                                                        </Button>
-                                                    ) : null}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-16 bg-gradient-to-br from-muted/20 to-muted/40 rounded-xl border-2 border-dashed border-muted-foreground/30">
-                                        <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                                            <Users className="h-10 w-10 text-green-600" />
-                                        </div>
-                                        <h3 className="text-xl font-semibold mb-3">Invite Team Members</h3>
-                                        <p className="text-muted-foreground mb-8 max-w-md mx-auto">
-                                            Collaboration makes projects successful. Invite team members to work together
-                                            on tasks, share ideas, and achieve your project goals.
-                                        </p>
-                                        {project.can_manage_members ? (
-                                            <Button
-                                                onClick={() => setInviteModalOpen(true)}
-                                                size="lg"
-                                                className="shadow-lg hover:shadow-xl transition-shadow"
-                                            >
-                                                <UserPlus className="h-5 w-5 mr-2" />
-                                                Invite Your First Member
-                                            </Button>
-                                        ) : (
-                                            <Button size="lg" disabled className="shadow-lg">
-                                                <Lock className="h-5 w-5 mr-2" />
-                                                No Permission to Invite Members
-                                            </Button>
-                                        )}
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-
-                    <TabsContent value="labels" className="mt-0">
-                        <Card className="rounded-t-none border-t-0">
-                            <CardHeader className="pb-4">
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <CardTitle className="flex items-center gap-2">
-                                            <Tag className="h-5 w-5" />
-                                            Project Labels
-                                        </CardTitle>
-                                        <CardDescription>
-                                            Create custom labels to organize and categorize tasks
-                                        </CardDescription>
-                                    </div>
-                                    {canEdit && (
-                                        <Link href={route('labels.index', { project: project.id })}>
-                                            <Button className="shadow-sm hover:shadow-md">
-                                                <Plus className="h-4 w-4 mr-2" />
-                                                Manage Labels
-                                            </Button>
-                                        </Link>
-                                    )}
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-center py-12 bg-muted/20 rounded-lg border border-dashed">
-                                    <Tag className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                                    <h3 className="text-lg font-medium text-muted-foreground mb-2">Label Management</h3>
-                                    <p className="text-sm text-muted-foreground mb-6">
-                                        Create and manage custom labels to organize your tasks effectively
-                                    </p>
-                                    <Link href={route('labels.index', { project: project.id })}>
-                                        <Button variant="outline">
-                                            <Tag className="h-4 w-4 mr-2" />
-                                            Manage Labels
-                                        </Button>
-                                    </Link>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-
                     <TabsContent value="calendar" className="mt-0">
                         <DndContext
-                            sensors={sensors}
+                            sensors={calendarSensors}
                             onDragStart={handleDragStart}
                             onDragEnd={handleDragEnd}
                             onDragCancel={handleDragCancel}
@@ -2374,6 +3337,177 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                         </DndContext>
                     </TabsContent>
 
+                    <TabsContent value="members" className="mt-0">
+                        <Card className="rounded-t-none border-t-0">
+                            <CardHeader className="pb-4">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <CardTitle className="flex items-center gap-2">
+                                            <Users className="h-5 w-5" />
+                                            Members
+                                        </CardTitle>
+                                        <CardDescription>
+                                            Manage who has access to this project and their roles
+                                        </CardDescription>
+                                    </div>
+                                    {project.can_manage_members && (
+                                        <Button
+                                            onClick={() => setInviteModalOpen(true)}
+                                            className="shadow-sm hover:shadow-md"
+                                        >
+                                            <UserPlus className="h-4 w-4 mr-2" />
+                                            Invite Member
+                                        </Button>
+                                    )}
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                                {project.members && project.members.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {project.members.map((member) => (
+                                            <div key={member.id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="relative">
+                                                        <Avatar className="h-10 w-10">
+                                                            <AvatarImage src={member.avatar} />
+                                                            <AvatarFallback className="text-sm">
+                                                                {member.name.charAt(0).toUpperCase()}
+                                                            </AvatarFallback>
+                                                        </Avatar>
+                                                        {member.id === project.owner_id && (
+                                                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full flex items-center justify-center">
+                                                                <Crown className="h-2 w-2 text-white" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <h4 className="font-medium">{getShortName(member.name)}</h4>
+                                                            <Badge
+                                                                variant={member.id === project.owner_id ? "default" : "secondary"}
+                                                                className="text-xs"
+                                                            >
+                                                                {member.id === project.owner_id ? 'Owner' : (member.pivot?.role || 'Member')}
+                                                            </Badge>
+                                                        </div>
+                                                        <p className="text-sm text-muted-foreground">{member.email}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                    {project.can_manage_members && member.id !== project.owner_id ? (
+                                                        <>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-8 w-8 p-0"
+                                                                title="Manage permissions"
+                                                                onClick={() => {
+                                                                    setEditingMember(member);
+                                                                    setPermissionModalOpen(true);
+                                                                }}
+                                                            >
+                                                                <Settings className="h-4 w-4" />
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                                                title="Remove member"
+                                                                onClick={() => {
+                                                                    setMemberToDelete(member);
+                                                                    setDeleteDialogOpen(true);
+                                                                }}
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        </>
+                                                    ) : member.id !== project.owner_id ? (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-8 w-8 p-0"
+                                                            disabled
+                                                            title="No permission to manage"
+                                                        >
+                                                            <Lock className="h-4 w-4" />
+                                                        </Button>
+                                                    ) : null}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-16 bg-gradient-to-br from-muted/20 to-muted/40 rounded-xl border-2 border-dashed border-muted-foreground/30">
+                                        <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                                            <Users className="h-10 w-10 text-green-600" />
+                                        </div>
+                                        <h3 className="text-xl font-semibold mb-3">Invite Team Members</h3>
+                                        <p className="text-muted-foreground mb-8 max-w-md mx-auto">
+                                            Collaboration makes projects successful. Invite team members to work together
+                                            on tasks, share ideas, and achieve your project goals.
+                                        </p>
+                                        {project.can_manage_members ? (
+                                            <Button
+                                                onClick={() => setInviteModalOpen(true)}
+                                                size="lg"
+                                                className="shadow-lg hover:shadow-xl transition-shadow"
+                                            >
+                                                <UserPlus className="h-5 w-5 mr-2" />
+                                                Invite Your First Member
+                                            </Button>
+                                        ) : (
+                                            <Button size="lg" disabled className="shadow-lg">
+                                                <Lock className="h-5 w-5 mr-2" />
+                                                No Permission to Invite Members
+                                            </Button>
+                                        )}
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    <TabsContent value="labels" className="mt-0">
+                        <Card className="rounded-t-none border-t-0">
+                            <CardHeader className="pb-4">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <CardTitle className="flex items-center gap-2">
+                                            <Tag className="h-5 w-5" />
+                                            Project Labels
+                                        </CardTitle>
+                                        <CardDescription>
+                                            Create custom labels to organize and categorize tasks
+                                        </CardDescription>
+                                    </div>
+                                    {canEdit && (
+                                        <Link href={route('labels.index', { project: project.id })}>
+                                            <Button className="shadow-sm hover:shadow-md">
+                                                <Plus className="h-4 w-4 mr-2" />
+                                                Manage Labels
+                                            </Button>
+                                        </Link>
+                                    )}
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-center py-12 bg-muted/20 rounded-lg border border-dashed">
+                                    <Tag className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                                    <h3 className="text-lg font-medium text-muted-foreground mb-2">Label Management</h3>
+                                    <p className="text-sm text-muted-foreground mb-6">
+                                        Create and manage custom labels to organize your tasks effectively
+                                    </p>
+                                    <Link href={route('labels.index', { project: project.id })}>
+                                        <Button variant="outline">
+                                            <Tag className="h-4 w-4 mr-2" />
+                                            Manage Labels
+                                        </Button>
+                                    </Link>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
                     <TabsContent value="details" className="mt-0">
                         <Card className="rounded-t-none border-t-0">
                             <CardHeader className="pb-4">
@@ -2574,6 +3708,48 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                 open={taskDetailModalOpen}
                 onOpenChange={setTaskDetailModalOpen}
             />
+
+            {/* Board Task Modals */}
+            {selectedTask && (
+                <TaskEditModal
+                    open={taskEditModalOpen}
+                    onOpenChange={setTaskEditModalOpen}
+                    project={project}
+                    task={selectedTask}
+                    members={project.members || []}
+                    labels={[]}
+                    lists={lists}
+                />
+            )}
+
+            {selectedTask && (
+                <TaskViewModal
+                    open={taskViewModalOpen}
+                    onOpenChange={setTaskViewModalOpen}
+                    project={project}
+                    task={selectedTask}
+                    onEdit={project.can_manage_tasks ? handleEditFromView : undefined}
+                />
+            )}
+
+            {/* Section Edit Modal */}
+            <Dialog open={sectionEditModalOpen} onOpenChange={setSectionEditModalOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>Edit Section</DialogTitle>
+                        <DialogDescription>
+                            Update the section name and description.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {editingSection && (
+                        <SectionEditForm
+                            section={editingSection}
+                            project={project}
+                            onClose={() => setSectionEditModalOpen(false)}
+                        />
+                    )}
+                </DialogContent>
+            </Dialog>
         </AppLayout>
     );
 }

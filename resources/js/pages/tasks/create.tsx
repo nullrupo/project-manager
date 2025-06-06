@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Project, Board, TaskList } from '@/types/project-manager';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, useForm, usePage } from '@inertiajs/react';
 import { LoaderCircle, Calendar, AlertCircle, User } from 'lucide-react';
 import { FormEventHandler } from 'react';
 
@@ -30,12 +30,16 @@ interface TaskCreateProps {
 }
 
 export default function TaskCreate({ project, board, list }: TaskCreateProps) {
+    const { props } = usePage();
+    const tab = (props as any).tab || 'list'; // Get tab from URL params
+    const status = (props as any).status || 'to_do'; // Get status from URL params if provided
+
     const { data, setData, post, processing, errors } = useForm<TaskCreateForm>({
         title: '',
         description: '',
         priority: 'medium',
         due_date: '',
-        status: 'to_do',
+        status: status,
         estimate: '',
         assignee_ids: [],
         label_ids: [],
@@ -62,7 +66,7 @@ export default function TaskCreate({ project, board, list }: TaskCreateProps) {
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
-        post(route('tasks.store', { project: project.id, board: board.id, list: list.id }));
+        post(route('tasks.store', { project: project.id, board: board.id, list: list.id, tab }));
     };
 
     const getPriorityColor = (priority: string) => {

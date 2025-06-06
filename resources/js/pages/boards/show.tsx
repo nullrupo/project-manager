@@ -168,7 +168,7 @@ function SortableList({
                             className="w-full border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/5"
                             size="sm"
                             onClick={() => {
-                                router.get(route('tasks.create', { project: project.id, board: list.board_id, list: list.id }));
+                                router.get(route('tasks.create', { project: project.id, board: list.board_id, list: list.id, tab: 'boards' }));
                             }}
                         >
                             <Plus className="h-4 w-4 mr-2" />
