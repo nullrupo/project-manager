@@ -8,6 +8,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
+import TaskDetailModal from '@/components/task-detail-modal';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Project } from '@/types/project-manager';
 import { Head, Link, usePage, router } from '@inertiajs/react';
@@ -1291,107 +1292,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
         );
     };
 
-    // Task Detail Modal Component
-    const TaskDetailModal = ({ task, project, open, onOpenChange }: {
-        task: any;
-        project: Project;
-        open: boolean;
-        onOpenChange: (open: boolean) => void;
-    }) => {
-        if (!task) return null;
 
-        return (
-            <div className={`fixed inset-0 z-50 ${open ? 'block' : 'hidden'}`}>
-                <div className="fixed inset-0 bg-black/50" onClick={() => onOpenChange(false)} />
-                <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                    <Card>
-                        <CardHeader>
-                            <div className="flex items-start justify-between">
-                                <div className="flex-1">
-                                    <CardTitle className="text-xl">{task.title}</CardTitle>
-                                    <CardDescription className="mt-2">
-                                        {task.project?.name || 'Inbox'} • {task.boardName} • {task.listName}
-                                    </CardDescription>
-                                </div>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => onOpenChange(false)}
-                                    className="h-8 w-8 p-0"
-                                >
-                                    <X className="h-4 w-4" />
-                                </Button>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
-                            {/* Task Details */}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Priority</label>
-                                    <Badge variant="outline" className={`mt-1 ${getPriorityColor(task.priority)}`}>
-                                        {task.priority}
-                                    </Badge>
-                                </div>
-                                <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Status</label>
-                                    <Badge variant="outline" className="mt-1 capitalize">
-                                        {task.status.replace('_', ' ')}
-                                    </Badge>
-                                </div>
-                                {task.due_date && (
-                                    <div>
-                                        <label className="text-sm font-medium text-muted-foreground">Due Date</label>
-                                        <p className="mt-1 text-sm">{new Date(task.due_date).toLocaleDateString()}</p>
-                                    </div>
-                                )}
-                                {task.duration_days && task.duration_days > 1 && (
-                                    <div>
-                                        <label className="text-sm font-medium text-muted-foreground">Duration</label>
-                                        <p className="mt-1 text-sm">{task.duration_days} days</p>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Description */}
-                            {task.description && (
-                                <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Description</label>
-                                    <p className="mt-1 text-sm whitespace-pre-wrap">{task.description}</p>
-                                </div>
-                            )}
-
-                            {/* Assignees */}
-                            {task.assignees && task.assignees.length > 0 && (
-                                <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Assignees</label>
-                                    <div className="mt-2 flex flex-wrap gap-2">
-                                        {task.assignees.map((assignee: any) => (
-                                            <div key={assignee.id} className="flex items-center gap-2 bg-muted rounded-lg p-2">
-                                                <Avatar className="h-6 w-6">
-                                                    <AvatarImage src={assignee.avatar} />
-                                                    <AvatarFallback className="text-xs">
-                                                        {assignee.name.charAt(0).toUpperCase()}
-                                                    </AvatarFallback>
-                                                </Avatar>
-                                                <span className="text-sm">{assignee.name}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </CardContent>
-                        <CardFooter className="flex justify-end">
-                            <Button
-                                onClick={() => onOpenChange(false)}
-                            >
-                                Close
-                            </Button>
-                        </CardFooter>
-                    </Card>
-                </div>
-            </div>
-        );
-    };
 
     // Enhanced Resize Handle Component with colored edges
     const ResizeHandle = ({ task, direction, onResize }: { task: any; direction: 'start' | 'end'; onResize: (newDuration: number) => void }) => {
@@ -2642,6 +2543,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                 project={project}
                 open={taskDetailModalOpen}
                 onOpenChange={setTaskDetailModalOpen}
+                availableLists={project.boards?.flatMap(board => board.lists || []) || []}
             />
         </AppLayout>
     );

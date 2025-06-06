@@ -129,6 +129,7 @@ class ProjectController extends Controller
             'boards.lists.tasks.assignees',
             'boards.lists.tasks.labels',
             'boards.lists.tasks.creator',
+            'boards.lists.tasks.list.board',
         ]);
 
         // Add permission information using the new permission system

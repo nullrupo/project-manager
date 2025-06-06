@@ -8,11 +8,12 @@ import { Board, Project, Task, TaskList, User, Label as ProjectLabel } from '@/t
 import { Head, Link, router } from '@inertiajs/react';
 import { Edit, MoreHorizontal, Plus, Settings, Trash2, Calendar, Clock, AlertCircle, CheckCircle2, User as UserIcon, Lock, GripVertical, Eye } from 'lucide-react';
 import TaskEditModal from '@/components/task-edit-modal';
-import TaskViewModal from '@/components/task-view-modal';
+import TaskDetailModal from '@/components/task-detail-modal';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useEffect, useState } from 'react';
 import AddListModal from '@/components/add-list-modal';
+import EditListModal from '@/components/edit-list-modal';
 import { DndContext, DragOverlay, closestCenter, closestCorners, KeyboardSensor, PointerSensor, useSensor, useSensors, CollisionDetection } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -40,7 +41,8 @@ function SortableList({
     project,
     boardType,
     canEdit,
-    onDeleteList
+    onDeleteList,
+    onEditList
 }: {
     list: TaskList;
     children: React.ReactNode;
@@ -48,6 +50,7 @@ function SortableList({
     boardType: 'kanban' | 'scrum' | 'custom';
     canEdit: boolean;
     onDeleteList: (list: TaskList) => void;
+    onEditList: (list: TaskList) => void;
 }) {
     const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
         id: `list-${list.id}`,
@@ -85,7 +88,7 @@ function SortableList({
 
     return (
         <div ref={setNodeRef} style={style} className="w-80 flex-shrink-0">
-            <Card className={`h-full bg-muted/20 border-2 border-dashed border-muted-foreground/20 ${getListStyling()} transition-all duration-200 hover:border-muted-foreground/40`}>
+            <Card className={`h-full bg-muted/20 border-2 border-dashed border-muted-foreground/20 ${getListStyling()} transition-all duration-200 hover:border-muted-foreground/40 hover:shadow-lg`}>
                 <CardHeader
                     className={`pb-3 ${canEdit ? 'cursor-grab active:cursor-grabbing hover:bg-muted/30 transition-all duration-200 rounded-t-lg' : ''}`}
                     {...(canEdit ? attributes : {})}
@@ -117,10 +120,7 @@ function SortableList({
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="w-48">
-                                        <DropdownMenuItem onClick={() => {
-                                            // TODO: Implement edit list functionality
-                                            alert('Edit list functionality coming soon!');
-                                        }}>
+                                        <DropdownMenuItem onClick={() => onEditList(list)}>
                                             <Edit className="h-4 w-4 mr-2" />
                                             Edit List
                                         </DropdownMenuItem>
@@ -195,12 +195,16 @@ function SortableTask({
     task,
     canEdit,
     onEdit,
-    onView
+    onView,
+    listColor,
+    isDragging
 }: {
     task: Task;
     canEdit: boolean;
     onEdit: (task: Task) => void;
     onView: (task: Task) => void;
+    listColor?: string;
+    isDragging?: boolean;
 }) {
     const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
         id: `task-${task.id}`,
@@ -234,7 +238,45 @@ function SortableTask({
         }
     };
 
-    const getStatusBadge = (status: string) => {
+    const getStatusBadge = (status: string, listColor?: string) => {
+        // Helper function to format status text
+        const formatStatusText = (status: string) => {
+            return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        };
+
+        // Helper function to convert hex color to RGB values
+        const hexToRgb = (hex: string) => {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : { r: 156, g: 163, b: 175 }; // Default gray
+        };
+
+        // If we have a list color, use it for the badge
+        if (listColor) {
+            const rgb = hexToRgb(listColor);
+            const bgColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)`;
+            const borderColor = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`;
+            const textColor = `rgb(${Math.max(0, rgb.r - 50)}, ${Math.max(0, rgb.g - 50)}, ${Math.max(0, rgb.b - 50)})`;
+
+            return (
+                <Badge
+                    variant="outline"
+                    className="text-xs px-2 py-0.5 border"
+                    style={{
+                        backgroundColor: bgColor,
+                        borderColor: borderColor,
+                        color: textColor
+                    }}
+                >
+                    {formatStatusText(status)}
+                </Badge>
+            );
+        }
+
+        // Fallback to predefined colors for common statuses when no list color is available
         switch (status) {
             case 'to_do':
                 return (
@@ -255,9 +297,10 @@ function SortableTask({
                     </Badge>
                 );
             default:
+                // For custom statuses without list color, use neutral gray
                 return (
-                    <Badge variant="outline" className="text-xs px-2 py-0.5">
-                        {status.replace('_', ' ')}
+                    <Badge variant="outline" className="text-xs px-2 py-0.5 bg-gray-50 text-gray-700 border-gray-200">
+                        {formatStatusText(status)}
                     </Badge>
                 );
         }
@@ -272,7 +315,7 @@ function SortableTask({
             style={style}
             {...attributes}
             {...(canEdit ? listeners : {})}
-            className={`mb-3 rounded-lg border bg-card p-4 shadow-sm hover:shadow-md transition-all duration-200 group ${canEdit ? 'cursor-pointer' : 'cursor-default'} relative`}
+            className={`mb-3 rounded-lg border bg-card p-4 shadow-sm hover:shadow-md transition-all duration-200 group ${canEdit ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'} relative ${isDragging ? 'hover:shadow-xl hover:scale-105' : ''}`}
         >
             {/* Action buttons - positioned absolutely */}
             <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex gap-1">
@@ -325,7 +368,7 @@ function SortableTask({
                                 {task.title}
                             </h4>
                             <div className="flex items-center gap-2 mt-1">
-                                {getStatusBadge(task.status)}
+                                {getStatusBadge(task.status, listColor)}
                             </div>
                         </div>
                         {task.status === 'done' && (
@@ -422,7 +465,10 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
     const [lists, setLists] = useState<TaskList[]>(board.lists || []);
     const [activeId, setActiveId] = useState<string | null>(null);
     const [activeItem, setActiveItem] = useState<any | null>(null);
+    const [isDragging, setIsDragging] = useState(false);
     const [addListModalOpen, setAddListModalOpen] = useState(false);
+    const [editListModalOpen, setEditListModalOpen] = useState(false);
+    const [listToEdit, setListToEdit] = useState<TaskList | null>(null);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [listToDelete, setListToDelete] = useState<TaskList | null>(null);
 
@@ -469,6 +515,11 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
     const openDeleteDialog = (list: TaskList) => {
         setListToDelete(list);
         setDeleteDialogOpen(true);
+    };
+
+    const openEditDialog = (list: TaskList) => {
+        setListToEdit(list);
+        setEditListModalOpen(true);
     };
 
     const breadcrumbs: BreadcrumbItem[] = [
@@ -564,6 +615,7 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
 
         setActiveId(activeId);
         setActiveItem(active.data.current);
+        setIsDragging(true);
     };
 
     // Handle drag end
@@ -573,6 +625,7 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
         if (!over) {
             setActiveId(null);
             setActiveItem(null);
+            setIsDragging(false);
             return;
         }
 
@@ -584,12 +637,14 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
             if (!board.can_edit) {
                 setActiveId(null);
                 setActiveItem(null);
+                setIsDragging(false);
                 return;
             }
         } else if (activeId.startsWith('task-')) {
             if (!board.can_manage_tasks) {
                 setActiveId(null);
                 setActiveItem(null);
+                setIsDragging(false);
                 return;
             }
         }
@@ -654,6 +709,7 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
                 if (!sourceList) {
                     setActiveId(null);
                     setActiveItem(null);
+                    setIsDragging(false);
                     return;
                 }
 
@@ -665,6 +721,7 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
                     if (!overTask) {
                         setActiveId(null);
                         setActiveItem(null);
+                        setIsDragging(false);
                         return;
                     }
 
@@ -674,6 +731,7 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
                     if (!destinationList) {
                         setActiveId(null);
                         setActiveItem(null);
+                        setIsDragging(false);
                         return;
                     }
 
@@ -688,6 +746,7 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
                     if (!destinationList) {
                         setActiveId(null);
                         setActiveItem(null);
+                        setIsDragging(false);
                         return;
                     }
 
@@ -703,12 +762,14 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
 
         setActiveId(null);
         setActiveItem(null);
+        setIsDragging(false);
     };
 
     // Helper function to map list name to task status
-    const getStatusFromListName = (listName: string): string | null => {
+    const getStatusFromListName = (listName: string): string => {
         const name = listName.toLowerCase().trim();
 
+        // Map common column names to standard statuses
         switch (name) {
             case 'to do':
             case 'todo':
@@ -722,10 +783,6 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
             case 'doing':
             case 'active':
             case 'working':
-            case 'review':
-            case 'testing':
-            case 'qa':
-            case 'pending review':
                 return 'in_progress';
             case 'done':
             case 'completed':
@@ -734,7 +791,8 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
             case 'complete':
                 return 'done';
             default:
-                return null;
+                // For custom column names, use the column name as the status
+                return listName.toLowerCase().replace(/\s+/g, '_');
         }
     };
 
@@ -773,7 +831,7 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
         const updatedTask = {
             ...movedTask,
             list_id: destinationList.id,
-            ...(newStatus && { status: newStatus }),
+            status: newStatus,
             ...(newStatus === 'done' && movedTask.status !== 'done' && { completed_at: new Date().toISOString() }),
             ...(newStatus !== 'done' && movedTask.status === 'done' && { completed_at: null })
         };
@@ -811,6 +869,17 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
 
         setLists(newLists);
 
+        // Update selectedTask if it's the task that was moved
+        if (selectedTask && selectedTask.id === taskId) {
+            setSelectedTask({
+                ...selectedTask,
+                list_id: destinationList.id,
+                status: newStatus,
+                ...(newStatus === 'done' && selectedTask.status !== 'done' && { completed_at: new Date().toISOString() }),
+                ...(newStatus !== 'done' && selectedTask.status === 'done' && { completed_at: null })
+            });
+        }
+
         // Send the updated positions to the server
         const tasksToUpdate = [];
         if (sourceList.id === destinationList.id) {
@@ -818,17 +887,23 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
                 id: task.id,
                 position: task.position,
                 list_id: sourceList.id,
+                status: task.status,
+                completed_at: task.completed_at,
             })));
         } else {
             tasksToUpdate.push(...updatedSourceTasks.map(task => ({
                 id: task.id,
                 position: task.position,
                 list_id: sourceList.id,
+                status: task.status,
+                completed_at: task.completed_at,
             })));
             tasksToUpdate.push(...updatedDestinationTasks.map(task => ({
                 id: task.id,
                 position: task.position,
                 list_id: destinationList.id,
+                status: task.status,
+                completed_at: task.completed_at,
             })));
         }
 
@@ -959,7 +1034,7 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
                     onDragEnd={handleDragEnd}
                     modifiers={[restrictToWindowEdges]}
                 >
-                    <div className="flex gap-4 overflow-x-auto pb-4 w-full pr-4">
+                    <div className={`flex gap-4 overflow-x-auto pb-4 w-full pr-4 transition-all duration-200 ${isDragging ? 'bg-primary/5 rounded-lg' : ''}`}>
                         <SortableContext
                             items={lists.map(list => `list-${list.id}`)}
                             strategy={horizontalListSortingStrategy}
@@ -972,6 +1047,7 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
                                     boardType={board.type}
                                     canEdit={board.can_edit || false}
                                     onDeleteList={openDeleteDialog}
+                                    onEditList={openEditDialog}
                                 >
                                     <SortableContext
                                         items={(list.tasks || []).map(task => `task-${task.id}`)}
@@ -985,6 +1061,8 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
                                                     canEdit={board.can_manage_tasks || false}
                                                     onEdit={handleEditTask}
                                                     onView={handleViewTask}
+                                                    listColor={list.color}
+                                                    isDragging={isDragging}
                                                 />
                                             ))
                                         ) : (
@@ -1050,10 +1128,10 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
                             </div>
                         )}
                         {activeId && activeItem?.type === 'task' && activeItem.task && (
-                            <div className="mb-2 rounded-md border bg-card p-3 shadow-sm opacity-80 border-2 border-primary">
+                            <div className="mb-2 rounded-lg border bg-card p-4 shadow-2xl opacity-90 border-2 border-primary transform rotate-2 scale-105">
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <div className="font-medium">{activeItem.task.title}</div>
+                                        <div className="font-medium text-primary">{activeItem.task.title}</div>
                                         {activeItem.task.status === 'done' && (
                                             <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
                                         )}
@@ -1063,6 +1141,9 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
                                             {activeItem.task.description}
                                         </div>
                                     )}
+                                    <div className="text-xs text-primary font-medium">
+                                        Dragging...
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -1076,6 +1157,16 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
                 open={addListModalOpen}
                 onOpenChange={setAddListModalOpen}
             />
+
+            {listToEdit && (
+                <EditListModal
+                    project={project}
+                    board={board}
+                    list={listToEdit}
+                    open={editListModalOpen}
+                    onOpenChange={setEditListModalOpen}
+                />
+            )}
 
             <ConfirmDialog
                 open={deleteDialogOpen}
@@ -1102,12 +1193,12 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
             )}
 
             {selectedTask && (
-                <TaskViewModal
+                <TaskDetailModal
                     open={taskViewModalOpen}
                     onOpenChange={setTaskViewModalOpen}
                     project={project}
                     task={selectedTask}
-                    onEdit={board.can_manage_tasks ? handleEditFromView : undefined}
+                    availableLists={lists || []}
                 />
             )}
         </AppLayout>
