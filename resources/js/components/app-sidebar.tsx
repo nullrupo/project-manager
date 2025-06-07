@@ -28,6 +28,7 @@ import {
     Settings2
 } from 'lucide-react';
 import AppLogo from './app-logo';
+import { ThemeSwitcher } from './theme-switcher';
 
 // Main navigation sections based on the PowerPoint specification
 const mainNavGroups: NavGroup[] = [
@@ -232,6 +233,8 @@ export function AppSidebar() {
                             <span className="text-xs font-medium text-sidebar-foreground/60 px-2">Account</span>
                         )}
                         <div className={`flex items-center gap-1 ${collapsed ? 'flex-col' : ''}`}>
+                            {/* Theme toggle button */}
+                            <ThemeSwitcher minimal />
                             {/* Customization toggle button */}
                             <Button
                                 variant="ghost"
@@ -242,7 +245,6 @@ export function AppSidebar() {
                             >
                                 <Settings2 className="h-4 w-4" />
                             </Button>
-
                             {/* Collapse/expand button */}
                             <Button
                                 variant="ghost"

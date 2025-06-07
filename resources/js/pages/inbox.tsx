@@ -760,7 +760,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                     return (
                                         <div
                                             key={task.id}
-                                            className={`group flex items-start gap-3 p-3 rounded-lg border-2 transition-all cursor-pointer bg-white ${
+                                            className={`group flex items-start gap-3 p-3 rounded-lg border-2 transition-all cursor-pointer bg-white dark:bg-gray-900 ${
                                                 isOverdue
                                                     ? 'border-red-300 shadow-sm'
                                                     : 'border-border shadow-sm hover:shadow-md'
