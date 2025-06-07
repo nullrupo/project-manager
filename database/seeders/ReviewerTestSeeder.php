@@ -63,24 +63,7 @@ class ReviewerTestSeeder extends Seeder
             $developer->id => ['role' => 'editor', 'can_manage_tasks' => true, 'can_manage_members' => false, 'can_manage_boards' => false, 'can_manage_labels' => false, 'can_view_project' => true, 'can_comment' => true],
         ]);
 
-        // Create sections
-        $frontendSection = Section::firstOrCreate(
-            ['project_id' => $project->id, 'name' => 'Frontend Development'],
-            [
-                'description' => 'User interface and frontend tasks',
-                'position' => 0,
-                'is_collapsed' => false,
-            ]
-        );
-
-        $backendSection = Section::firstOrCreate(
-            ['project_id' => $project->id, 'name' => 'Backend Development'],
-            [
-                'description' => 'Server-side and API tasks',
-                'position' => 1,
-                'is_collapsed' => false,
-            ]
-        );
+        // Sections will be created manually by users - no default sections
 
         // Get the project's default board and lists
         $board = $project->boards()->first();
@@ -109,7 +92,6 @@ class ReviewerTestSeeder extends Seeder
             [
                 'description' => 'Create login and registration functionality with proper validation.',
                 'list_id' => $todoList->id,
-                'section_id' => $backendSection->id,
                 'created_by' => $developer->id,
                 'reviewer_id' => null, // Uses project default reviewer
                 'priority' => 'high',
@@ -123,7 +105,6 @@ class ReviewerTestSeeder extends Seeder
             [
                 'description' => 'Create wireframes and mockups for the main dashboard.',
                 'list_id' => $inProgressList->id,
-                'section_id' => $frontendSection->id,
                 'created_by' => $developer->id,
                 'reviewer_id' => $owner->id, // Override with specific reviewer
                 'priority' => 'medium',

@@ -1,0 +1,174 @@
+import { useState, useEffect } from 'react';
+import { Project } from '@/types/project-manager';
+import { getActiveViewFromUrl } from '../utils/projectUtils';
+
+/**
+ * Custom hook to manage project state
+ */
+export const useProjectState = (project: Project) => {
+    // View state
+    const [activeView, setActiveView] = useState(getActiveViewFromUrl);
+    
+    // Modal states
+    const [inviteModalOpen, setInviteModalOpen] = useState(false);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [memberToDelete, setMemberToDelete] = useState<any>(null);
+    const [permissionModalOpen, setPermissionModalOpen] = useState(false);
+    const [editingMember, setEditingMember] = useState<any>(null);
+    const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+    
+    // Board state
+    const [lists, setLists] = useState(project.boards?.[0]?.lists || []);
+    const [boardSearchQuery, setBoardSearchQuery] = useState('');
+    const [boardTypeFilter, setBoardTypeFilter] = useState('all');
+    
+    // Calendar state
+    const [currentDate, setCurrentDate] = useState(new Date());
+    const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+    const [memberPanelOpen, setMemberPanelOpen] = useState(false);
+    
+    // Task modal states
+    const [taskEditModalOpen, setTaskEditModalOpen] = useState(false);
+    const [taskViewModalOpen, setTaskViewModalOpen] = useState(false);
+    const [selectedTask, setSelectedTask] = useState<any>(null);
+    
+    // List view state
+    const [listViewMode, setListViewMode] = useState<'status' | 'sections'>('sections');
+    const [inspectorOpen, setInspectorOpen] = useState(false);
+    const [inspectorTask, setInspectorTask] = useState<any>(null);
+    const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+    
+    // Section management state
+    const [editingSection, setEditingSection] = useState<any>(null);
+    const [sectionEditModalOpen, setSectionEditModalOpen] = useState(false);
+    const [sectionCreateModalOpen, setSectionCreateModalOpen] = useState(false);
+    
+    // Drag and drop state
+    const [activeId, setActiveId] = useState<string | null>(null);
+    const [activeItem, setActiveItem] = useState<any | null>(null);
+    const [listActiveId, setListActiveId] = useState<string | null>(null);
+    const [listActiveItem, setListActiveItem] = useState<any | null>(null);
+    const [listOverId, setListOverId] = useState<string | null>(null);
+    
+    // Calendar drag state
+    const [activeTask, setActiveTask] = useState<any>(null);
+    const [draggedTask, setDraggedTask] = useState<any>(null);
+    const [isUpdatingTask, setIsUpdatingTask] = useState(false);
+    const [isDragInProgress, setIsDragInProgress] = useState(false);
+    const [localTaskUpdates, setLocalTaskUpdates] = useState<Record<number, any>>({});
+    const [isAnyHandleResizing, setIsAnyHandleResizing] = useState(false);
+    
+    // Task duration and detail modals
+    const [durationModalOpen, setDurationModalOpen] = useState(false);
+    const [taskToExtend, setTaskToExtend] = useState<any>(null);
+    const [taskDetailModalOpen, setTaskDetailModalOpen] = useState(false);
+    const [taskDetailTask, setTaskDetailTask] = useState<any>(null);
+    
+    // Listen for browser back/forward navigation
+    useEffect(() => {
+        const handlePopState = () => {
+            setActiveView(getActiveViewFromUrl());
+        };
+
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, []);
+
+    return {
+        // View state
+        activeView,
+        setActiveView,
+        
+        // Modal states
+        inviteModalOpen,
+        setInviteModalOpen,
+        deleteDialogOpen,
+        setDeleteDialogOpen,
+        memberToDelete,
+        setMemberToDelete,
+        permissionModalOpen,
+        setPermissionModalOpen,
+        editingMember,
+        setEditingMember,
+        detailsModalOpen,
+        setDetailsModalOpen,
+        
+        // Board state
+        lists,
+        setLists,
+        boardSearchQuery,
+        setBoardSearchQuery,
+        boardTypeFilter,
+        setBoardTypeFilter,
+        
+        // Calendar state
+        currentDate,
+        setCurrentDate,
+        selectedDay,
+        setSelectedDay,
+        memberPanelOpen,
+        setMemberPanelOpen,
+        
+        // Task modal states
+        taskEditModalOpen,
+        setTaskEditModalOpen,
+        taskViewModalOpen,
+        setTaskViewModalOpen,
+        selectedTask,
+        setSelectedTask,
+        
+        // List view state
+        listViewMode,
+        setListViewMode,
+        inspectorOpen,
+        setInspectorOpen,
+        inspectorTask,
+        setInspectorTask,
+        collapsedSections,
+        setCollapsedSections,
+        
+        // Section management state
+        editingSection,
+        setEditingSection,
+        sectionEditModalOpen,
+        setSectionEditModalOpen,
+        sectionCreateModalOpen,
+        setSectionCreateModalOpen,
+        
+        // Drag and drop state
+        activeId,
+        setActiveId,
+        activeItem,
+        setActiveItem,
+        listActiveId,
+        setListActiveId,
+        listActiveItem,
+        setListActiveItem,
+        listOverId,
+        setListOverId,
+        
+        // Calendar drag state
+        activeTask,
+        setActiveTask,
+        draggedTask,
+        setDraggedTask,
+        isUpdatingTask,
+        setIsUpdatingTask,
+        isDragInProgress,
+        setIsDragInProgress,
+        localTaskUpdates,
+        setLocalTaskUpdates,
+        isAnyHandleResizing,
+        setIsAnyHandleResizing,
+        
+        // Task duration and detail modals
+        durationModalOpen,
+        setDurationModalOpen,
+        taskToExtend,
+        setTaskToExtend,
+        taskDetailModalOpen,
+        setTaskDetailModalOpen,
+        taskDetailTask,
+        setTaskDetailTask,
+    };
+};

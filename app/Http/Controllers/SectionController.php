@@ -35,10 +35,7 @@ class SectionController extends Controller
             'position' => $maxPosition + 1,
         ]);
 
-        return response()->json([
-            'success' => true,
-            'section' => $section->load('project')
-        ]);
+        return back()->with('success', 'Section created successfully.');
     }
 
     /**
@@ -64,10 +61,7 @@ class SectionController extends Controller
 
         $section->update($validated);
 
-        return response()->json([
-            'success' => true,
-            'section' => $section->fresh(['project'])
-        ]);
+        return back()->with('success', 'Section updated successfully.');
     }
 
     /**
@@ -90,7 +84,7 @@ class SectionController extends Controller
 
         $section->delete();
 
-        return response()->json(['success' => true]);
+        return back()->with('success', 'Section deleted successfully.');
     }
 
     /**
@@ -114,6 +108,6 @@ class SectionController extends Controller
                 ->update(['position' => $position]);
         }
 
-        return response()->json(['success' => true]);
+        return back()->with('success', 'Sections reordered successfully.');
     }
 }
