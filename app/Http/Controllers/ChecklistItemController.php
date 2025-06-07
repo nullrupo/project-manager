@@ -96,7 +96,7 @@ class ChecklistItemController extends Controller
 
         $checklistItem->delete();
 
-        return response()->json(['success' => true]);
+        return back()->with('success', 'Checklist item deleted successfully.');
     }
 
     /**

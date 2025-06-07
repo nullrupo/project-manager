@@ -5,6 +5,7 @@ use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SidebarPreferencesController;
 use App\Http\Controllers\Settings\InboxPreferencesController;
 use App\Http\Controllers\Settings\TaskDisplayPreferencesController;
+use App\Http\Controllers\Settings\AdminSettingsController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -44,4 +45,11 @@ Route::middleware('auth')->group(function () {
     })->name('task-display.settings');
     Route::get('settings/task-display-preferences', [TaskDisplayPreferencesController::class, 'show'])->name('task-display-preferences.show');
     Route::patch('settings/task-display-preferences', [TaskDisplayPreferencesController::class, 'update'])->name('task-display-preferences.update');
+
+    // Admin settings routes (admin only)
+    Route::middleware('admin')->group(function () {
+        Route::get('settings/admin', [AdminSettingsController::class, 'index'])->name('admin.settings');
+        Route::get('settings/admin-settings', [AdminSettingsController::class, 'show'])->name('admin-settings.show');
+        Route::patch('settings/admin-settings', [AdminSettingsController::class, 'update'])->name('admin-settings.update');
+    });
 });

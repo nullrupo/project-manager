@@ -41,6 +41,10 @@ export interface SharedData {
         warning?: string;
         info?: string;
     };
+    settings?: {
+        short_name_format?: string;
+        [key: string]: unknown;
+    };
     [key: string]: unknown;
 }
 
@@ -66,6 +70,7 @@ export interface User {
     email: string;
     avatar?: string;
     email_verified_at: string | null;
+    is_admin?: boolean;
     created_at: string;
     updated_at: string;
     sidebar_preferences?: SidebarPreferences;

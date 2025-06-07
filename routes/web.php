@@ -131,6 +131,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'raw_sidebar_preferences' => $user->getAttributes()['sidebar_preferences'] ?? null,
         ]);
     });
+
+
 });
 
 require __DIR__.'/settings.php';
