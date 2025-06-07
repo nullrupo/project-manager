@@ -6,7 +6,7 @@ interface Task {
     title: string;
     description?: string | null;
     status: 'to_do' | 'in_progress' | 'done';
-    priority?: 'low' | 'medium' | 'high' | 'urgent';
+    priority?: 'low' | 'medium' | 'high';
     due_date?: string | null;
     created_by?: number;
     assignees?: Array<{ id: number; name: string }>;

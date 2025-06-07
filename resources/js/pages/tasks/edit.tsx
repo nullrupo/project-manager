@@ -25,7 +25,7 @@ interface TaskEditProps {
 interface TaskEditForm {
     title: string;
     description: string;
-    priority: 'low' | 'medium' | 'high' | 'urgent';
+    priority: 'low' | 'medium' | 'high';
     status: string;
     estimate: number | null;
     due_date: string;
@@ -92,8 +92,7 @@ export default function TaskEdit({ project, task, members, labels, lists }: Task
     const priorityColors = {
         low: 'bg-blue-100 text-blue-800',
         medium: 'bg-yellow-100 text-yellow-800',
-        high: 'bg-orange-100 text-orange-800',
-        urgent: 'bg-red-100 text-red-800',
+        high: 'bg-red-100 text-red-800',
     };
 
     return (
@@ -148,12 +147,12 @@ export default function TaskEdit({ project, task, members, labels, lists }: Task
                                 {/* Priority */}
                                 <div className="space-y-2">
                                     <Label className="text-sm font-medium">Priority</Label>
-                                    <Select value={data.priority} onValueChange={(value: 'low' | 'medium' | 'high' | 'urgent') => setData('priority', value)}>
+                                    <Select value={data.priority} onValueChange={(value: 'low' | 'medium' | 'high') => setData('priority', value)}>
                                         <SelectTrigger>
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {(['low', 'medium', 'high', 'urgent'] as const).map((priority) => (
+                                            {(['low', 'medium', 'high'] as const).map((priority) => (
                                                 <SelectItem key={priority} value={priority}>
                                                     <div className="flex items-center gap-2">
                                                         <Badge className={priorityColors[priority]}>

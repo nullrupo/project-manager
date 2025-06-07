@@ -21,7 +21,7 @@ interface Task {
     id: number;
     title: string;
     description: string | null;
-    priority: 'low' | 'medium' | 'high' | 'urgent';
+    priority: 'low' | 'medium' | 'high';
     status: 'to_do' | 'in_progress' | 'done';
     review_status?: 'pending' | 'approved' | 'rejected' | null;
     due_date: string | null;
@@ -121,7 +121,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
     const [createTaskData, setCreateTaskData] = useState({
         title: '',
         description: '',
-        priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
+        priority: 'medium' as 'low' | 'medium' | 'high',
         due_date: null as string | null,
         assignee_ids: [] as number[],
         project_id: null as number | null
@@ -199,7 +199,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                     bValue = b.title.toLowerCase();
                     break;
                 case 'priority':
-                    const priorityOrder = { low: 1, medium: 2, high: 3, urgent: 4 };
+                    const priorityOrder = { low: 1, medium: 2, high: 3 };
                     aValue = priorityOrder[a.priority];
                     bValue = priorityOrder[b.priority];
                     break;
@@ -1240,12 +1240,11 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                     id="create-priority"
                                     className="w-full rounded-md border border-input bg-background px-3 py-2"
                                     value={createTaskData.priority}
-                                    onChange={(e) => setCreateTaskData(prev => ({ ...prev, priority: e.target.value as 'low' | 'medium' | 'high' | 'urgent' }))}
+                                    onChange={(e) => setCreateTaskData(prev => ({ ...prev, priority: e.target.value as 'low' | 'medium' | 'high' }))}
                                 >
                                     <option value="low">Low</option>
                                     <option value="medium">Medium</option>
                                     <option value="high">High</option>
-                                    <option value="urgent">Urgent</option>
                                 </select>
                             </div>
 

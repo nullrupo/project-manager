@@ -2,7 +2,7 @@ import React from 'react';
 import { AlertCircle } from 'lucide-react';
 
 interface UrgencyIndicatorProps {
-    priority: 'low' | 'medium' | 'high' | 'urgent';
+    priority: 'low' | 'medium' | 'high';
     className?: string;
 }
 
@@ -11,8 +11,7 @@ export function UrgencyIndicator({ priority, className = '' }: UrgencyIndicatorP
         switch (priority) {
             case 'low': return 'text-green-500';
             case 'medium': return 'text-yellow-500';
-            case 'high': return 'text-orange-500';
-            case 'urgent': return 'text-red-500';
+            case 'high': return 'text-red-500';
             default: return 'text-gray-500';
         }
     };
@@ -22,7 +21,6 @@ export function UrgencyIndicator({ priority, className = '' }: UrgencyIndicatorP
             case 'low': return 'Low priority';
             case 'medium': return 'Medium priority';
             case 'high': return 'High priority';
-            case 'urgent': return 'Urgent';
             default: return 'Unknown priority';
         }
     };

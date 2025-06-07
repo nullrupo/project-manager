@@ -55,7 +55,7 @@ export default function TaskDisplaySettings() {
         {
             key: 'show_urgency' as keyof TaskDisplayPreferences,
             label: 'Urgency Indicator',
-            description: 'Show colored ! icon to indicate task priority (green for low, yellow for medium, orange for high, red for urgent)',
+            description: 'Show colored ! icon to indicate task priority (green for low, yellow for medium, red for high)',
         },
         {
             key: 'show_notes' as keyof TaskDisplayPreferences,

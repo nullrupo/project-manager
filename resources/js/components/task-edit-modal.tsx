@@ -25,7 +25,7 @@ interface TaskEditModalProps {
 interface TaskEditForm {
     title: string;
     description: string;
-    priority: 'low' | 'medium' | 'high' | 'urgent';
+    priority: 'low' | 'medium' | 'high';
     status: string;
     estimate: number | null;
     due_date: string;
@@ -167,14 +167,8 @@ export default function TaskEditModal({
                                         </SelectItem>
                                         <SelectItem value="high">
                                             <div className="flex items-center gap-2">
-                                                <div className="w-2 h-2 rounded-full bg-orange-500"></div>
-                                                High
-                                            </div>
-                                        </SelectItem>
-                                        <SelectItem value="urgent">
-                                            <div className="flex items-center gap-2">
                                                 <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                                                Urgent
+                                                High
                                             </div>
                                         </SelectItem>
                                     </SelectContent>

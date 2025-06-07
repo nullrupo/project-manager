@@ -15,7 +15,7 @@ import { FormEventHandler } from 'react';
 interface TaskCreateForm {
     title: string;
     description: string;
-    priority: 'low' | 'medium' | 'high' | 'urgent';
+    priority: 'low' | 'medium' | 'high';
     due_date: string;
     status: 'to_do' | 'in_progress' | 'done';
     estimate: string;
@@ -73,8 +73,7 @@ export default function TaskCreate({ project, board, list }: TaskCreateProps) {
         switch (priority) {
             case 'low': return 'text-green-600';
             case 'medium': return 'text-yellow-600';
-            case 'high': return 'text-orange-600';
-            case 'urgent': return 'text-red-600';
+            case 'high': return 'text-red-600';
             default: return 'text-gray-600';
         }
     };
@@ -126,7 +125,7 @@ export default function TaskCreate({ project, board, list }: TaskCreateProps) {
                                         <AlertCircle className="h-4 w-4" />
                                         Priority
                                     </Label>
-                                    <Select value={data.priority} onValueChange={(value: 'low' | 'medium' | 'high' | 'urgent') => setData('priority', value)}>
+                                    <Select value={data.priority} onValueChange={(value: 'low' | 'medium' | 'high') => setData('priority', value)}>
                                         <SelectTrigger>
                                             <SelectValue placeholder="Select priority" />
                                         </SelectTrigger>
@@ -145,14 +144,8 @@ export default function TaskCreate({ project, board, list }: TaskCreateProps) {
                                             </SelectItem>
                                             <SelectItem value="high">
                                                 <div className="flex items-center gap-2">
-                                                    <div className="w-2 h-2 rounded-full bg-orange-500"></div>
-                                                    <span>High</span>
-                                                </div>
-                                            </SelectItem>
-                                            <SelectItem value="urgent">
-                                                <div className="flex items-center gap-2">
                                                     <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                                                    <span>Urgent</span>
+                                                    <span>High</span>
                                                 </div>
                                             </SelectItem>
                                         </SelectContent>

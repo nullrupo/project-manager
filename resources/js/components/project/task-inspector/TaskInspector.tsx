@@ -29,7 +29,6 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
         priority: 'medium',
         status: 'to_do',
         due_date: '',
-        estimate: '',
         list_id: ''
     });
 
@@ -56,7 +55,6 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
                 priority: inspectorTask.priority || 'medium',
                 status: inspectorTask.status || 'to_do',
                 due_date: inspectorTask.due_date ? inspectorTask.due_date.split('T')[0] : '',
-                estimate: inspectorTask.estimate || '',
                 list_id: inspectorTask.list_id || inspectorTask.list?.id || ''
             });
             setHasUnsavedChanges(false);
@@ -99,7 +97,6 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
         // Add project-specific fields only for non-inbox tasks
         if (!isInboxTask) {
             Object.assign(updateData, {
-                estimate: taskData.estimate || null,
                 start_date: null,
                 duration_days: null,
                 list_id: taskData.list_id || inspectorTask.list_id || inspectorTask.list?.id,
@@ -163,7 +160,7 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
     }), [hasUnsavedChanges, handleManualSave, saveState]);
 
     return (
-        <div ref={containerRef} className="w-80 border-l bg-background flex flex-col h-full">
+        <div ref={containerRef} className="w-96 border-l bg-background flex flex-col h-full">
             <div className="p-4 border-b">
                 <div className="flex items-center justify-between">
                     <h3 className="font-semibold">Task Details</h3>
@@ -217,7 +214,7 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
                         value={taskData.description}
                         onChange={(e) => handleFieldChange('description', e.target.value)}
                         placeholder="Task description..."
-                        rows={4}
+                        rows={3}
                     />
                 </div>
 
@@ -232,7 +229,6 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
                             <SelectItem value="low">Low</SelectItem>
                             <SelectItem value="medium">Medium</SelectItem>
                             <SelectItem value="high">High</SelectItem>
-                            <SelectItem value="urgent">Urgent</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
@@ -262,16 +258,7 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
                     />
                 </div>
 
-                {/* Estimate */}
-                <div className="space-y-2">
-                    <label className="text-sm font-medium">Estimate (hours)</label>
-                    <Input
-                        type="number"
-                        value={taskData.estimate}
-                        onChange={(e) => handleFieldChange('estimate', e.target.value ? parseInt(e.target.value) : null)}
-                        placeholder="0"
-                    />
-                </div>
+
 
                 {/* Assignees */}
                 {inspectorTask.assignees && inspectorTask.assignees.length > 0 && (
@@ -331,7 +318,6 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
         prevProps.task?.priority === nextProps.task?.priority &&
         prevProps.task?.status === nextProps.task?.status &&
         prevProps.task?.due_date === nextProps.task?.due_date &&
-        prevProps.task?.estimate === nextProps.task?.estimate &&
         prevProps.onClose === nextProps.onClose &&
         prevProps.project?.id === nextProps.project?.id
     );
