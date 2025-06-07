@@ -218,19 +218,6 @@ export default function ProjectListView({
                 </Card>
             </div>
 
-            {/* Task Inspector Panel */}
-            {state.inspectorOpen && state.inspectorTask && (
-                <div className="w-96 border-l border-border">
-                    <TaskInspector
-                        task={state.inspectorTask}
-                        project={project}
-                        onClose={() => {
-                            state.setInspectorOpen(false);
-                            state.setInspectorTask(null);
-                        }}
-                    />
-                </div>
-            )}
         </div>
     );
 }

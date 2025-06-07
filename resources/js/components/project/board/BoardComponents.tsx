@@ -18,6 +18,7 @@ interface SortableTaskProps {
     project: Project;
     onViewTask: (task: any) => void;
     onEditTask: (task: any) => void;
+    onTaskClick?: (task: any) => void;
 }
 
 // Sortable List Component
@@ -83,9 +84,12 @@ export const SortableList = ({ list, children, project }: SortableListProps) => 
 };
 
 // Sortable Task Component
-export const SortableTask = ({ task, project, onViewTask, onEditTask }: SortableTaskProps) => {
+export const SortableTask = ({ task, project, onViewTask, onEditTask, onTaskClick }: SortableTaskProps) => {
     return (
-        <div className="mb-3 rounded-lg border bg-card p-4 shadow-sm hover:shadow-md transition-all duration-200 group cursor-pointer relative">
+        <div
+            className="mb-3 rounded-lg border bg-card p-4 shadow-sm hover:shadow-md transition-all duration-200 group cursor-pointer relative"
+            onClick={() => onTaskClick?.(task)}
+        >
             {/* Action buttons - positioned absolutely */}
             <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex gap-1">
                 {/* View button - always available */}

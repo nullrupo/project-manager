@@ -4,6 +4,7 @@ import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Project } from '@/types/project-manager';
 import { useCalendarLogic } from '../hooks/useCalendarLogic';
 import { formatMonthYear } from '../utils/calendarUtils';
+import { useGlobalTaskInspector } from '@/contexts/GlobalTaskInspectorContext';
 
 interface ProjectCalendarViewProps {
     project: Project;
@@ -12,6 +13,7 @@ interface ProjectCalendarViewProps {
 
 export default function ProjectCalendarView({ project, state }: ProjectCalendarViewProps) {
     const calendarLogic = useCalendarLogic(project, state);
+    const { openInspector } = useGlobalTaskInspector();
 
     if (!calendarLogic.isMounted) {
         return (
@@ -97,8 +99,7 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                                                 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200'
                                             }`}
                                             onClick={() => {
-                                                state.setSelectedTask(task);
-                                                state.setTaskViewModalOpen(true);
+                                                openInspector(task, project);
                                             }}
                                         >
                                             {task.title}

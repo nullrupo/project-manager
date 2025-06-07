@@ -14,6 +14,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useBatchTaskOperations } from '@/hooks/useBatchTaskOperations';
 import { BulkActionsPanel } from '@/components/BulkActionsPanel';
 import { useShortName } from '@/hooks/use-initials';
+import { useGlobalTaskInspector } from '@/contexts/GlobalTaskInspectorContext';
 
 interface Task {
     id: number;
@@ -57,6 +58,7 @@ interface InboxPageProps {
 
 export default function InboxPage({ tasks = [], users = [], projects = [] }: InboxPageProps) {
     const getShortName = useShortName();
+    const { openInspector } = useGlobalTaskInspector();
 
     // Helper function to get display status
     const getDisplayStatus = (task: Task): string => {
@@ -814,7 +816,13 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                             }`}
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                toggleTaskSelection(task.id, e);
+                                                if (e.ctrlKey || e.metaKey || e.shiftKey) {
+                                                    // Multi-select behavior with modifier keys
+                                                    toggleTaskSelection(task.id, e);
+                                                } else {
+                                                    // Single click opens inspector
+                                                    openInspector(task);
+                                                }
                                             }}
                                             onDoubleClick={() => editTask(task)}
                                         >

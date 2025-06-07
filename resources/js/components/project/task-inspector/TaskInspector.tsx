@@ -9,14 +9,14 @@ import { AlertCircle, CheckCircle2, Save, X } from 'lucide-react';
 import { router } from '@inertiajs/react';
 
 interface TaskInspectorProps {
-    inspectorTask: any;
+    task: any;
     onClose: () => void;
     project: any;
 }
 
 // TaskInspector Component (moved outside to prevent recreation on re-renders)
 export const TaskInspector = memo(({
-    inspectorTask,
+    task: inspectorTask,
     onClose,
     project
 }: TaskInspectorProps) => {
@@ -71,29 +71,44 @@ export const TaskInspector = memo(({
         console.log('💾 Manual save triggered');
         setSaveState('saving');
 
-        // Prepare the data with all required fields matching TaskController validation
+        // Determine if this is an inbox task
+        const isInboxTask = inspectorTask.is_inbox;
+
+        // Prepare the data with fields appropriate for the task type
         const updateData = {
             title: taskData.title || 'Untitled Task',
             description: taskData.description || '',
             priority: taskData.priority || 'medium',
             status: taskData.status || 'to_do',
-            estimate: taskData.estimate || null,
             due_date: taskData.due_date || null,
-            start_date: null,
-            duration_days: null,
-            list_id: taskData.list_id || inspectorTask.list_id || inspectorTask.list?.id,
-            reviewer_id: null,
-            section_id: null,
-
             assignee_ids: inspectorTask.assignees?.map((a: any) => a.id) || [],
             label_ids: inspectorTask.labels?.map((l: any) => l.id) || [],
             is_archived: inspectorTask.is_archived || false
         };
 
+        // Add project-specific fields only for non-inbox tasks
+        if (!isInboxTask) {
+            Object.assign(updateData, {
+                estimate: taskData.estimate || null,
+                start_date: null,
+                duration_days: null,
+                list_id: taskData.list_id || inspectorTask.list_id || inspectorTask.list?.id,
+                reviewer_id: null,
+                section_id: null
+            });
+        }
+
         console.log('💾 Sending update data:', updateData);
 
+        // Determine the correct route based on whether this is an inbox task
+        const updateRoute = isInboxTask
+            ? route('inbox.tasks.update', { task: inspectorTask.id })
+            : route('tasks.update', { project: project.id, task: inspectorTask.id });
+
+        console.log('📍 Using route:', updateRoute, 'for', isInboxTask ? 'inbox task' : 'project task');
+
         // Use Inertia's put method for proper Laravel integration
-        router.put(route('tasks.update', { project: project.id, task: inspectorTask.id }), updateData, {
+        router.put(updateRoute, updateData, {
             preserveState: true,
             preserveScroll: true,
             onSuccess: () => {
@@ -272,13 +287,13 @@ export const TaskInspector = memo(({
 }, (prevProps, nextProps) => {
     // Custom comparison to prevent unnecessary re-renders
     return (
-        prevProps.inspectorTask?.id === nextProps.inspectorTask?.id &&
-        prevProps.inspectorTask?.title === nextProps.inspectorTask?.title &&
-        prevProps.inspectorTask?.description === nextProps.inspectorTask?.description &&
-        prevProps.inspectorTask?.priority === nextProps.inspectorTask?.priority &&
-        prevProps.inspectorTask?.status === nextProps.inspectorTask?.status &&
-        prevProps.inspectorTask?.due_date === nextProps.inspectorTask?.due_date &&
-        prevProps.inspectorTask?.estimate === nextProps.inspectorTask?.estimate &&
+        prevProps.task?.id === nextProps.task?.id &&
+        prevProps.task?.title === nextProps.task?.title &&
+        prevProps.task?.description === nextProps.task?.description &&
+        prevProps.task?.priority === nextProps.task?.priority &&
+        prevProps.task?.status === nextProps.task?.status &&
+        prevProps.task?.due_date === nextProps.task?.due_date &&
+        prevProps.task?.estimate === nextProps.task?.estimate &&
         prevProps.onClose === nextProps.onClose &&
         prevProps.project?.id === nextProps.project?.id
     );

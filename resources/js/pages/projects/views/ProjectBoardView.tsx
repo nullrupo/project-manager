@@ -1,4 +1,4 @@
-import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
+import { SortableContext, horizontalListSortingStrategy, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import { DndContext, closestCenter, DragOverlay } from '@dnd-kit/core';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +14,7 @@ interface ProjectBoardViewProps {
     onDragEnd: (event: any) => void;
     onViewTask: (task: any) => void;
     onEditTask: (task: any) => void;
+    onTaskClick?: (task: any) => void;
 }
 
 export default function ProjectBoardView({
@@ -23,7 +24,8 @@ export default function ProjectBoardView({
     onDragStart,
     onDragEnd,
     onViewTask,
-    onEditTask
+    onEditTask,
+    onTaskClick
 }: ProjectBoardViewProps) {
     
     return (
@@ -58,9 +60,29 @@ export default function ProjectBoardView({
                                         key={list.id}
                                         list={list}
                                         project={project}
-                                        onViewTask={onViewTask}
-                                        onEditTask={onEditTask}
-                                    />
+                                    >
+                                        <SortableContext
+                                            items={(list.tasks || []).map((task: any) => `task-${task.id}`)}
+                                            strategy={verticalListSortingStrategy}
+                                        >
+                                            {list.tasks && list.tasks.length > 0 ? (
+                                                list.tasks.map((task: any) => (
+                                                    <SortableTask
+                                                        key={task.id}
+                                                        task={task}
+                                                        project={project}
+                                                        onViewTask={onViewTask}
+                                                        onEditTask={onEditTask}
+                                                        onTaskClick={onTaskClick}
+                                                    />
+                                                ))
+                                            ) : (
+                                                <div className="text-center py-8 text-muted-foreground text-sm">
+                                                    No tasks yet. Click "Add Task" to create one.
+                                                </div>
+                                            )}
+                                        </SortableContext>
+                                    </SortableList>
                                 ))}
                             </SortableContext>
                         </div>
@@ -72,7 +94,7 @@ export default function ProjectBoardView({
                                     project={project}
                                     onViewTask={onViewTask}
                                     onEditTask={onEditTask}
-                                    isDragOverlay={true}
+                                    onTaskClick={onTaskClick}
                                 />
                             )}
                         </DragOverlay>

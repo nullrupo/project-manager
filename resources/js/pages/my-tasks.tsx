@@ -5,6 +5,7 @@ import { Task } from '@/types/project-manager';
 import { Head, Link, router } from '@inertiajs/react';
 import { CalendarDays, CheckCircle, Clock, ListFilter, Plus, Archive, Trash2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useGlobalTaskInspector } from '@/contexts/GlobalTaskInspectorContext';
 
 interface MyTasksProps {
     tasks: Task[];
@@ -12,6 +13,7 @@ interface MyTasksProps {
 }
 
 export default function MyTasks({ tasks = [], filter: initialFilter }: MyTasksProps) {
+    const { openInspector } = useGlobalTaskInspector();
     const [filter, setFilter] = useState<'all' | 'today' | 'upcoming' | 'completed' | 'overdue' | 'archived'>(() => {
         // Initialize filter from URL parameter or default to 'all'
         if (initialFilter && ['all', 'today', 'upcoming', 'completed', 'overdue', 'archived'].includes(initialFilter)) {
@@ -124,7 +126,11 @@ export default function MyTasks({ tasks = [], filter: initialFilter }: MyTasksPr
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filteredTasks.length > 0 ? (
                         filteredTasks.map(task => (
-                            <Card key={task.id}>
+                            <Card
+                                key={task.id}
+                                className="cursor-pointer hover:shadow-md transition-shadow"
+                                onClick={() => openInspector(task)}
+                            >
                                 <CardHeader className="pb-2">
                                     <div className="flex justify-between">
                                         <div>

@@ -23,6 +23,7 @@ import TaskModals from './components/TaskModals';
 import { useProjectState } from './hooks/useProjectState';
 import { useTaskOperations } from './hooks/useTaskOperations';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
+import { useGlobalTaskInspector } from '@/contexts/GlobalTaskInspectorContext';
 
 interface ProjectShowProps {
     project: Project;
@@ -36,6 +37,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
     const state = useProjectState(project);
     const taskOperations = useTaskOperations(project);
     const dragAndDrop = useDragAndDrop(project, state, state.listViewMode);
+    const { openInspector: openGlobalInspector } = useGlobalTaskInspector();
 
     // Task handlers
     const handleEditTask = (task: any) => {
@@ -55,8 +57,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
 
     // Inspector functions
     const openInspector = (task: any) => {
-        state.setInspectorTask(task);
-        state.setInspectorOpen(true);
+        openGlobalInspector(task, project);
     };
 
     // Section management
@@ -137,6 +138,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                     onDragEnd={dragAndDrop.handleBoardDragEnd}
                     onViewTask={handleViewTask}
                     onEditTask={handleEditTask}
+                    onTaskClick={openInspector}
                 />
             )}
 
