@@ -46,7 +46,7 @@ import {
 } from '@dnd-kit/sortable';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import { CSS } from '@dnd-kit/utilities';
-import TaskWithSubtasks from '@/components/task-with-subtasks';
+
 import TaskEditModal from '@/components/task-edit-modal';
 import TaskViewModal from '@/components/task-view-modal';
 
@@ -188,7 +188,7 @@ const TaskInspector = memo(({
             list_id: taskData.list_id || inspectorTask.list_id || inspectorTask.list?.id,
             reviewer_id: null,
             section_id: null,
-            parent_task_id: null,
+
             assignee_ids: inspectorTask.assignees?.map((a: any) => a.id) || [],
             label_ids: inspectorTask.labels?.map((l: any) => l.id) || [],
             is_archived: inspectorTask.is_archived || false
@@ -426,12 +426,13 @@ export default function ProjectShow({ project }: ProjectShowProps) {
     // List tab drag and drop state
     const [listActiveId, setListActiveId] = useState<string | null>(null);
     const [listActiveItem, setListActiveItem] = useState<any | null>(null);
+    const [listOverId, setListOverId] = useState<string | null>(null);
 
     // Drag and drop sensors
     const sensors = useSensors(
         useSensor(PointerSensor, {
             activationConstraint: {
-                distance: 8,
+                distance: 3,
             },
         }),
         useSensor(KeyboardSensor, {
@@ -467,19 +468,28 @@ export default function ProjectShow({ project }: ProjectShowProps) {
             const taskId = parseInt(active.id.replace('task-', ''));
             const newListId = parseInt(over.id.replace('list-', ''));
 
-            // Update task list via API
-            router.put(route('tasks.update', { project: project.id, task: taskId }), {
-                list_id: newListId
-            }, {
-                preserveState: true,
-                preserveScroll: true,
-                onSuccess: () => {
-                    // Refresh the page to get updated data
-                    router.reload();
+            // Update task list via API using fetch since this endpoint returns JSON
+            fetch(route('tasks.move', { project: project.id, task: taskId }), {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'Accept': 'application/json',
                 },
-                onError: (error) => {
-                    console.error('Failed to move task:', error);
+                body: JSON.stringify({
+                    list_id: newListId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    router.reload();
+                } else {
+                    console.error('Failed to move task:', data);
                 }
+            })
+            .catch(error => {
+                console.error('Failed to move task:', error);
             });
         }
     };
@@ -497,50 +507,161 @@ export default function ProjectShow({ project }: ProjectShowProps) {
         }
     };
 
+    const handleListDragOver = (event: any) => {
+        const { over } = event;
+        setListOverId(over?.id || null);
+    };
+
     const handleListDragEnd = (event: any) => {
         const { active, over } = event;
         setListActiveId(null);
         setListActiveItem(null);
+        setListOverId(null);
 
         if (!over) return;
 
-        // Handle task movement between sections
-        if (active.id.startsWith('list-task-') && over.id.startsWith('list-section-')) {
-            const taskId = parseInt(active.id.replace('list-task-', ''));
-            const sectionId = over.id.replace('list-section-', '');
+        const activeId = active.id;
+        const overId = over.id;
 
-            // Find the target list/section
-            let targetListId = null;
+        console.log('Drag end:', { activeId, overId });
 
-            if (listViewMode === 'sections') {
-                // Moving to a specific list (section)
-                targetListId = parseInt(sectionId);
-            } else {
-                // Moving to a status group - use the first available list
-                const firstList = project.boards?.[0]?.lists?.[0];
-                if (firstList) {
-                    targetListId = firstList.id;
+        // Handle task reordering within the same section or between sections
+        if (activeId.startsWith('list-task-')) {
+            const taskId = parseInt(activeId.replace('list-task-', ''));
+
+            // Case 1: Moving to a section header (between sections)
+            if (overId.startsWith('list-section-')) {
+                const sectionId = overId.replace('list-section-', '');
+
+                // Find the target list/section
+                let targetListId = null;
+
+                if (listViewMode === 'sections') {
+                    // Moving to a specific list (section)
+                    targetListId = parseInt(sectionId);
+                } else {
+                    // Moving to a status group - use the first available list
+                    const firstList = project.boards?.[0]?.lists?.[0];
+                    if (firstList) {
+                        targetListId = firstList.id;
+                    }
+                }
+
+                if (targetListId) {
+                    const updates: any = { list_id: targetListId };
+
+                    // If moving to status-based section, also update status
+                    if (listViewMode === 'status') {
+                        updates.status = sectionId;
+                    }
+
+                    console.log('Moving task to section:', updates);
+
+                    // Use fetch since this endpoint returns JSON
+                    fetch(route('tasks.move', { project: project.id, task: taskId }), {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify(updates)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            router.reload();
+                        } else {
+                            console.error('Failed to move task:', data);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Failed to move task:', error);
+                    });
                 }
             }
+            // Case 2: Reordering tasks within the same section
+            else if (overId.startsWith('list-task-')) {
+                const overTaskId = parseInt(overId.replace('list-task-', ''));
 
-            if (targetListId) {
-                const updates: any = { list_id: targetListId };
+                if (taskId !== overTaskId) {
+                    console.log('Reordering tasks:', { taskId, overTaskId });
 
-                // If moving to status-based section, also update status
-                if (listViewMode === 'status') {
-                    updates.status = sectionId;
-                }
+                    // Find the sections and tasks
+                    const sections = getOrganizedTasks();
+                    let sourceSection = null;
+                    let targetSection = null;
+                    let sourceTask = null;
+                    let targetTask = null;
 
-                router.put(route('tasks.update', { project: project.id, task: taskId }), updates, {
-                    preserveState: true,
-                    preserveScroll: true,
-                    onSuccess: () => {
-                        router.reload();
-                    },
-                    onError: (error) => {
-                        console.error('Failed to move task:', error);
+                    // Find source and target tasks and their sections
+                    for (const section of sections) {
+                        const foundSource = section.tasks.find((t: any) => t.id === taskId);
+                        const foundTarget = section.tasks.find((t: any) => t.id === overTaskId);
+
+                        if (foundSource) {
+                            sourceSection = section;
+                            sourceTask = foundSource;
+                        }
+                        if (foundTarget) {
+                            targetSection = section;
+                            targetTask = foundTarget;
+                        }
                     }
-                });
+
+                    console.log('Found sections:', { sourceSection: sourceSection?.name, targetSection: targetSection?.name });
+
+                    if (sourceTask && targetTask && sourceSection && targetSection) {
+                        // Simplified reordering logic
+                        const allTasks = [...targetSection.tasks];
+                        const sourceIndex = allTasks.findIndex((t: any) => t.id === taskId);
+                        const targetIndex = allTasks.findIndex((t: any) => t.id === overTaskId);
+
+                        if (sourceIndex !== -1 && targetIndex !== -1) {
+                            // Remove source task
+                            const [movedTask] = allTasks.splice(sourceIndex, 1);
+
+                            // Insert at new position
+                            const newIndex = sourceIndex < targetIndex ? targetIndex : targetIndex + 1;
+                            allTasks.splice(newIndex, 0, movedTask);
+
+                            // Prepare position updates
+                            const updates = allTasks.map((task: any, index: number) => ({
+                                id: task.id,
+                                position: index,
+                                list_id: targetSection.type === 'section' ? parseInt(targetSection.id) : task.list_id,
+                                ...(targetSection.type === 'status' ? { status: targetSection.id } : {})
+                            }));
+
+                            console.log('Position updates:', updates);
+
+                            // Send update to server
+                            fetch(route('tasks.positions', { project: project.id }), {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                                    'Accept': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    tasks: updates
+                                })
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                console.log('Position update response:', data);
+                                if (data.success) {
+                                    router.reload();
+                                } else {
+                                    console.error('Failed to update task positions:', data);
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Failed to update task positions:', error);
+                            });
+                        }
+                    }
+                }
             }
         }
     };
@@ -599,19 +720,19 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                     id: 'to_do',
                     name: 'To Do',
                     type: 'status',
-                    tasks: allTasks.filter(task => task.status === 'to_do' && !task.parent_task_id)
+                    tasks: allTasks.filter(task => task.status === 'to_do')
                 },
                 {
                     id: 'in_progress',
                     name: 'In Progress',
                     type: 'status',
-                    tasks: allTasks.filter(task => task.status === 'in_progress' && !task.parent_task_id)
+                    tasks: allTasks.filter(task => task.status === 'in_progress')
                 },
                 {
                     id: 'done',
                     name: 'Done',
                     type: 'status',
-                    tasks: allTasks.filter(task => task.status === 'done' && !task.parent_task_id)
+                    tasks: allTasks.filter(task => task.status === 'done')
                 }
             ];
         } else {
@@ -621,7 +742,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                 name: list.name,
                 type: 'section',
                 color: list.color,
-                tasks: (list.tasks || []).filter(task => !task.parent_task_id)
+                tasks: (list.tasks || [])
             }));
         }
     };
@@ -665,7 +786,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                 className="w-full border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/5"
                                 size="sm"
                                 onClick={() => {
-                                    router.get(route('tasks.create', { project: project.id, board: list.board_id, list: list.id, tab: 'boards' }));
+                                    router.get(route('tasks.create', { project: project.id, board: list.board_id, list: list.id, view: 'board' }));
                                 }}
                             >
                                 <Plus className="h-4 w-4 mr-2" />
@@ -773,9 +894,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
     };
 
     // Enhanced Task Component for List View with Drag and Drop
-    const ListTaskItem = ({ task, level = 0, sectionId }: { task: any, level?: number, sectionId?: string }) => {
-        const [isExpanded, setIsExpanded] = useState(true);
-        const hasSubtasks = task.subtasks && task.subtasks.length > 0;
+    const ListTaskItem = ({ task, sectionId }: { task: any, sectionId?: string }) => {
 
         // Drag and drop functionality
         const {
@@ -796,8 +915,9 @@ export default function ProjectShow({ project }: ProjectShowProps) {
 
         const style = {
             transform: CSS.Transform.toString(transform),
-            transition,
-            opacity: isDragging ? 0.5 : 1,
+            transition: isDragging ? 'none' : transition,
+            opacity: isDragging ? 0.3 : 1,
+            zIndex: isDragging ? 1000 : 'auto',
         };
 
         const handleTaskClick = () => {
@@ -808,9 +928,26 @@ export default function ProjectShow({ project }: ProjectShowProps) {
 
         const handleToggleCompletion = (e: React.MouseEvent) => {
             e.stopPropagation();
-            router.post(route('tasks.toggle-completion', { project: project.id, task: task.id }), {}, {
-                preserveState: true,
-                preserveScroll: true,
+            // Use fetch since this endpoint returns JSON
+            fetch(route('tasks.toggle-completion', { project: project.id, task: task.id }), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    router.reload();
+                } else {
+                    console.error('Failed to toggle task completion:', data);
+                }
+            })
+            .catch(error => {
+                console.error('Failed to toggle task completion:', error);
             });
         };
 
@@ -822,46 +959,48 @@ export default function ProjectShow({ project }: ProjectShowProps) {
         };
 
         const getPriorityColor = (priority: string) => {
-            switch (priority) {
-                case 'urgent': return 'border-l-red-500 bg-red-50 dark:bg-red-950/20';
-                case 'high': return 'border-l-orange-500 bg-orange-50 dark:bg-orange-950/20';
-                case 'medium': return 'border-l-yellow-500 bg-yellow-50 dark:bg-yellow-950/20';
-                case 'low': return 'border-l-green-500 bg-green-50 dark:bg-green-950/20';
-                default: return 'border-l-gray-500 bg-gray-50 dark:bg-gray-950/20';
-            }
+            const baseColors = {
+                'urgent': 'border-l-red-500',
+                'high': 'border-l-orange-500',
+                'medium': 'border-l-yellow-500',
+                'low': 'border-l-green-500',
+                'default': 'border-l-gray-500'
+            };
+
+            const backgroundColors = {
+                'urgent': 'bg-red-50 dark:bg-red-950/20',
+                'high': 'bg-orange-50 dark:bg-orange-950/20',
+                'medium': 'bg-yellow-50 dark:bg-yellow-950/20',
+                'low': 'bg-green-50 dark:bg-green-950/20',
+                'default': 'bg-gray-50 dark:bg-gray-950/20'
+            };
+
+            const borderColor = baseColors[priority as keyof typeof baseColors] || baseColors.default;
+            const bgColor = backgroundColors[priority as keyof typeof backgroundColors] || backgroundColors.default;
+
+            return `${borderColor} ${bgColor}`;
         };
 
         return (
-            <div className="space-y-1" style={{ marginLeft: `${level * 24}px` }}>
-                <div
-                    ref={setNodeRef}
-                    style={style}
-                    {...attributes}
-                    className={`group relative p-3 border-l-4 rounded-lg cursor-pointer transition-all hover:shadow-md ${getPriorityColor(task.priority)} ${task.status === 'done' ? 'opacity-75' : ''} ${isDragging ? 'ring-2 ring-blue-500 shadow-lg' : ''}`}
-                    onClick={handleTaskClick}
-                >
-                    {/* Drag handle */}
+            <div className="space-y-1">
+                <div className="relative">
                     <div
-                        {...listeners}
-                        className="absolute left-1 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+                        ref={setNodeRef}
+                        style={style}
+                        {...attributes}
+                        className={`group relative p-3 border-l-4 rounded-lg transition-all hover:shadow-md ${getPriorityColor(task.priority)} ${task.status === 'done' ? 'opacity-75' : ''} ${isDragging ? 'ring-2 ring-blue-500 shadow-lg cursor-grabbing' : 'cursor-pointer'} shadow-sm ${listOverId === `list-task-${task.id}` ? 'ring-2 ring-blue-300 shadow-lg' : ''}`}
+                        onClick={handleTaskClick}
                     >
-                        <GripVertical className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <div className="flex items-start gap-3">
-                        {/* Expand/Collapse button for subtasks */}
-                        {hasSubtasks && (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setIsExpanded(!isExpanded);
-                                }}
-                            >
-                                {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            </Button>
-                        )}
+                        {/* Drag handle */}
+                        <div
+                            {...listeners}
+                            className="absolute left-1 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing z-10 p-1 rounded hover:bg-muted/50"
+                        >
+                            <GripVertical className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                        </div>
+
+                        <div className="flex items-start gap-3">
+
 
                         {/* Completion checkbox */}
                         <Checkbox
@@ -882,24 +1021,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                 <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
                                     {project.can_manage_tasks && (
                                         <>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="h-6 w-6 p-0"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    router.get(route('tasks.create', {
-                                                        project: project.id,
-                                                        board: task.list?.board_id || project.boards[0].id,
-                                                        list: task.list_id,
-                                                        parent_task_id: task.id,
-                                                        tab: 'list'
-                                                    }));
-                                                }}
-                                                title="Add subtask"
-                                            >
-                                                <Plus className="h-3 w-3" />
-                                            </Button>
+
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
                                                     <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
@@ -958,17 +1080,11 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                 )}
                             </div>
                         </div>
+                        </div>
                     </div>
-                </div>
+                    </div>
 
-                {/* Subtasks */}
-                {hasSubtasks && isExpanded && (
-                    <div className="space-y-1">
-                        {task.subtasks.map((subtask: any) => (
-                            <ListTaskItem key={subtask.id} task={subtask} level={level + 1} sectionId={sectionId} />
-                        ))}
-                    </div>
-                )}
+
             </div>
         );
     };
@@ -980,7 +1096,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
     const [isDragInProgress, setIsDragInProgress] = useState(false);
 
     // Local state for optimistic updates
-    const [localTaskUpdates, setLocalTaskUpdates] = useState<{[key: number]: any}>({});
+    const [localTaskUpdates, setLocalTaskUpdates] = useState<Record<number, any>>({});
 
     // Track if any resize handle is being used
     const [isAnyHandleResizing, setIsAnyHandleResizing] = useState(false);
@@ -1025,21 +1141,22 @@ export default function ProjectShow({ project }: ProjectShowProps) {
     const [sectionEditModalOpen, setSectionEditModalOpen] = useState(false);
     const [editingSection, setEditingSection] = useState<any>(null);
 
-    // Get tab from URL parameters, default to 'boards'
-    const getActiveTabFromUrl = () => {
+    // Get view from URL parameters, default to 'list'
+    const getActiveViewFromUrl = () => {
         const urlParams = new URLSearchParams(window.location.search);
-        const tab = urlParams.get('tab');
-        const validTabs = ['list', 'boards', 'calendar', 'members', 'labels', 'details'];
-        return validTabs.includes(tab || '') ? tab : 'list';
+        const view = urlParams.get('view');
+        const validViews = ['list', 'board', 'calendar'];
+        return validViews.includes(view || '') ? view : 'list';
     };
 
-    const [activeTab, setActiveTab] = useState(getActiveTabFromUrl);
+    const [activeView, setActiveView] = useState(getActiveViewFromUrl);
+    const [detailsModalOpen, setDetailsModalOpen] = useState(false);
 
-    // Update URL when tab changes
-    const handleTabChange = (newTab: string) => {
-        setActiveTab(newTab);
+    // Update URL when view changes
+    const handleViewChange = (newView: string) => {
+        setActiveView(newView);
         const url = new URL(window.location.href);
-        url.searchParams.set('tab', newTab);
+        url.searchParams.set('view', newView);
         window.history.pushState({}, '', url.toString());
     };
 
@@ -2554,31 +2671,44 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                 <h1 className="text-3xl font-bold flex flex-wrap items-center gap-2 break-words">
                                     <span className="break-words">{project.name}</span>
                                 </h1>
-                                <div className="flex items-center gap-3 mt-1">
-                                    {project.is_public ? (
-                                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                                            <Globe className="h-4 w-4" />
-                                            <span>Public</span>
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                                            <Shield className="h-4 w-4" />
-                                            <span>Private</span>
-                                        </div>
-                                    )}
-                                    {project.is_archived && (
-                                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                                            <Archive className="h-4 w-4" />
-                                            <span>Archived</span>
-                                        </div>
-                                    )}
-                                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                                        <Calendar className="h-4 w-4" />
-                                        <span>Created {new Date(project.created_at).toLocaleDateString()}</span>
+                                <div className="flex flex-col gap-2 mt-1">
+                                    {/* Project Details Link */}
+                                    <div className="flex items-center gap-3">
+                                        <Button
+                                            variant="link"
+                                            className="h-auto p-0 text-sm text-primary hover:text-primary/80"
+                                            onClick={() => setDetailsModalOpen(true)}
+                                        >
+                                            <Settings className="h-4 w-4 mr-1" />
+                                            Project Details
+                                        </Button>
+                                        {project.is_public ? (
+                                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                                <Globe className="h-4 w-4" />
+                                                <span>Public</span>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                                <Shield className="h-4 w-4" />
+                                                <span>Private</span>
+                                            </div>
+                                        )}
+                                        {project.is_archived && (
+                                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                                <Archive className="h-4 w-4" />
+                                                <span>Archived</span>
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                                        <Crown className="h-4 w-4" />
-                                        <span>Owner: {getShortName(project.owner?.name || '')}</span>
+                                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                                        <div className="flex items-center gap-1">
+                                            <Calendar className="h-4 w-4" />
+                                            <span>Created {new Date(project.created_at).toLocaleDateString()}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <Crown className="h-4 w-4" />
+                                            <span>Owner: {getShortName(project.owner?.name || '')}</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -2596,11 +2726,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                 </Button>
                             )}
                         </div>
-                        {project.description && (
-                            <p className="text-muted-foreground mt-2 text-base leading-relaxed">
-                                {project.description}
-                            </p>
-                        )}
+
 
                         {/* Members Preview */}
                         {project.members && project.members.length > 1 && (
@@ -2630,13 +2756,18 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                     </div>
                 </div>
 
-                {/* Project Tabs */}
+                {/* View Switcher */}
                 <div className="w-full">
-                    <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-                        <TabsList className="grid w-full grid-cols-6 h-12 p-1 bg-muted/50 rounded-b-none border-b-0">
-                        <TabsTrigger
-                            value="list"
-                            className="flex items-center gap-2 h-10 data-[state=active]:bg-teal-500 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-teal-50 dark:hover:bg-teal-950/50"
+                    <div className="flex items-center justify-center gap-1 p-1 bg-muted/50 rounded-lg border">
+                        <Button
+                            variant={activeView === 'list' ? 'default' : 'ghost'}
+                            size="sm"
+                            className={`flex items-center gap-2 h-10 ${
+                                activeView === 'list'
+                                    ? 'bg-teal-500 text-white shadow-lg hover:bg-teal-600'
+                                    : 'hover:bg-teal-50 dark:hover:bg-teal-950/50'
+                            }`}
+                            onClick={() => handleViewChange('list')}
                         >
                             <Menu className="h-4 w-4" />
                             <span className="font-medium">List</span>
@@ -2645,52 +2776,38 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                     {project.boards[0].lists.reduce((acc, list) => acc + (list.tasks?.length || 0), 0)}
                                 </Badge>
                             )}
-                        </TabsTrigger>
-                        <TabsTrigger
-                            value="boards"
-                            className="flex items-center gap-2 h-10 data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-blue-50 dark:hover:bg-blue-950/50"
+                        </Button>
+                        <Button
+                            variant={activeView === 'board' ? 'default' : 'ghost'}
+                            size="sm"
+                            className={`flex items-center gap-2 h-10 ${
+                                activeView === 'board'
+                                    ? 'bg-blue-500 text-white shadow-lg hover:bg-blue-600'
+                                    : 'hover:bg-blue-50 dark:hover:bg-blue-950/50'
+                            }`}
+                            onClick={() => handleViewChange('board')}
                         >
                             <ListTodo className="h-4 w-4" />
                             <span className="font-medium">Board</span>
-                        </TabsTrigger>
-                        <TabsTrigger
-                            value="calendar"
-                            className="flex items-center gap-2 h-10 data-[state=active]:bg-indigo-500 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/50"
+                        </Button>
+                        <Button
+                            variant={activeView === 'calendar' ? 'default' : 'ghost'}
+                            size="sm"
+                            className={`flex items-center gap-2 h-10 ${
+                                activeView === 'calendar'
+                                    ? 'bg-indigo-500 text-white shadow-lg hover:bg-indigo-600'
+                                    : 'hover:bg-indigo-50 dark:hover:bg-indigo-950/50'
+                            }`}
+                            onClick={() => handleViewChange('calendar')}
                         >
                             <Calendar className="h-4 w-4" />
                             <span className="font-medium">Calendar</span>
-                        </TabsTrigger>
-                        <TabsTrigger
-                            value="members"
-                            className="flex items-center gap-2 h-10 data-[state=active]:bg-green-500 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-green-50 dark:hover:bg-green-950/50"
-                        >
-                            <Users className="h-4 w-4" />
-                            <span className="font-medium">Members</span>
-                            <Badge variant="secondary" className="ml-1 text-xs">
-                                {project.members?.length || 0}
-                            </Badge>
-                        </TabsTrigger>
-                        <TabsTrigger
-                            value="labels"
-                            className="flex items-center gap-2 h-10 data-[state=active]:bg-purple-500 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-purple-50 dark:hover:bg-purple-950/50"
-                        >
-                            <Tag className="h-4 w-4" />
-                            <span className="font-medium">Labels</span>
-                            <Badge variant="secondary" className="ml-1 text-xs">
-                                {project.labels?.length || 0}
-                            </Badge>
-                        </TabsTrigger>
-                        <TabsTrigger
-                            value="details"
-                            className="flex items-center gap-2 h-10 data-[state=active]:bg-orange-500 data-[state=active]:text-white data-[state=active]:shadow-lg hover:bg-orange-50 dark:hover:bg-orange-950/50"
-                        >
-                            <Settings className="h-4 w-4" />
-                            <span className="font-medium">Details</span>
-                        </TabsTrigger>
-                    </TabsList>
+                        </Button>
+                    </div>
 
-                    <TabsContent value="list" className="mt-0">
-                        <div className="flex h-[calc(100vh-200px)]">
+                    {/* List View */}
+                    {activeView === 'list' && (
+                        <div className="flex h-[calc(100vh-200px)] mt-0">
                             {/* Main List Content */}
                             <div className={`flex-1 ${inspectorOpen ? 'mr-0' : ''}`}>
                                 <Card className="rounded-t-none border-t-0 h-full">
@@ -2716,7 +2833,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                                                 project: project.id,
                                                                 board: project.boards[0].id,
                                                                 list: project.boards[0].lists[0].id,
-                                                                tab: 'list'
+                                                                view: 'list'
                                                             }));
                                                         }}
                                                     >
@@ -2750,6 +2867,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                                 sensors={sensors}
                                                 collisionDetection={closestCenter}
                                                 onDragStart={handleListDragStart}
+                                                onDragOver={handleListDragOver}
                                                 onDragEnd={handleListDragEnd}
                                                 modifiers={[restrictToWindowEdges]}
                                             >
@@ -2769,7 +2887,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                                             return (
                                                                 <div
                                                                     ref={setNodeRef}
-                                                                    className={`space-y-3 ${isOver ? 'bg-blue-50 dark:bg-blue-950/20 rounded-lg p-2' : ''}`}
+                                                                    className={`space-y-3 transition-all duration-200 ${isOver ? 'bg-blue-50 dark:bg-blue-950/20 rounded-lg p-3 border-2 border-blue-300 dark:border-blue-600 shadow-lg' : 'p-1'}`}
                                                                 >
                                                                     {/* Section Header */}
                                                                     <div className="flex items-center gap-3 pb-2 border-b">
@@ -2813,7 +2931,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                                                                             project: project.id,
                                                                                             board: project.boards[0].id,
                                                                                             list: section.id,
-                                                                                            tab: 'list'
+                                                                                            view: 'list'
                                                                                         }));
                                                                                     }}>
                                                                                         <Plus className="h-4 w-4 mr-2" />
@@ -2863,7 +2981,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                                                                                         project: project.id,
                                                                                                         board: project.boards[0].id,
                                                                                                         list: section.id,
-                                                                                                        tab: 'list'
+                                                                                                        view: 'list'
                                                                                                     }));
                                                                                                 } else {
                                                                                                     // For status-based sections, use the first available list
@@ -2874,7 +2992,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                                                                                             board: project.boards[0].id,
                                                                                                             list: firstList.id,
                                                                                                             status: section.id,
-                                                                                                            tab: 'list'
+                                                                                                            view: 'list'
                                                                                                         }));
                                                                                                     }
                                                                                                 }
@@ -2897,21 +3015,55 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                 </div>
 
                                 {/* Drag overlay for visual feedback */}
-                                <DragOverlay>
+                                <DragOverlay
+                                    dropAnimation={{
+                                        duration: 200,
+                                        easing: 'ease-out',
+                                    }}
+                                    style={{
+                                        cursor: 'grabbing',
+                                        transformOrigin: '0 0',
+                                    }}
+                                    modifiers={[
+                                        (args) => ({
+                                            ...args.transform,
+                                            x: args.transform.x - 10,
+                                            y: args.transform.y - 10,
+                                        })
+                                    ]}
+                                >
                                     {listActiveId && listActiveItem?.type === 'task' && listActiveItem.task && (
-                                        <div className="p-3 border-l-4 rounded-lg shadow-lg opacity-80 border-2 border-primary bg-background">
+                                        <div className="p-3 border-l-4 rounded-lg shadow-2xl bg-background border border-blue-500 max-w-sm pointer-events-none">
                                             <div className="space-y-2">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="font-medium">{listActiveItem.task.title}</div>
+                                                <div className="flex items-center gap-2">
+                                                    <GripVertical className="h-4 w-4 text-muted-foreground" />
+                                                    <div className="font-medium text-sm truncate flex-1">{listActiveItem.task.title}</div>
                                                     {listActiveItem.task.status === 'done' && (
                                                         <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
                                                     )}
                                                 </div>
                                                 {listActiveItem.task.description && (
-                                                    <div className="text-sm text-muted-foreground line-clamp-2">
+                                                    <div className="text-xs text-muted-foreground line-clamp-1 truncate ml-6">
                                                         {listActiveItem.task.description}
                                                     </div>
                                                 )}
+                                                <div className="flex items-center gap-2 ml-6">
+                                                    <Badge variant="outline" className="text-xs px-1 py-0">
+                                                        {listActiveItem.task.priority}
+                                                    </Badge>
+                                                    {listActiveItem.task.assignees && listActiveItem.task.assignees.length > 0 && (
+                                                        <div className="flex -space-x-1">
+                                                            {listActiveItem.task.assignees.slice(0, 2).map((assignee: any) => (
+                                                                <Avatar key={assignee.id} className="h-4 w-4 border border-background">
+                                                                    <AvatarImage src={assignee.avatar} />
+                                                                    <AvatarFallback className="text-xs">
+                                                                        {assignee.name.charAt(0).toUpperCase()}
+                                                                    </AvatarFallback>
+                                                                </Avatar>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     )}
@@ -2941,10 +3093,11 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                 />
                             )}
                         </div>
-                    </TabsContent>
+                    )}
 
-                    <TabsContent value="boards" className="mt-0">
-                        <Card className="rounded-t-none border-t-0">
+                    {/* Board View */}
+                    {activeView === 'board' && (
+                        <Card className="rounded-t-none border-t-0 mt-0">
                             <CardHeader className="pb-4">
                                 <div>
                                     <CardTitle className="flex items-center gap-2">
@@ -2992,18 +3145,23 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                         </div>
 
                                         {/* Drag overlay for visual feedback */}
-                                        <DragOverlay>
+                                        <DragOverlay
+                                            dropAnimation={null}
+                                            style={{
+                                                cursor: 'grabbing',
+                                            }}
+                                        >
                                             {activeId && activeItem?.type === 'task' && activeItem.task && (
-                                                <div className="mb-2 rounded-md border bg-card p-3 shadow-sm opacity-80 border-2 border-primary">
+                                                <div className="mb-2 rounded-md border bg-card p-3 shadow-xl opacity-95 border-2 border-blue-500 transform rotate-2 scale-105 max-w-sm">
                                                     <div className="space-y-2">
                                                         <div className="flex items-center justify-between">
-                                                            <div className="font-medium">{activeItem.task.title}</div>
+                                                            <div className="font-medium text-sm truncate pr-2">{activeItem.task.title}</div>
                                                             {activeItem.task.status === 'done' && (
                                                                 <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
                                                             )}
                                                         </div>
                                                         {activeItem.task.description && (
-                                                            <div className="text-sm text-muted-foreground line-clamp-2">
+                                                            <div className="text-xs text-muted-foreground line-clamp-1 truncate">
                                                                 {activeItem.task.description}
                                                             </div>
                                                         )}
@@ -3025,9 +3183,10 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                 )}
                             </CardContent>
                         </Card>
-                    </TabsContent>
+                    )}
 
-                    <TabsContent value="calendar" className="mt-0">
+                    {/* Calendar View */}
+                    {activeView === 'calendar' && (
                         <DndContext
                             sensors={calendarSensors}
                             onDragStart={handleDragStart}
@@ -3292,11 +3451,16 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                             </Card>
 
                             {/* Drag Overlay */}
-                            <DragOverlay>
+                            <DragOverlay
+                                dropAnimation={null}
+                                style={{
+                                    cursor: 'grabbing',
+                                }}
+                            >
                                 {activeTask ? (
                                     activeTask.type === 'member' ? (
                                         // Member drag overlay
-                                        <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/20 border rounded-lg shadow-lg opacity-90">
+                                        <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/20 border rounded-lg shadow-lg opacity-90 transform rotate-1">
                                             <Avatar className="h-8 w-8 border">
                                                 <AvatarImage src={activeTask.avatar} />
                                                 <AvatarFallback className="text-sm font-medium">
@@ -3310,7 +3474,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                         </div>
                                     ) : (
                                         // Task drag overlay
-                                        <div className="p-3 border-l-4 border-l-blue-500 bg-blue-50 dark:bg-blue-950/20 rounded-lg shadow-lg opacity-90">
+                                        <div className="p-3 border-l-4 border-l-blue-500 bg-blue-50 dark:bg-blue-950/20 rounded-lg shadow-lg opacity-90 transform rotate-1">
                                             <div className="flex items-start justify-between mb-2">
                                                 <h4 className="font-medium text-sm">{activeTask.title}</h4>
                                                 <div className="flex items-center gap-1">
@@ -3335,331 +3499,326 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                 ) : null}
                             </DragOverlay>
                         </DndContext>
-                    </TabsContent>
+                    )}
+                </div>
+            </div>
 
-                    <TabsContent value="members" className="mt-0">
-                        <Card className="rounded-t-none border-t-0">
-                            <CardHeader className="pb-4">
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <CardTitle className="flex items-center gap-2">
-                                            <Users className="h-5 w-5" />
-                                            Members
-                                        </CardTitle>
-                                        <CardDescription>
-                                            Manage who has access to this project and their roles
-                                        </CardDescription>
-                                    </div>
-                                    {project.can_manage_members && (
-                                        <Button
-                                            onClick={() => setInviteModalOpen(true)}
-                                            className="shadow-sm hover:shadow-md"
-                                        >
-                                            <UserPlus className="h-4 w-4 mr-2" />
-                                            Invite Member
-                                        </Button>
-                                    )}
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                {project.members && project.members.length > 0 ? (
-                                    <div className="space-y-3">
-                                        {project.members.map((member) => (
-                                            <div key={member.id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="relative">
-                                                        <Avatar className="h-10 w-10">
-                                                            <AvatarImage src={member.avatar} />
-                                                            <AvatarFallback className="text-sm">
-                                                                {member.name.charAt(0).toUpperCase()}
-                                                            </AvatarFallback>
-                                                        </Avatar>
-                                                        {member.id === project.owner_id && (
-                                                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full flex items-center justify-center">
-                                                                <Crown className="h-2 w-2 text-white" />
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div>
-                                                        <div className="flex items-center gap-2">
-                                                            <h4 className="font-medium">{getShortName(member.name)}</h4>
-                                                            <Badge
-                                                                variant={member.id === project.owner_id ? "default" : "secondary"}
-                                                                className="text-xs"
-                                                            >
-                                                                {member.id === project.owner_id ? 'Owner' : (member.pivot?.role || 'Member')}
-                                                            </Badge>
-                                                        </div>
-                                                        <p className="text-sm text-muted-foreground">{member.email}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-1">
-                                                    {project.can_manage_members && member.id !== project.owner_id ? (
-                                                        <>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                className="h-8 w-8 p-0"
-                                                                title="Manage permissions"
-                                                                onClick={() => {
-                                                                    setEditingMember(member);
-                                                                    setPermissionModalOpen(true);
-                                                                }}
-                                                            >
-                                                                <Settings className="h-4 w-4" />
-                                                            </Button>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                                                                title="Remove member"
-                                                                onClick={() => {
-                                                                    setMemberToDelete(member);
-                                                                    setDeleteDialogOpen(true);
-                                                                }}
-                                                            >
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </Button>
-                                                        </>
-                                                    ) : member.id !== project.owner_id ? (
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            className="h-8 w-8 p-0"
-                                                            disabled
-                                                            title="No permission to manage"
-                                                        >
-                                                            <Lock className="h-4 w-4" />
-                                                        </Button>
-                                                    ) : null}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-16 bg-gradient-to-br from-muted/20 to-muted/40 rounded-xl border-2 border-dashed border-muted-foreground/30">
-                                        <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                                            <Users className="h-10 w-10 text-green-600" />
-                                        </div>
-                                        <h3 className="text-xl font-semibold mb-3">Invite Team Members</h3>
-                                        <p className="text-muted-foreground mb-8 max-w-md mx-auto">
-                                            Collaboration makes projects successful. Invite team members to work together
-                                            on tasks, share ideas, and achieve your project goals.
-                                        </p>
-                                        {project.can_manage_members ? (
-                                            <Button
-                                                onClick={() => setInviteModalOpen(true)}
-                                                size="lg"
-                                                className="shadow-lg hover:shadow-xl transition-shadow"
-                                            >
-                                                <UserPlus className="h-5 w-5 mr-2" />
-                                                Invite Your First Member
-                                            </Button>
-                                        ) : (
-                                            <Button size="lg" disabled className="shadow-lg">
-                                                <Lock className="h-5 w-5 mr-2" />
-                                                No Permission to Invite Members
-                                            </Button>
-                                        )}
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
+            {/* Project Details Modal */}
+            <Dialog open={detailsModalOpen} onOpenChange={setDetailsModalOpen}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Settings className="h-5 w-5" />
+                            Project Details & Settings
+                        </DialogTitle>
+                        <DialogDescription>
+                            View and manage project information, members, and settings
+                        </DialogDescription>
+                    </DialogHeader>
 
-                    <TabsContent value="labels" className="mt-0">
-                        <Card className="rounded-t-none border-t-0">
-                            <CardHeader className="pb-4">
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <CardTitle className="flex items-center gap-2">
-                                            <Tag className="h-5 w-5" />
-                                            Project Labels
-                                        </CardTitle>
-                                        <CardDescription>
-                                            Create custom labels to organize and categorize tasks
-                                        </CardDescription>
-                                    </div>
-                                    {canEdit && (
-                                        <Link href={route('labels.index', { project: project.id })}>
-                                            <Button className="shadow-sm hover:shadow-md">
-                                                <Plus className="h-4 w-4 mr-2" />
-                                                Manage Labels
-                                            </Button>
-                                        </Link>
-                                    )}
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-center py-12 bg-muted/20 rounded-lg border border-dashed">
-                                    <Tag className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                                    <h3 className="text-lg font-medium text-muted-foreground mb-2">Label Management</h3>
-                                    <p className="text-sm text-muted-foreground mb-6">
-                                        Create and manage custom labels to organize your tasks effectively
-                                    </p>
-                                    <Link href={route('labels.index', { project: project.id })}>
-                                        <Button variant="outline">
-                                            <Tag className="h-4 w-4 mr-2" />
-                                            Manage Labels
-                                        </Button>
-                                    </Link>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
+                    <Tabs defaultValue="info" className="w-full">
+                        <TabsList className="grid w-full grid-cols-3">
+                            <TabsTrigger value="info">Information</TabsTrigger>
+                            <TabsTrigger value="members">Members</TabsTrigger>
+                            <TabsTrigger value="labels">Labels</TabsTrigger>
+                        </TabsList>
 
-                    <TabsContent value="details" className="mt-0">
-                        <Card className="rounded-t-none border-t-0">
-                            <CardHeader className="pb-4">
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <CardTitle className="flex items-center gap-2">
-                                            <Settings className="h-5 w-5" />
-                                            Project Details
-                                        </CardTitle>
-                                        <CardDescription>
-                                            View and manage project information and settings
-                                        </CardDescription>
-                                    </div>
-                                    {canEdit && (
-                                        <Link href={route('projects.edit', { project: project.id })}>
-                                            <Button className="shadow-sm hover:shadow-md">
-                                                <Edit className="h-4 w-4 mr-2" />
-                                                Edit Project
-                                            </Button>
-                                        </Link>
-                                    )}
-                                </div>
-                            </CardHeader>
-                            <CardContent className="space-y-6">
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                    {/* Project Information */}
-                                    <Card className="border-2">
-                                        <CardHeader>
-                                            <CardTitle className="text-lg">Project Information</CardTitle>
-                                        </CardHeader>
-                                        <CardContent className="space-y-4">
-                                            <div className="grid grid-cols-1 gap-4">
-                                                <div>
-                                                    <label className="text-sm font-medium text-muted-foreground">Visibility</label>
-                                                    <div className="flex items-center gap-2 mt-1">
-                                                        {project.is_public ? (
-                                                            <>
-                                                                <Globe className="h-4 w-4 text-green-600" />
-                                                                <span className="text-green-600 font-medium">Public</span>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <Shield className="h-4 w-4 text-blue-600" />
-                                                                <span className="text-blue-600 font-medium">Private</span>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <label className="text-sm font-medium text-muted-foreground">Description</label>
-                                                <p className="mt-1 text-sm bg-muted/50 px-3 py-2 rounded-md min-h-[60px]">
-                                                    {project.description || 'No description provided'}
-                                                </p>
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <label className="text-sm font-medium text-muted-foreground">Created</label>
-                                                    <p className="text-sm mt-1">
-                                                        {new Date(project.created_at).toLocaleDateString('en-US', {
-                                                            year: 'numeric',
-                                                            month: 'long',
-                                                            day: 'numeric'
-                                                        })}
-                                                    </p>
-                                                </div>
-                                                <div>
-                                                    <label className="text-sm font-medium text-muted-foreground">Last Updated</label>
-                                                    <p className="text-sm mt-1">
-                                                        {new Date(project.updated_at).toLocaleDateString('en-US', {
-                                                            year: 'numeric',
-                                                            month: 'long',
-                                                            day: 'numeric'
-                                                        })}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-
-                                    {/* Project Statistics */}
-                                    <Card className="border-2">
-                                        <CardHeader>
-                                            <CardTitle className="text-lg">Project Statistics</CardTitle>
-                                        </CardHeader>
-                                        <CardContent className="space-y-4">
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg text-center">
-                                                    <div className="text-2xl font-bold text-blue-600">{project.boards?.length || 0}</div>
-                                                    <div className="text-sm text-blue-600/80">Boards</div>
-                                                </div>
-                                                <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg text-center">
-                                                    <div className="text-2xl font-bold text-green-600">{project.members?.length || 0}</div>
-                                                    <div className="text-sm text-green-600/80">Members</div>
-                                                </div>
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div className="bg-purple-50 dark:bg-purple-950/20 p-4 rounded-lg text-center">
-                                                    <div className="text-2xl font-bold text-purple-600">
-                                                        {project.boards?.reduce((acc, board) =>
-                                                            acc + (board.lists?.reduce((listAcc, list) =>
-                                                                listAcc + (list.tasks?.length || 0), 0) || 0), 0) || 0}
-                                                    </div>
-                                                    <div className="text-sm text-purple-600/80">Total Tasks</div>
-                                                </div>
-                                                <div className="bg-orange-50 dark:bg-orange-950/20 p-4 rounded-lg text-center">
-                                                    <div className="text-2xl font-bold text-orange-600">
-                                                        {project.boards?.reduce((acc, board) =>
-                                                            acc + (board.lists?.reduce((listAcc, list) =>
-                                                                listAcc + (list.tasks?.filter(task => task.status === 'done').length || 0), 0) || 0), 0) || 0}
-                                                    </div>
-                                                    <div className="text-sm text-orange-600/80">Completed</div>
-                                                </div>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                </div>
-
-                                {/* Project Owner Information */}
+                        <TabsContent value="info" className="mt-6 space-y-6">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {/* Project Information */}
                                 <Card className="border-2">
                                     <CardHeader>
-                                        <CardTitle className="text-lg">Owner</CardTitle>
+                                        <CardTitle className="text-lg">Project Information</CardTitle>
                                     </CardHeader>
-                                    <CardContent>
-                                        <div className="flex items-center gap-4">
-                                            <Avatar className="h-16 w-16 border-2 border-background shadow-md">
-                                                <AvatarImage src={project.owner?.avatar} />
-                                                <AvatarFallback className="text-lg font-semibold bg-gradient-to-br from-yellow-400/20 to-yellow-600/20">
-                                                    {project.owner?.name?.charAt(0).toUpperCase() || 'U'}
-                                                </AvatarFallback>
-                                            </Avatar>
-                                            <div className="flex-1">
-                                                <h4 className="font-semibold text-lg">{getShortName(project.owner?.name || '')}</h4>
-                                                <p className="text-muted-foreground">{project.owner?.email}</p>
-                                                <div className="flex items-center gap-2 mt-2">
-                                                    <Badge variant="default" className="flex items-center gap-1">
-                                                        <Crown className="h-3 w-3" />
-                                                        Project Owner
-                                                    </Badge>
+                                    <CardContent className="space-y-4">
+                                        <div className="grid grid-cols-1 gap-4">
+                                            <div>
+                                                <label className="text-sm font-medium text-muted-foreground">Visibility</label>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    {project.is_public ? (
+                                                        <>
+                                                            <Globe className="h-4 w-4 text-green-600" />
+                                                            <span className="text-green-600 font-medium">Public</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Shield className="h-4 w-4 text-blue-600" />
+                                                            <span className="text-blue-600 font-medium">Private</span>
+                                                        </>
+                                                    )}
                                                 </div>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-sm font-medium text-muted-foreground">Description</label>
+                                            <p className="mt-1 text-sm bg-muted/50 px-3 py-2 rounded-md min-h-[60px]">
+                                                {project.description || 'No description provided'}
+                                            </p>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-sm font-medium text-muted-foreground">Created</label>
+                                                <p className="text-sm mt-1">
+                                                    {new Date(project.created_at).toLocaleDateString('en-US', {
+                                                        year: 'numeric',
+                                                        month: 'long',
+                                                        day: 'numeric'
+                                                    })}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <label className="text-sm font-medium text-muted-foreground">Last Updated</label>
+                                                <p className="text-sm mt-1">
+                                                    {new Date(project.updated_at).toLocaleDateString('en-US', {
+                                                        year: 'numeric',
+                                                        month: 'long',
+                                                        day: 'numeric'
+                                                    })}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        {canEdit && (
+                                            <div className="pt-4 border-t">
+                                                <Link href={route('projects.edit', { project: project.id })}>
+                                                    <Button className="w-full">
+                                                        <Edit className="h-4 w-4 mr-2" />
+                                                        Edit Project
+                                                    </Button>
+                                                </Link>
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+
+                                {/* Project Statistics */}
+                                <Card className="border-2">
+                                    <CardHeader>
+                                        <CardTitle className="text-lg">Project Statistics</CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg text-center">
+                                                <div className="text-2xl font-bold text-blue-600">{project.boards?.length || 0}</div>
+                                                <div className="text-sm text-blue-600/80">Boards</div>
+                                            </div>
+                                            <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg text-center">
+                                                <div className="text-2xl font-bold text-green-600">{project.members?.length || 0}</div>
+                                                <div className="text-sm text-green-600/80">Members</div>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="bg-purple-50 dark:bg-purple-950/20 p-4 rounded-lg text-center">
+                                                <div className="text-2xl font-bold text-purple-600">
+                                                    {project.boards?.reduce((acc, board) =>
+                                                        acc + (board.lists?.reduce((listAcc, list) =>
+                                                            listAcc + (list.tasks?.length || 0), 0) || 0), 0) || 0}
+                                                </div>
+                                                <div className="text-sm text-purple-600/80">Total Tasks</div>
+                                            </div>
+                                            <div className="bg-orange-50 dark:bg-orange-950/20 p-4 rounded-lg text-center">
+                                                <div className="text-2xl font-bold text-orange-600">
+                                                    {project.boards?.reduce((acc, board) =>
+                                                        acc + (board.lists?.reduce((listAcc, list) =>
+                                                            listAcc + (list.tasks?.filter(task => task.status === 'done').length || 0), 0) || 0), 0) || 0}
+                                                </div>
+                                                <div className="text-sm text-orange-600/80">Completed</div>
                                             </div>
                                         </div>
                                     </CardContent>
                                 </Card>
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
+                            </div>
 
+                            {/* Project Owner Information */}
+                            <Card className="border-2">
+                                <CardHeader>
+                                    <CardTitle className="text-lg">Owner</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="flex items-center gap-4">
+                                        <Avatar className="h-16 w-16 border-2 border-background shadow-md">
+                                            <AvatarImage src={project.owner?.avatar} />
+                                            <AvatarFallback className="text-lg font-semibold bg-gradient-to-br from-yellow-400/20 to-yellow-600/20">
+                                                {project.owner?.name?.charAt(0).toUpperCase() || 'U'}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <div className="flex-1">
+                                            <h4 className="font-semibold text-lg">{getShortName(project.owner?.name || '')}</h4>
+                                            <p className="text-muted-foreground">{project.owner?.email}</p>
+                                            <div className="flex items-center gap-2 mt-2">
+                                                <Badge variant="default" className="flex items-center gap-1">
+                                                    <Crown className="h-3 w-3" />
+                                                    Project Owner
+                                                </Badge>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
 
+                        <TabsContent value="members" className="mt-6">
+                            <div className="flex justify-between items-center mb-4">
+                                <div>
+                                    <h3 className="text-lg font-semibold flex items-center gap-2">
+                                        <Users className="h-5 w-5" />
+                                        Members
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground">
+                                        Manage who has access to this project and their roles
+                                    </p>
+                                </div>
+                                {project.can_manage_members && (
+                                    <Button
+                                        onClick={() => setInviteModalOpen(true)}
+                                        className="shadow-sm hover:shadow-md"
+                                    >
+                                        <UserPlus className="h-4 w-4 mr-2" />
+                                        Invite Member
+                                    </Button>
+                                )}
+                            </div>
+
+                            {project.members && project.members.length > 0 ? (
+                                <div className="space-y-3">
+                                    {project.members.map((member) => (
+                                        <div key={member.id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+                                            <div className="flex items-center gap-3">
+                                                <div className="relative">
+                                                    <Avatar className="h-10 w-10">
+                                                        <AvatarImage src={member.avatar} />
+                                                        <AvatarFallback className="text-sm">
+                                                            {member.name.charAt(0).toUpperCase()}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                    {member.id === project.owner_id && (
+                                                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full flex items-center justify-center">
+                                                            <Crown className="h-2 w-2 text-white" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <h4 className="font-medium">{getShortName(member.name)}</h4>
+                                                        <Badge
+                                                            variant={member.id === project.owner_id ? "default" : "secondary"}
+                                                            className="text-xs"
+                                                        >
+                                                            {member.id === project.owner_id ? 'Owner' : (member.pivot?.role || 'Member')}
+                                                        </Badge>
+                                                    </div>
+                                                    <p className="text-sm text-muted-foreground">{member.email}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                {project.can_manage_members && member.id !== project.owner_id ? (
+                                                    <>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-8 w-8 p-0"
+                                                            title="Manage permissions"
+                                                            onClick={() => {
+                                                                setEditingMember(member);
+                                                                setPermissionModalOpen(true);
+                                                            }}
+                                                        >
+                                                            <Settings className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                                            title="Remove member"
+                                                            onClick={() => {
+                                                                setMemberToDelete(member);
+                                                                setDeleteDialogOpen(true);
+                                                            }}
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </>
+                                                ) : member.id !== project.owner_id ? (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-8 w-8 p-0"
+                                                        disabled
+                                                        title="No permission to manage"
+                                                    >
+                                                        <Lock className="h-4 w-4" />
+                                                    </Button>
+                                                ) : null}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-16 bg-gradient-to-br from-muted/20 to-muted/40 rounded-xl border-2 border-dashed border-muted-foreground/30">
+                                    <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                                        <Users className="h-10 w-10 text-green-600" />
+                                    </div>
+                                    <h3 className="text-xl font-semibold mb-3">Invite Team Members</h3>
+                                    <p className="text-muted-foreground mb-8 max-w-md mx-auto">
+                                        Collaboration makes projects successful. Invite team members to work together
+                                        on tasks, share ideas, and achieve your project goals.
+                                    </p>
+                                    {project.can_manage_members ? (
+                                        <Button
+                                            onClick={() => setInviteModalOpen(true)}
+                                            size="lg"
+                                            className="shadow-lg hover:shadow-xl transition-shadow"
+                                        >
+                                            <UserPlus className="h-5 w-5 mr-2" />
+                                            Invite Your First Member
+                                        </Button>
+                                    ) : (
+                                        <Button size="lg" disabled className="shadow-lg">
+                                            <Lock className="h-5 w-5 mr-2" />
+                                            No Permission to Invite Members
+                                        </Button>
+                                    )}
+                                </div>
+                            )}
+                        </TabsContent>
+
+                        <TabsContent value="labels" className="mt-6">
+                            <div className="flex justify-between items-center mb-4">
+                                <div>
+                                    <h3 className="text-lg font-semibold flex items-center gap-2">
+                                        <Tag className="h-5 w-5" />
+                                        Project Labels
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground">
+                                        Create custom labels to organize and categorize tasks
+                                    </p>
+                                </div>
+                                {canEdit && (
+                                    <Link href={route('labels.index', { project: project.id })}>
+                                        <Button className="shadow-sm hover:shadow-md">
+                                            <Plus className="h-4 w-4 mr-2" />
+                                            Manage Labels
+                                        </Button>
+                                    </Link>
+                                )}
+                            </div>
+
+                            <div className="text-center py-12 bg-muted/20 rounded-lg border border-dashed">
+                                <Tag className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                                <h3 className="text-lg font-medium text-muted-foreground mb-2">Label Management</h3>
+                                <p className="text-sm text-muted-foreground mb-6">
+                                    Create and manage custom labels to organize your tasks effectively
+                                </p>
+                                <Link href={route('labels.index', { project: project.id })}>
+                                    <Button variant="outline">
+                                        <Tag className="h-4 w-4 mr-2" />
+                                        Manage Labels
+                                    </Button>
+                                </Link>
+                            </div>
+                        </TabsContent>
                     </Tabs>
-                </div>
-            </div>
+                </DialogContent>
+            </Dialog>
 
             <InviteMemberModal
                 project={project}

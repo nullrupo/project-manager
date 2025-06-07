@@ -12,12 +12,7 @@ class Section extends Model
 {
     use HasFactory, RenumbersIdsAfterDeletion;
 
-    /**
-     * Indicates if the model's ID is auto-incrementing.
-     *
-     * @var bool
-     */
-    public $incrementing = false;
+
 
     /**
      * The attributes that are mass assignable.
@@ -55,14 +50,8 @@ class Section extends Model
      */
     public function tasks(): HasMany
     {
-        return $this->hasMany(Task::class)->whereNull('parent_task_id')->orderBy('position');
+        return $this->hasMany(Task::class)->orderBy('position');
     }
 
-    /**
-     * Get all tasks (including subtasks) for the section.
-     */
-    public function allTasks(): HasMany
-    {
-        return $this->hasMany(Task::class);
-    }
+
 }

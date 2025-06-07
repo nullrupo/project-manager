@@ -34,7 +34,6 @@ class Task extends Model
         'created_by',
         'reviewer_id',
         'section_id',
-        'parent_task_id',
         'position',
         'priority',
         'status',
@@ -139,21 +138,7 @@ class Task extends Model
         return $this->belongsTo(Section::class);
     }
 
-    /**
-     * Get the parent task.
-     */
-    public function parentTask(): BelongsTo
-    {
-        return $this->belongsTo(Task::class, 'parent_task_id');
-    }
 
-    /**
-     * Get the subtasks.
-     */
-    public function subtasks(): HasMany
-    {
-        return $this->hasMany(Task::class, 'parent_task_id');
-    }
 
     /**
      * Get the checklist items for the task.
@@ -165,18 +150,13 @@ class Task extends Model
 
     /**
      * Get the effective reviewer for this task.
-     * Falls back to parent task reviewer, then project default reviewer.
+     * Falls back to project default reviewer.
      */
     public function getEffectiveReviewer(): ?User
     {
         // If task has a specific reviewer, use it
         if ($this->reviewer_id) {
             return $this->reviewer;
-        }
-
-        // If this is a subtask, inherit from parent task
-        if ($this->parent_task_id && $this->parentTask) {
-            return $this->parentTask->getEffectiveReviewer();
         }
 
         // Fall back to project's default reviewer

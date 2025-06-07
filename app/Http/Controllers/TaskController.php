@@ -84,7 +84,6 @@ class TaskController extends Controller
             'due_date' => 'nullable|date',
             'reviewer_id' => 'nullable|string',
             'section_id' => 'nullable|exists:sections,id',
-            'parent_task_id' => 'nullable|exists:tasks,id',
             'assignee_ids' => 'nullable|array',
             'assignee_ids.*' => 'exists:users,id',
             'label_ids' => 'nullable|array',
@@ -110,7 +109,6 @@ class TaskController extends Controller
             'due_date' => $validated['due_date'] ?? null,
             'reviewer_id' => $reviewerId,
             'section_id' => $validated['section_id'] ?? null,
-            'parent_task_id' => $validated['parent_task_id'] ?? null,
             'position' => $maxPosition + 1,
         ]);
 
@@ -159,8 +157,6 @@ class TaskController extends Controller
             'creator',
             'reviewer',
             'section',
-            'parentTask',
-            'subtasks',
             'checklistItems',
             'comments' => function ($query) {
                 $query->whereNull('parent_id')->orderBy('created_at', 'desc');
@@ -254,7 +250,6 @@ class TaskController extends Controller
             'list_id' => 'required|exists:lists,id',
             'reviewer_id' => 'nullable|string',
             'section_id' => 'nullable|exists:sections,id',
-            'parent_task_id' => 'nullable|exists:tasks,id',
             'assignee_ids' => 'nullable|array',
             'assignee_ids.*' => 'exists:users,id',
             'label_ids' => 'nullable|array',
@@ -281,7 +276,6 @@ class TaskController extends Controller
             'list_id' => $validated['list_id'],
             'reviewer_id' => $reviewerId,
             'section_id' => $validated['section_id'] ?? null,
-            'parent_task_id' => $validated['parent_task_id'] ?? null,
             'is_archived' => $validated['is_archived'] ?? false,
         ];
 
@@ -345,6 +339,55 @@ class TaskController extends Controller
             'success' => true,
             'message' => 'Task due date updated successfully.',
             'task' => $task->fresh(['assignees', 'labels', 'creator'])
+        ]);
+    }
+
+    /**
+     * Move a task to a different list (simple movement for drag and drop).
+     */
+    public function move(Request $request, Project $project, Task $task): JsonResponse
+    {
+        // Check if the task belongs to the project
+        if ($task->project_id !== $project->id) {
+            abort(404, 'Task not found in this project.');
+        }
+
+        // Check if user has permission to manage tasks in this project
+        if (!ProjectPermissionService::can($project, 'can_manage_tasks')) {
+            abort(403, 'You do not have permission to manage tasks in this project.');
+        }
+
+        $validated = $request->validate([
+            'list_id' => 'required|exists:lists,id',
+            'section_id' => 'nullable|exists:sections,id',
+        ]);
+
+        // Get the new list to determine the appropriate status
+        $newList = TaskList::find($validated['list_id']);
+        $newStatus = $this->getStatusFromListName($newList->name);
+
+        $updateData = [
+            'list_id' => $validated['list_id'],
+            'section_id' => $validated['section_id'] ?? null,
+        ];
+
+        // Update status if it should change based on the list
+        if ($newStatus && $newStatus !== $task->status) {
+            $updateData['status'] = $newStatus;
+
+            // If moving to 'Done' status, set completed_at timestamp
+            if ($newStatus === 'done' && $task->status !== 'done') {
+                $updateData['completed_at'] = now();
+            } elseif ($newStatus !== 'done' && $task->status === 'done') {
+                $updateData['completed_at'] = null;
+            }
+        }
+
+        $task->update($updateData);
+
+        return response()->json([
+            'success' => true,
+            'task' => $task->fresh(['assignees', 'labels', 'creator', 'list'])
         ]);
     }
 

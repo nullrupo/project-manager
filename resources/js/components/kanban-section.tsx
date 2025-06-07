@@ -20,7 +20,7 @@ export default function KanbanSection({
     onAddTask, 
     children 
 }: KanbanSectionProps) {
-    const sectionTasks = tasks.filter(task => task.section_id === section.id && !task.parent_task_id);
+    const sectionTasks = tasks.filter(task => task.section_id === section.id);
     
     return (
         <Card className="mb-4 border-l-4 border-l-blue-500">

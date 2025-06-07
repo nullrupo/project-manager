@@ -77,7 +77,6 @@ export interface Task {
     created_by: number;
     reviewer_id: number | null;
     section_id: number | null;
-    parent_task_id: number | null;
     position: number;
     priority: 'low' | 'medium' | 'high' | 'urgent';
     status: 'to_do' | 'in_progress' | 'done';
@@ -96,8 +95,6 @@ export interface Task {
     creator?: User;
     reviewer?: User;
     section?: Section;
-    parent_task?: Task;
-    subtasks?: Task[];
     checklist_items?: ChecklistItem[];
     assignees?: User[];
     labels?: Label[];

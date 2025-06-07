@@ -12,12 +12,7 @@ class Board extends Model
 {
     use HasFactory, RenumbersIdsAfterDeletion;
 
-    /**
-     * Indicates if the model's ID is auto-incrementing.
-     *
-     * @var bool
-     */
-    public $incrementing = false;
+
 
     /**
      * The attributes that are mass assignable.

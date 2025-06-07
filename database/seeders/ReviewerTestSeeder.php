@@ -133,28 +133,28 @@ class ReviewerTestSeeder extends Seeder
             ]
         );
 
-        // Create subtasks
-        $subtask1 = Task::firstOrCreate(
-            ['title' => 'Create login form component', 'project_id' => $project->id, 'parent_task_id' => $task1->id],
+        // Create additional tasks (previously subtasks, now regular tasks)
+        $task3 = Task::firstOrCreate(
+            ['title' => 'Create login form component', 'project_id' => $project->id],
             [
                 'description' => 'Build reusable login form with validation.',
                 'list_id' => $todoList->id,
                 'created_by' => $developer->id,
                 'priority' => 'medium',
                 'status' => 'to_do',
-                'position' => 0,
+                'position' => 2,
             ]
         );
 
-        $subtask2 = Task::firstOrCreate(
-            ['title' => 'Implement password reset', 'project_id' => $project->id, 'parent_task_id' => $task1->id],
+        $task4 = Task::firstOrCreate(
+            ['title' => 'Implement password reset', 'project_id' => $project->id],
             [
                 'description' => 'Add forgot password functionality.',
                 'list_id' => $todoList->id,
                 'created_by' => $developer->id,
                 'priority' => 'low',
                 'status' => 'to_do',
-                'position' => 1,
+                'position' => 3,
             ]
         );
 

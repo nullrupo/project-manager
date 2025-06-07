@@ -140,13 +140,12 @@ class ProjectController extends Controller
                 $query->orderBy('position');
             },
             'boards.lists.tasks' => function ($query) {
-                $query->whereNull('parent_task_id')->orderBy('position');
+                $query->orderBy('position');
             },
             'boards.lists.tasks.assignees',
             'boards.lists.tasks.labels',
             'boards.lists.tasks.creator',
             'boards.lists.tasks.reviewer',
-            'boards.lists.tasks.subtasks',
             'boards.lists.tasks.checklistItems',
         ]);
 
