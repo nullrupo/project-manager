@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { useForm, router } from '@inertiajs/react';
+import React, { useState, useEffect } from 'react';
+import { useForm, router, usePage } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Task, ChecklistItem } from '@/types/project-manager';
-import { Plus, Trash2, Check } from 'lucide-react';
+import { Check } from 'lucide-react';
+import { useGlobalTaskInspector } from '@/contexts/GlobalTaskInspectorContext';
 
 interface TaskChecklistProps {
     task: Task;
@@ -13,39 +14,100 @@ interface TaskChecklistProps {
 }
 
 export default function TaskChecklist({ task, checklistItems }: TaskChecklistProps) {
-    const [isAdding, setIsAdding] = useState(false);
+    const [editingItemId, setEditingItemId] = useState<number | null>(null);
+    const [editingText, setEditingText] = useState('');
     const { data, setData, post, processing, errors, reset } = useForm({
         title: '',
     });
+    const page = usePage();
+    const { refreshTaskData } = useGlobalTaskInspector();
 
-    // Debug logging
-    console.log('TaskChecklist rendered with:', {
-        taskId: task.id,
-        checklistItemsCount: checklistItems.length,
-        checklistItems: checklistItems
-    });
+    // Listen for page data changes and refresh inspector task data
+    useEffect(() => {
+        const pageProps = page.props as any;
+        let updatedTask = null;
 
-    const handleAddItem = (e: React.FormEvent) => {
-        e.preventDefault();
-        post(route('checklist-items.store', task.id), {
-            onSuccess: () => {
-                reset();
-                setIsAdding(false);
-            },
-        });
+        // Check if we're on inbox page
+        if (pageProps.tasks && Array.isArray(pageProps.tasks)) {
+            updatedTask = pageProps.tasks.find((t: any) => t.id === task.id);
+        }
+
+        // Check if we're on project page
+        if (!updatedTask && pageProps.project?.tasks) {
+            if (Array.isArray(pageProps.project.tasks.data)) {
+                updatedTask = pageProps.project.tasks.data.find((t: any) => t.id === task.id);
+            } else if (Array.isArray(pageProps.project.tasks)) {
+                updatedTask = pageProps.project.tasks.find((t: any) => t.id === task.id);
+            }
+        }
+
+        // If we found an updated task, refresh the inspector
+        if (updatedTask) {
+            refreshTaskData(updatedTask);
+        }
+    }, [page.props, task.id, refreshTaskData]);
+
+    const handleAddItem = () => {
+        if (data.title.trim()) {
+            post(route('checklist-items.store', task.id), {
+                onSuccess: () => {
+                    reset();
+                },
+                preserveState: false, // Force a full page refresh to update task data
+                preserveScroll: true,
+            });
+        }
+    };
+
+    const handleAddKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleAddItem();
+        } else if (e.key === 'Escape') {
+            reset();
+        }
     };
 
     const toggleItemCompletion = (item: ChecklistItem) => {
         router.post(route('checklist-items.toggle', { task: task.id, checklistItem: item.id }), {}, {
-            preserveState: true,
+            preserveState: false, // Force refresh to update task data
             preserveScroll: true,
         });
     };
 
-    const deleteItem = (item: ChecklistItem) => {
-        if (confirm('Are you sure you want to delete this checklist item?')) {
-            router.delete(route('checklist-items.destroy', { task: task.id, checklistItem: item.id }));
+    const startEditing = (item: ChecklistItem) => {
+        setEditingItemId(item.id);
+        setEditingText(item.title);
+    };
+
+    const handleEditKeyDown = (e: React.KeyboardEvent, item: ChecklistItem) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            saveEdit(item);
+        } else if (e.key === 'Escape') {
+            setEditingItemId(null);
+            setEditingText('');
         }
+    };
+
+    const saveEdit = (item: ChecklistItem) => {
+        if (editingText.trim() === '') {
+            // Delete item if text is empty
+            router.delete(route('checklist-items.destroy', { task: task.id, checklistItem: item.id }), {
+                preserveState: false, // Force refresh to update task data
+                preserveScroll: true,
+            });
+        } else {
+            // Update item
+            router.put(route('checklist-items.update', { task: task.id, checklistItem: item.id }), {
+                title: editingText.trim()
+            }, {
+                preserveState: false, // Force refresh to update task data
+                preserveScroll: true,
+            });
+        }
+        setEditingItemId(null);
+        setEditingText('');
     };
 
     const completedCount = checklistItems.filter(item => item.is_completed).length;
@@ -54,7 +116,7 @@ export default function TaskChecklist({ task, checklistItems }: TaskChecklistPro
 
     return (
         <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-1">
                 <div className="flex items-center justify-between">
                     <CardTitle className="text-base flex items-center gap-2">
                         <Check className="h-4 w-4" />
@@ -65,17 +127,9 @@ export default function TaskChecklist({ task, checklistItems }: TaskChecklistPro
                             </span>
                         )}
                     </CardTitle>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setIsAdding(true)}
-                        className="h-8 px-2"
-                    >
-                        <Plus className="h-4 w-4" />
-                    </Button>
                 </div>
                 {totalCount > 0 && (
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
                         <div
                             className="bg-green-600 h-2 rounded-full transition-all duration-300"
                             style={{ width: `${progressPercentage}%` }}
@@ -83,8 +137,30 @@ export default function TaskChecklist({ task, checklistItems }: TaskChecklistPro
                     </div>
                 )}
             </CardHeader>
-            <CardContent className="pt-0">
+            <CardContent className="pt-1">
                 <div className="space-y-2">
+                    {/* Always show input box for new items */}
+                    <div className="p-2 border-2 border-dashed border-gray-200 rounded-md">
+                        <Input
+                            value={data.title}
+                            onChange={(e) => setData('title', e.target.value)}
+                            onKeyDown={handleAddKeyDown}
+                            onBlur={() => {
+                                if (!data.title.trim()) {
+                                    reset();
+                                }
+                            }}
+                            placeholder="Add new checklist item (Press Enter to add, Esc to clear)"
+                            className="w-full h-8 border-0 shadow-none focus-visible:ring-0 px-0"
+                            disabled={processing}
+                        />
+                    </div>
+
+                    {errors.title && (
+                        <p className="text-sm text-red-600 px-2">{errors.title}</p>
+                    )}
+
+                    {/* Existing checklist items */}
                     {checklistItems.map((item) => (
                         <div
                             key={item.id}
@@ -95,71 +171,35 @@ export default function TaskChecklist({ task, checklistItems }: TaskChecklistPro
                                 onCheckedChange={() => toggleItemCompletion(item)}
                                 className="border-2"
                             />
-                            <span
-                                className={`flex-1 text-sm ${
-                                    item.is_completed
-                                        ? 'line-through text-muted-foreground'
-                                        : ''
-                                }`}
-                            >
-                                {item.title}
-                            </span>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => deleteItem(item)}
-                                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-red-600 hover:text-red-700"
-                            >
-                                <Trash2 className="h-3 w-3" />
-                            </Button>
+                            {editingItemId === item.id ? (
+                                <Input
+                                    value={editingText}
+                                    onChange={(e) => setEditingText(e.target.value)}
+                                    onKeyDown={(e) => handleEditKeyDown(e, item)}
+                                    onBlur={() => saveEdit(item)}
+                                    className="flex-1 h-8"
+                                    autoFocus
+                                />
+                            ) : (
+                                <span
+                                    className={`flex-1 text-sm cursor-pointer ${
+                                        item.is_completed
+                                            ? 'line-through text-muted-foreground'
+                                            : ''
+                                    }`}
+                                    onDoubleClick={() => startEditing(item)}
+                                >
+                                    {item.title}
+                                </span>
+                            )}
                         </div>
                     ))}
 
-                    {isAdding && (
-                        <form onSubmit={handleAddItem} className="flex gap-2 p-2">
-                            <Input
-                                value={data.title}
-                                onChange={(e) => setData('title', e.target.value)}
-                                placeholder="Enter checklist item"
-                                className="flex-1 h-8"
-                                autoFocus
-                                required
-                            />
-                            <Button type="submit" size="sm" disabled={processing}>
-                                Add
-                            </Button>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                    setIsAdding(false);
-                                    reset();
-                                }}
-                            >
-                                Cancel
-                            </Button>
-                        </form>
-                    )}
-
-                    {errors.title && (
-                        <p className="text-sm text-red-600 px-2">{errors.title}</p>
-                    )}
-
-                    {!isAdding && checklistItems.length === 0 && (
-                        <div className="text-center py-4">
+                    {checklistItems.length === 0 && (
+                        <div className="text-center py-2">
                             <p className="text-sm text-muted-foreground">
-                                No checklist items yet.
+                                No checklist items yet. Use the input above to add your first item.
                             </p>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setIsAdding(true)}
-                                className="mt-2"
-                            >
-                                <Plus className="h-4 w-4 mr-2" />
-                                Add first item
-                            </Button>
                         </div>
                     )}
                 </div>

@@ -460,8 +460,24 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
     };
 
     const handleKeyDown = (event: React.KeyboardEvent) => {
-        // Only handle keyboard navigation when not in an input field
-        if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        // Only handle keyboard navigation when not in an input field, textarea, or dropdown
+        if (event.target instanceof HTMLInputElement ||
+            event.target instanceof HTMLTextAreaElement ||
+            event.target instanceof HTMLSelectElement) {
+            return;
+        }
+
+        // Check if the event is coming from within a dropdown, dialog, or inspector
+        const target = event.target as HTMLElement;
+        if (target.closest('[role="listbox"]') ||
+            target.closest('[role="combobox"]') ||
+            target.closest('[data-radix-select-content]') ||
+            target.closest('[data-radix-select-trigger]') ||
+            target.closest('[data-radix-select-item]') ||
+            target.closest('[data-global-inspector]') ||
+            target.closest('[role="dialog"]') ||
+            target.closest('.select-content') ||
+            target.closest('.select-trigger')) {
             return;
         }
 

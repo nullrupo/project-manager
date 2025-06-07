@@ -35,6 +35,7 @@ interface GlobalTaskInspectorContextType {
     closeInspector: () => void;
     saveAndCloseInspector: () => Promise<void>;
     saveInspectorRef: React.MutableRefObject<(() => Promise<void>) | null>;
+    refreshTaskData: (updatedTask: Task) => void;
 }
 
 const GlobalTaskInspectorContext = createContext<GlobalTaskInspectorContextType | undefined>(undefined);
@@ -87,6 +88,12 @@ export function GlobalTaskInspectorProvider({ children }: GlobalTaskInspectorPro
         saveInspectorRef.current = null;
     };
 
+    const refreshTaskData = (updatedTask: Task) => {
+        if (isOpen && task && task.id === updatedTask.id) {
+            setTask(updatedTask);
+        }
+    };
+
     const saveAndCloseInspector = async () => {
         // Save any pending changes before closing
         if (saveInspectorRef.current) {
@@ -101,8 +108,22 @@ export function GlobalTaskInspectorProvider({ children }: GlobalTaskInspectorPro
 
     // Listen for navigation events to close inspector
     useEffect(() => {
-        const handleNavigationStart = () => {
+        const handleNavigationStart = (event: any) => {
             if (isOpen) {
+                // Only close inspector for actual page navigation, not API calls
+                const url = event.detail?.visit?.url || event.url || '';
+                const method = event.detail?.visit?.method || event.method || 'GET';
+
+                // Don't close for PUT/PATCH/POST requests (these are likely API updates)
+                if (method !== 'GET') {
+                    return;
+                }
+
+                // Don't close for task update routes
+                if (url.includes('/tasks/') && (url.includes('/update') || method !== 'GET')) {
+                    return;
+                }
+
                 // Save and close inspector when navigation starts
                 saveAndCloseInspector();
             }
@@ -125,9 +146,23 @@ export function GlobalTaskInspectorProvider({ children }: GlobalTaskInspectorPro
 
                 // Check if click is outside the inspector
                 if (inspectorElement && !inspectorElement.contains(target)) {
+                    // Don't close if clicking on dropdown content (which might be portaled outside)
+                    const isDropdownClick = target.closest('[data-radix-select-content]') ||
+                                          target.closest('[data-radix-select-item]') ||
+                                          target.closest('[data-radix-select-trigger]') ||
+                                          target.closest('[role="listbox"]') ||
+                                          target.closest('[role="option"]') ||
+                                          target.closest('.select-content') ||
+                                          target.closest('.select-trigger');
+
                     // Don't close if clicking on a task (which would open the inspector)
                     const isTaskClick = target.closest('[data-task-clickable]');
-                    if (!isTaskClick) {
+
+                    // Don't close if clicking on any dialog or modal content
+                    const isDialogClick = target.closest('[role="dialog"]') ||
+                                        target.closest('[data-dialog-content]');
+
+                    if (!isTaskClick && !isDropdownClick && !isDialogClick) {
                         saveAndCloseInspector();
                     }
                 }
@@ -147,7 +182,8 @@ export function GlobalTaskInspectorProvider({ children }: GlobalTaskInspectorPro
         openInspector,
         closeInspector,
         saveAndCloseInspector,
-        saveInspectorRef
+        saveInspectorRef,
+        refreshTaskData
     };
 
     return (

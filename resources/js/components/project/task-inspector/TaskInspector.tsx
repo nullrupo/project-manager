@@ -63,13 +63,14 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
     }, [inspectorTask?.id]); // Only re-run when the task ID changes
 
     const handleFieldChange = useCallback((field: string, value: any) => {
-        console.log('📝 handleFieldChange called!', { field, value });
-
-        setTaskData(prev => ({ ...prev, [field]: value }));
-        setHasUnsavedChanges(true);
-        setSaveState('idle');
-
-        console.log('📝 Field changed, manual save required');
+        // Prevent any potential navigation events
+        try {
+            setTaskData(prev => ({ ...prev, [field]: value }));
+            setHasUnsavedChanges(true);
+            setSaveState('idle');
+        } catch (error) {
+            console.error('Error in handleFieldChange:', error);
+        }
     }, []);
 
     // Manual save function using Inertia (no auto-save)
@@ -123,8 +124,10 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
                 setHasUnsavedChanges(false);
                 setSaveState('saved');
 
-                // Clear saved state after 2 seconds
-                setTimeout(() => setSaveState('idle'), 2000);
+                // Close the inspector after successful save
+                setTimeout(() => {
+                    onClose();
+                }, 500); // Small delay to show the "saved" state
             },
             onError: (errors) => {
                 console.error('❌ Save failed:', errors);
@@ -221,31 +224,149 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
                 {/* Priority */}
                 <div className="space-y-2">
                     <label className="text-sm font-medium">Priority</label>
-                    <Select value={taskData.priority} onValueChange={(value) => handleFieldChange('priority', value)}>
-                        <SelectTrigger>
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="low">Low</SelectItem>
-                            <SelectItem value="medium">Medium</SelectItem>
-                            <SelectItem value="high">High</SelectItem>
-                        </SelectContent>
-                    </Select>
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                    >
+                        <Select
+                            value={taskData.priority}
+                            onValueChange={(value) => {
+                                // Prevent event propagation and navigation
+                                try {
+                                    handleFieldChange('priority', value);
+                                } catch (error) {
+                                    console.error('Error changing priority:', error);
+                                }
+                            }}
+                        >
+                            <SelectTrigger
+                                className="select-trigger"
+                                onKeyDown={(e) => {
+                                    // Prevent browser extension interference and event bubbling
+                                    try {
+                                        // Stop all propagation for dropdown navigation keys
+                                        if (['ArrowDown', 'ArrowUp', 'Enter', 'Space', 'Escape', 'Tab'].includes(e.key)) {
+                                            e.stopPropagation();
+                                        }
+                                    } catch (error) {
+                                        console.error('Keyboard event error:', error);
+                                    }
+                                }}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                }}
+                            >
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent
+                                className="select-content"
+                                onCloseAutoFocus={(e) => {
+                                    // Prevent auto-focus from causing issues
+                                    e.preventDefault();
+                                }}
+                            >
+                                <SelectItem
+                                    value="low"
+                                    onSelect={(e) => {
+                                        e.stopPropagation();
+                                    }}
+                                >
+                                    Low
+                                </SelectItem>
+                                <SelectItem
+                                    value="medium"
+                                    onSelect={(e) => {
+                                        e.stopPropagation();
+                                    }}
+                                >
+                                    Medium
+                                </SelectItem>
+                                <SelectItem
+                                    value="high"
+                                    onSelect={(e) => {
+                                        e.stopPropagation();
+                                    }}
+                                >
+                                    High
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
 
                 {/* Status */}
                 <div className="space-y-2">
                     <label className="text-sm font-medium">Status</label>
-                    <Select value={taskData.status} onValueChange={(value) => handleFieldChange('status', value)}>
-                        <SelectTrigger>
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="to_do">To Do</SelectItem>
-                            <SelectItem value="in_progress">In Progress</SelectItem>
-                            <SelectItem value="done">Done</SelectItem>
-                        </SelectContent>
-                    </Select>
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                    >
+                        <Select
+                            value={taskData.status}
+                            onValueChange={(value) => {
+                                // Prevent event propagation and navigation
+                                try {
+                                    handleFieldChange('status', value);
+                                } catch (error) {
+                                    console.error('Error changing status:', error);
+                                }
+                            }}
+                        >
+                            <SelectTrigger
+                                className="select-trigger"
+                                onKeyDown={(e) => {
+                                    // Prevent browser extension interference and event bubbling
+                                    try {
+                                        // Stop all propagation for dropdown navigation keys
+                                        if (['ArrowDown', 'ArrowUp', 'Enter', 'Space', 'Escape', 'Tab'].includes(e.key)) {
+                                            e.stopPropagation();
+                                        }
+                                    } catch (error) {
+                                        console.error('Keyboard event error:', error);
+                                    }
+                                }}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                }}
+                            >
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent
+                                className="select-content"
+                                onCloseAutoFocus={(e) => {
+                                    // Prevent auto-focus from causing issues
+                                    e.preventDefault();
+                                }}
+                            >
+                                <SelectItem
+                                    value="to_do"
+                                    onSelect={(e) => {
+                                        e.stopPropagation();
+                                    }}
+                                >
+                                    To Do
+                                </SelectItem>
+                                <SelectItem
+                                    value="in_progress"
+                                    onSelect={(e) => {
+                                        e.stopPropagation();
+                                    }}
+                                >
+                                    In Progress
+                                </SelectItem>
+                                <SelectItem
+                                    value="done"
+                                    onSelect={(e) => {
+                                        e.stopPropagation();
+                                    }}
+                                >
+                                    Done
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
 
                 {/* Due Date */}
