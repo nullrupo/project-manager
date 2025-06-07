@@ -18,6 +18,13 @@ export default function TaskChecklist({ task, checklistItems }: TaskChecklistPro
         title: '',
     });
 
+    // Debug logging
+    console.log('TaskChecklist rendered with:', {
+        taskId: task.id,
+        checklistItemsCount: checklistItems.length,
+        checklistItems: checklistItems
+    });
+
     const handleAddItem = (e: React.FormEvent) => {
         e.preventDefault();
         post(route('checklist-items.store', task.id), {

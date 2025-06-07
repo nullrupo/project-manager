@@ -28,7 +28,7 @@ class InboxController extends Controller
                           $q->where('users.id', $user->id);
                       });
             })
-            ->with(['assignees', 'labels', 'creator', 'project'])
+            ->with(['assignees', 'labels', 'creator', 'project', 'checklistItems'])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -410,7 +410,7 @@ class InboxController extends Controller
 
         return response()->json([
             'success' => true,
-            'task' => $task->fresh(['project', 'assignees', 'labels', 'creator'])
+            'task' => $task->fresh(['project', 'assignees', 'labels', 'creator', 'checklistItems'])
         ]);
     }
 }

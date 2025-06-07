@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Project, Task } from '@/types/project-manager';
 import { CalendarDays, Clock, Edit, MessageSquare, Tag, Trash2, User, Eye } from 'lucide-react';
 import { useShortName } from '@/hooks/use-initials';
+import TaskChecklist from '@/components/task-checklist';
 
 interface TaskViewModalProps {
     open: boolean;
@@ -128,6 +129,9 @@ export default function TaskViewModal({
                                 </div>
                             )}
                         </div>
+
+                        {/* Checklist Section */}
+                        <TaskChecklist task={task} checklistItems={task.checklist_items || []} />
 
                         {/* Comments Section */}
                         <div className="bg-muted/30 rounded-lg p-6">

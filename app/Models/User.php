@@ -25,6 +25,7 @@ class User extends Authenticatable
         'password',
         'sidebar_preferences',
         'inbox_preferences',
+        'task_display_preferences',
     ];
 
     /**
@@ -49,6 +50,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'sidebar_preferences' => 'array',
             'inbox_preferences' => 'array',
+            'task_display_preferences' => 'array',
         ];
     }
 

@@ -69,6 +69,14 @@ export interface User {
     created_at: string;
     updated_at: string;
     sidebar_preferences?: SidebarPreferences;
+    task_display_preferences?: {
+        show_urgency: boolean;
+        show_notes: boolean;
+        show_deadline: boolean;
+        show_checklist_progress: boolean;
+        show_assignee: boolean;
+        show_status: boolean;
+    };
     pivot?: {
         role: string;
         can_manage_members: boolean;

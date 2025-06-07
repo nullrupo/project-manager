@@ -38,10 +38,7 @@ class ChecklistItemController extends Controller
             'position' => $maxPosition + 1,
         ]);
 
-        return response()->json([
-            'success' => true,
-            'checklist_item' => $checklistItem->load('task')
-        ]);
+        return back()->with('success', 'Checklist item added successfully.');
     }
 
     /**

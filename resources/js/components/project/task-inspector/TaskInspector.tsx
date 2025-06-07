@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, CheckCircle2, Save, X } from 'lucide-react';
 import { router } from '@inertiajs/react';
+import TaskChecklist from '@/components/task-checklist';
 
 interface TaskInspectorProps {
     task: any;
@@ -40,6 +41,15 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
     // Sync taskData with inspectorTask when it changes
     useEffect(() => {
         if (inspectorTask) {
+            console.log('TaskInspector received task:', {
+                id: inspectorTask.id,
+                title: inspectorTask.title,
+                checklist_items: inspectorTask.checklist_items,
+                checklistItems: inspectorTask.checklistItems,
+                checklistItemsLength: (inspectorTask.checklist_items || inspectorTask.checklistItems)?.length || 0,
+                allKeys: Object.keys(inspectorTask)
+            });
+
             setTaskData({
                 title: inspectorTask.title || '',
                 description: inspectorTask.description || '',
@@ -282,6 +292,11 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
                         </div>
                     </div>
                 )}
+
+                {/* Checklist */}
+                <div className="space-y-2">
+                    <TaskChecklist task={inspectorTask} checklistItems={inspectorTask.checklistItems || inspectorTask.checklist_items || []} />
+                </div>
             </div>
 
             {/* Manual Save Button */}

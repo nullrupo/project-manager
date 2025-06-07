@@ -15,6 +15,7 @@ import { useBatchTaskOperations } from '@/hooks/useBatchTaskOperations';
 import { BulkActionsPanel } from '@/components/BulkActionsPanel';
 import { useShortName } from '@/hooks/use-initials';
 import { useGlobalTaskInspector } from '@/contexts/GlobalTaskInspectorContext';
+import { TaskDisplay } from '@/components/task/TaskDisplay';
 
 interface Task {
     id: number;
@@ -838,44 +839,16 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                             />
 
                                             <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <h3 className={`font-medium truncate ${task.status === 'done' ? 'line-through text-muted-foreground' : ''}`}>
-                                                        {task.title}
-                                                    </h3>
-                                                    {isOverdue && (
-                                                        <Badge variant="destructive" className="text-xs">
-                                                            Overdue
+                                                <TaskDisplay task={task} compact />
+                                                {task.project && (
+                                                    <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
+                                                        <FolderOpen className="h-3 w-3" />
+                                                        <span>{task.project.name}</span>
+                                                        <Badge variant="outline" className="text-xs">
+                                                            {task.project.key}
                                                         </Badge>
-                                                    )}
-                                                    {getDisplayStatus(task) !== task.status && (
-                                                        <Badge variant="outline" className={`text-xs ${getStatusColor(task)}`}>
-                                                            {getDisplayStatus(task).charAt(0).toUpperCase() + getDisplayStatus(task).slice(1)}
-                                                        </Badge>
-                                                    )}
-                                                </div>
-
-                                                {task.description && (
-                                                    <p className="text-sm text-muted-foreground mb-1 line-clamp-2">{task.description}</p>
+                                                    </div>
                                                 )}
-
-                                                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                                    {task.due_date && (
-                                                        <div className={`flex items-center gap-1 ${isOverdue ? 'text-red-600' : ''}`}>
-                                                            <CalendarDays className="h-3 w-3" />
-                                                            <span>{new Date(task.due_date).toLocaleDateString()}</span>
-                                                        </div>
-                                                    )}
-
-                                                    {task.project && (
-                                                        <div className="flex items-center gap-1">
-                                                            <FolderOpen className="h-3 w-3" />
-                                                            <span>{task.project.name}</span>
-                                                            <Badge variant="outline" className="text-xs">
-                                                                {task.project.key}
-                                                            </Badge>
-                                                        </div>
-                                                    )}
-                                                </div>
                                             </div>
 
                                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

@@ -4,6 +4,7 @@ use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SidebarPreferencesController;
 use App\Http\Controllers\Settings\InboxPreferencesController;
+use App\Http\Controllers\Settings\TaskDisplayPreferencesController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -36,4 +37,11 @@ Route::middleware('auth')->group(function () {
     })->name('inbox.settings');
     Route::get('settings/inbox-preferences', [InboxPreferencesController::class, 'show'])->name('inbox-preferences.show');
     Route::patch('settings/inbox-preferences', [InboxPreferencesController::class, 'update'])->name('inbox-preferences.update');
+
+    // Task display preferences routes
+    Route::get('settings/task-display', function () {
+        return Inertia::render('settings/task-display');
+    })->name('task-display.settings');
+    Route::get('settings/task-display-preferences', [TaskDisplayPreferencesController::class, 'show'])->name('task-display-preferences.show');
+    Route::patch('settings/task-display-preferences', [TaskDisplayPreferencesController::class, 'update'])->name('task-display-preferences.update');
 });

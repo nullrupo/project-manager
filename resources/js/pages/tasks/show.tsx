@@ -8,6 +8,7 @@ import { Project, Task } from '@/types/project-manager';
 import { Head, Link, useForm, router } from '@inertiajs/react';
 import { CalendarDays, Clock, Edit, MessageSquare, Tag, Trash2, User } from 'lucide-react';
 import { FormEventHandler } from 'react';
+import TaskChecklist from '@/components/task-checklist';
 
 interface TaskShowProps {
     project: Project;
@@ -86,6 +87,11 @@ export default function TaskShow({ project, task }: TaskShowProps) {
                                     <div className="text-sm text-muted-foreground italic">No description provided</div>
                                 )}
                             </div>
+
+                            <Separator />
+
+                            {/* Checklist Section */}
+                            <TaskChecklist task={task} checklistItems={task.checklist_items || []} />
 
                             <Separator />
 

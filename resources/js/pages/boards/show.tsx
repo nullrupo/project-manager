@@ -18,6 +18,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import { useShortName } from '@/hooks/use-initials';
+import { TaskDisplay } from '@/components/task/TaskDisplay';
 
 
 interface BoardShowProps {
@@ -311,7 +312,7 @@ function SortableTask({
             </div>
 
             <div
-                className="space-y-3 cursor-pointer"
+                className="space-y-3 cursor-pointer pr-8"
                 onClick={(e) => {
                     // Only trigger view if not clicking on action buttons
                     if (!(e.target as Element).closest('.absolute')) {
@@ -319,101 +320,28 @@ function SortableTask({
                     }
                 }}
             >
-                    {/* Task Header */}
-                    <div className="flex items-start justify-between pr-8">
-                        <div className="flex-1 min-w-0">
-                            <h4 className="font-medium text-sm leading-tight line-clamp-2 group-hover:text-primary transition-colors">
-                                {task.title}
-                            </h4>
-                            <div className="flex items-center gap-2 mt-1">
-                                {getStatusBadge(task.status)}
-                            </div>
-                        </div>
-                        {task.status === 'done' && (
-                            <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0 ml-2" />
+                <TaskDisplay task={task} compact />
+
+                {/* Task Labels */}
+                {task.labels && task.labels.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                        {task.labels.slice(0, 3).map((label) => (
+                            <Badge
+                                key={label.id}
+                                variant="secondary"
+                                className="text-xs px-2 py-0.5"
+                                style={{ backgroundColor: `${label.color}20`, color: label.color }}
+                            >
+                                {label.name}
+                            </Badge>
+                        ))}
+                        {task.labels.length > 3 && (
+                            <Badge variant="secondary" className="text-xs px-2 py-0.5">
+                                +{task.labels.length - 3}
+                            </Badge>
                         )}
                     </div>
-
-                    {/* Task Description */}
-                    {task.description && (
-                        <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-                            {task.description}
-                        </p>
-                    )}
-
-                    {/* Task Labels */}
-                    {task.labels && task.labels.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                            {task.labels.slice(0, 3).map((label) => (
-                                <Badge
-                                    key={label.id}
-                                    variant="secondary"
-                                    className="text-xs px-2 py-0.5"
-                                    style={{ backgroundColor: `${label.color}20`, color: label.color }}
-                                >
-                                    {label.name}
-                                </Badge>
-                            ))}
-                            {task.labels.length > 3 && (
-                                <Badge variant="secondary" className="text-xs px-2 py-0.5">
-                                    +{task.labels.length - 3}
-                                </Badge>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Task Footer */}
-                    <div className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2">
-                            {/* Priority */}
-                            <div className="flex items-center gap-1">
-                                {getPriorityIcon(task.priority)}
-                                <span className={`inline-block w-2 h-2 rounded-full ${getPriorityColor(task.priority)}`}></span>
-                                <span className="text-muted-foreground capitalize">{task.priority}</span>
-                            </div>
-
-                            {/* Assignees */}
-                            {task.assignees && task.assignees.length > 0 && (
-                                <div className="flex items-center gap-1">
-                                    <UserIcon className="h-3 w-3 text-muted-foreground" />
-                                    <div className="flex -space-x-1">
-                                        {task.assignees.slice(0, 2).map((assignee) => (
-                                            <Avatar key={assignee.id} className="h-4 w-4 border border-background">
-                                                <AvatarImage src={assignee.avatar} />
-                                                <AvatarFallback className="text-xs">
-                                                    {assignee.name.charAt(0).toUpperCase()}
-                                                </AvatarFallback>
-                                            </Avatar>
-                                        ))}
-                                        {task.assignees.length > 2 && (
-                                            <div className="h-4 w-4 rounded-full bg-muted border border-background flex items-center justify-center">
-                                                <span className="text-xs text-muted-foreground">
-                                                    +{task.assignees.length - 2}
-                                                </span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Due Date */}
-                        {task.due_date && (
-                            <div className={`flex items-center gap-1 ${
-                                isOverdue ? 'text-red-500' :
-                                isDueSoon ? 'text-orange-500' :
-                                'text-muted-foreground'
-                            }`}>
-                                <Calendar className="h-3 w-3" />
-                                <span className="text-xs">
-                                    {new Date(task.due_date).toLocaleDateString('en-US', {
-                                        month: 'short',
-                                        day: 'numeric'
-                                    })}
-                                </span>
-                            </div>
-                        )}
-                    </div>
+                )}
             </div>
         </div>
     );

@@ -6,6 +6,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { CalendarDays, CheckCircle, Clock, ListFilter, Plus, Archive, Trash2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useGlobalTaskInspector } from '@/contexts/GlobalTaskInspectorContext';
+import { TaskDisplay } from '@/components/task/TaskDisplay';
 
 interface MyTasksProps {
     tasks: Task[];
@@ -133,33 +134,12 @@ export default function MyTasks({ tasks = [], filter: initialFilter }: MyTasksPr
                                 onClick={() => openInspector(task)}
                             >
                                 <CardHeader className="pb-2">
-                                    <div className="flex justify-between">
-                                        <div>
-                                            <CardTitle>{task.title}</CardTitle>
-                                            <CardDescription>
-                                                {task.is_inbox ? 'Inbox' : `${task.project?.name} / ${task.list?.name}`}
-                                            </CardDescription>
-                                        </div>
-                                        <div className={`inline-block w-2 h-2 rounded-full ${
-                                            task.priority === 'low' ? 'bg-green-500' :
-                                            task.priority === 'medium' ? 'bg-yellow-500' :
-                                            task.priority === 'high' ? 'bg-orange-500' :
-                                            'bg-red-500'
-                                        }`}></div>
-                                    </div>
+                                    <CardTitle className="text-sm">
+                                        {task.is_inbox ? 'Inbox' : `${task.project?.name} / ${task.list?.name}`}
+                                    </CardTitle>
                                 </CardHeader>
-                                <CardContent>
-                                    {task.description && (
-                                        <p className="text-sm text-muted-foreground line-clamp-2">
-                                            {task.description}
-                                        </p>
-                                    )}
-                                    {task.due_date && (
-                                        <div className="mt-2 text-xs text-muted-foreground flex items-center">
-                                            <Clock className="h-3 w-3 mr-1" />
-                                            Due: {new Date(task.due_date).toLocaleDateString()}
-                                        </div>
-                                    )}
+                                <CardContent className="pt-0">
+                                    <TaskDisplay task={task} />
                                 </CardContent>
                                 <CardFooter>
                                     {task.is_inbox ? (

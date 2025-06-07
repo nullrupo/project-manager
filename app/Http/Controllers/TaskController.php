@@ -26,7 +26,7 @@ class TaskController extends Controller
         // All authenticated users can view projects
 
         $tasks = $project->tasks()
-            ->with(['list', 'assignees', 'labels', 'creator'])
+            ->with(['list', 'assignees', 'labels', 'creator', 'checklistItems'])
             ->orderBy('created_at', 'desc')
             ->paginate(20);
 
@@ -203,6 +203,7 @@ class TaskController extends Controller
             'assignees',
             'labels',
             'creator',
+            'checklistItems',
         ]);
 
         // Get project members for assignee selection

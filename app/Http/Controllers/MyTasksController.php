@@ -19,7 +19,7 @@ class MyTasksController extends Controller
 
         // Get tasks assigned to the user
         $tasks = $user->assignedTasks()
-            ->with(['project', 'list', 'labels'])
+            ->with(['project', 'list', 'labels', 'checklistItems', 'assignees'])
             ->orderBy('due_date')
             ->get();
 

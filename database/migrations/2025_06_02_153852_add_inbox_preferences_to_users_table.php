@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             $table->json('inbox_preferences')->nullable();
+            $table->json('task_display_preferences')->nullable();
         });
     }
 
@@ -22,7 +23,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn('inbox_preferences');
+            $table->dropColumn(['inbox_preferences', 'task_display_preferences']);
         });
     }
 };
