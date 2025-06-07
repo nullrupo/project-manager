@@ -88,6 +88,7 @@ export const SortableTask = ({ task, project, onViewTask, onEditTask, onTaskClic
     return (
         <div
             className="mb-3 rounded-lg border bg-card p-4 shadow-sm hover:shadow-md transition-all duration-200 group cursor-pointer relative"
+            data-task-clickable
             onClick={() => onTaskClick?.(task)}
         >
             {/* Action buttons - positioned absolutely */}

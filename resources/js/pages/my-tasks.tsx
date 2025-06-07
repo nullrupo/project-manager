@@ -129,6 +129,7 @@ export default function MyTasks({ tasks = [], filter: initialFilter }: MyTasksPr
                             <Card
                                 key={task.id}
                                 className="cursor-pointer hover:shadow-md transition-shadow"
+                                data-task-clickable
                                 onClick={() => openInspector(task)}
                             >
                                 <CardHeader className="pb-2">

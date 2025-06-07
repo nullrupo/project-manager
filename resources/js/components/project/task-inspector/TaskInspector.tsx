@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, memo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, memo, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,11 +15,11 @@ interface TaskInspectorProps {
 }
 
 // TaskInspector Component (moved outside to prevent recreation on re-renders)
-export const TaskInspector = memo(({
+export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, TaskInspectorProps>(({
     task: inspectorTask,
     onClose,
     project
-}: TaskInspectorProps) => {
+}, ref) => {
     if (!inspectorTask) return null;
 
     const [taskData, setTaskData] = useState({
@@ -128,6 +128,29 @@ export const TaskInspector = memo(({
             }
         });
     }, [inspectorTask, hasUnsavedChanges, taskData, project.id, router]);
+
+    // Expose save function to parent components
+    useImperativeHandle(ref, () => ({
+        saveTask: async () => {
+            if (hasUnsavedChanges) {
+                return new Promise<void>((resolve, reject) => {
+                    handleManualSave();
+                    // Wait for save to complete
+                    const checkSaveComplete = () => {
+                        if (saveState === 'saved') {
+                            resolve();
+                        } else if (saveState === 'error') {
+                            reject(new Error('Save failed'));
+                        } else {
+                            setTimeout(checkSaveComplete, 100);
+                        }
+                    };
+                    checkSaveComplete();
+                });
+            }
+            return Promise.resolve();
+        }
+    }), [hasUnsavedChanges, handleManualSave, saveState]);
 
     return (
         <div ref={containerRef} className="w-80 border-l bg-background flex flex-col h-full">
@@ -284,7 +307,7 @@ export const TaskInspector = memo(({
             </div>
         </div>
     );
-}, (prevProps, nextProps) => {
+}), (prevProps, nextProps) => {
     // Custom comparison to prevent unnecessary re-renders
     return (
         prevProps.task?.id === nextProps.task?.id &&

@@ -814,6 +814,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                                 ? 'ring-2 ring-primary/30 border-primary/30'
                                                 : 'hover:border-primary/20'
                                             }`}
+                                            data-task-clickable
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 if (e.ctrlKey || e.metaKey || e.shiftKey) {

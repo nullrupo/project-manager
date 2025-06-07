@@ -80,6 +80,7 @@ export default function ListTaskItem({
             className={`group relative bg-white dark:bg-gray-800 border border-border rounded-lg p-3 hover:shadow-md transition-all duration-200 cursor-pointer ${
                 task.status === 'done' ? 'opacity-60' : ''
             }`}
+            data-task-clickable
             onClick={handleTaskClick}
         >
             {/* Drag handle */}

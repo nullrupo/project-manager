@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
+import { router } from '@inertiajs/react';
 
 interface Task {
     id: number;
@@ -32,6 +33,8 @@ interface GlobalTaskInspectorContextType {
     project: any | null;
     openInspector: (task: Task, project?: any) => void;
     closeInspector: () => void;
+    saveAndCloseInspector: () => Promise<void>;
+    saveInspectorRef: React.MutableRefObject<(() => Promise<void>) | null>;
 }
 
 const GlobalTaskInspectorContext = createContext<GlobalTaskInspectorContextType | undefined>(undefined);
@@ -44,6 +47,7 @@ export function GlobalTaskInspectorProvider({ children }: GlobalTaskInspectorPro
     const [isOpen, setIsOpen] = useState(false);
     const [task, setTask] = useState<Task | null>(null);
     const [project, setProject] = useState<any | null>(null);
+    const saveInspectorRef = useRef<(() => Promise<void>) | null>(null);
 
     const openInspector = (taskToOpen: Task, projectContext?: any) => {
         setTask(taskToOpen);
@@ -80,14 +84,70 @@ export function GlobalTaskInspectorProvider({ children }: GlobalTaskInspectorPro
         setIsOpen(false);
         setTask(null);
         setProject(null);
+        saveInspectorRef.current = null;
     };
+
+    const saveAndCloseInspector = async () => {
+        // Save any pending changes before closing
+        if (saveInspectorRef.current) {
+            try {
+                await saveInspectorRef.current();
+            } catch (error) {
+                console.error('Failed to save task before closing inspector:', error);
+            }
+        }
+        closeInspector();
+    };
+
+    // Listen for navigation events to close inspector
+    useEffect(() => {
+        const handleNavigationStart = () => {
+            if (isOpen) {
+                // Save and close inspector when navigation starts
+                saveAndCloseInspector();
+            }
+        };
+
+        // Listen for Inertia navigation events
+        const removeListener = router.on('start', handleNavigationStart);
+
+        return () => {
+            removeListener();
+        };
+    }, [isOpen]);
+
+    // Listen for click outside to close inspector
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (isOpen) {
+                const target = event.target as Element;
+                const inspectorElement = document.querySelector('[data-global-inspector]');
+
+                // Check if click is outside the inspector
+                if (inspectorElement && !inspectorElement.contains(target)) {
+                    // Don't close if clicking on a task (which would open the inspector)
+                    const isTaskClick = target.closest('[data-task-clickable]');
+                    if (!isTaskClick) {
+                        saveAndCloseInspector();
+                    }
+                }
+            }
+        };
+
+        if (isOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+            return () => document.removeEventListener('mousedown', handleClickOutside);
+        }
+    }, [isOpen]);
 
     const value: GlobalTaskInspectorContextType = {
         isOpen,
         task,
         project,
         openInspector,
-        closeInspector
+        closeInspector,
+        saveAndCloseInspector,
+        saveInspectorRef
     };
 
     return (
