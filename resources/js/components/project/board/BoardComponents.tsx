@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { router } from '@inertiajs/react';
 import { Plus, Lock, Edit, Eye, CheckCircle2 } from 'lucide-react';
 import { Project } from '@/types/project-manager';
+import { TaskDisplay } from '@/components/task/TaskDisplay';
 
 interface SortableListProps {
     list: any;
@@ -123,49 +124,16 @@ export const SortableTask = ({ task, project, onViewTask, onEditTask, onTaskClic
             </div>
 
             <div className="space-y-2 pr-12">
-                <div className="flex items-center justify-between">
-                    <div className="font-medium text-sm line-clamp-2 flex-1">{task.title}</div>
-                    {task.status === 'done' && (
-                        <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0 ml-2" />
-                    )}
-                </div>
-
-                {task.description && (
-                    <div className="text-xs text-muted-foreground line-clamp-2">
-                        {task.description}
+                <TaskDisplay
+                    task={task}
+                    compact
+                    pageKey={`project-board-${task.project_id}`}
+                />
+                {task.status === 'done' && (
+                    <div className="flex justify-end">
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
                     </div>
                 )}
-
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs">
-                            {task.priority}
-                        </Badge>
-                        {task.due_date && (
-                            <Badge variant="outline" className="text-xs">
-                                {new Date(task.due_date).toLocaleDateString()}
-                            </Badge>
-                        )}
-                    </div>
-
-                    {task.assignees && task.assignees.length > 0 && (
-                        <div className="flex -space-x-1">
-                            {task.assignees.slice(0, 2).map((assignee: any) => (
-                                <Avatar key={assignee.id} className="h-5 w-5 border border-background">
-                                    <AvatarImage src={assignee.avatar} />
-                                    <AvatarFallback className="text-xs">
-                                        {assignee.name.charAt(0).toUpperCase()}
-                                    </AvatarFallback>
-                                </Avatar>
-                            ))}
-                            {task.assignees.length > 2 && (
-                                <div className="h-5 w-5 rounded-full bg-muted border border-background flex items-center justify-center">
-                                    <span className="text-xs">+{task.assignees.length - 2}</span>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
             </div>
         </div>
     );

@@ -7,6 +7,7 @@ import { CalendarDays, CheckCircle, Clock, ListFilter, Plus, Archive, Trash2 } f
 import { useState, useEffect } from 'react';
 import { useGlobalTaskInspector } from '@/contexts/GlobalTaskInspectorContext';
 import { TaskDisplay } from '@/components/task/TaskDisplay';
+import { TaskDisplayCustomizer } from '@/components/task/TaskDisplayCustomizer';
 
 interface MyTasksProps {
     tasks: Task[];
@@ -67,6 +68,7 @@ export default function MyTasks({ tasks = [], filter: initialFilter }: MyTasksPr
                 <div className="flex justify-between items-center">
                     <h1 className="text-2xl font-semibold">My Tasks</h1>
                     <div className="flex gap-2">
+                        <TaskDisplayCustomizer pageKey="my-tasks" />
                         <Button variant="outline" size="sm">
                             <ListFilter className="h-4 w-4 mr-2" />
                             Filter
@@ -139,7 +141,7 @@ export default function MyTasks({ tasks = [], filter: initialFilter }: MyTasksPr
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="pt-0">
-                                    <TaskDisplay task={task} />
+                                    <TaskDisplay task={task} pageKey="my-tasks" />
                                 </CardContent>
                                 <CardFooter>
                                     {task.is_inbox ? (

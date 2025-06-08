@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { UrgencyIndicator } from './UrgencyIndicator';
 import { ChecklistProgress } from './ChecklistProgress';
 import { useTaskDisplayPreferences } from '@/hooks/use-task-display-preferences';
+import { useTaskDisplayPreferencesContext } from '@/contexts/TaskDisplayPreferencesContext';
 import { Task } from '@/types/project-manager';
 import { Calendar, FileText, User } from 'lucide-react';
 
@@ -11,10 +12,28 @@ interface TaskDisplayProps {
     task: Task;
     className?: string;
     compact?: boolean;
+    pageKey?: string; // Optional page key for page-specific preferences
 }
 
-export function TaskDisplay({ task, className = '', compact = false }: TaskDisplayProps) {
-    const { preferences } = useTaskDisplayPreferences();
+export function TaskDisplay({ task, className = '', compact = false, pageKey }: TaskDisplayProps) {
+    const globalPrefs = useTaskDisplayPreferences();
+    const preferencesContext = useTaskDisplayPreferencesContext();
+
+    // Initialize preferences for this page on mount
+    useEffect(() => {
+        if (pageKey && pageKey.trim()) {
+            preferencesContext.initializePreferences(pageKey);
+        }
+    }, [pageKey, preferencesContext]);
+
+    // Use page-specific preferences if pageKey is provided, otherwise use global preferences
+    const preferences = pageKey && pageKey.trim()
+        ? preferencesContext.getPreferences(pageKey)
+        : globalPrefs.preferences;
+
+
+
+
 
     const formatDate = (dateString: string | null) => {
         if (!dateString) return null;

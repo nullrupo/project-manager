@@ -16,6 +16,7 @@ import { BulkActionsPanel } from '@/components/BulkActionsPanel';
 import { useShortName } from '@/hooks/use-initials';
 import { useGlobalTaskInspector } from '@/contexts/GlobalTaskInspectorContext';
 import { TaskDisplay } from '@/components/task/TaskDisplay';
+import { TaskDisplayCustomizer } from '@/components/task/TaskDisplayCustomizer';
 
 interface Task {
     id: number;
@@ -751,6 +752,9 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                         </Tooltip>
                     </TooltipProvider>
 
+                    {/* Task Display Customizer */}
+                    <TaskDisplayCustomizer pageKey="inbox" />
+
                     {sortedTasks.length > 0 && (
                         <div className="flex items-center gap-2 ml-auto">
                             <Checkbox
@@ -855,7 +859,11 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                             />
 
                                             <div className="flex-1 min-w-0">
-                                                <TaskDisplay task={task} compact />
+                                                <TaskDisplay
+                                                    task={task}
+                                                    compact
+                                                    pageKey="inbox"
+                                                />
                                                 {task.project && (
                                                     <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
                                                         <FolderOpen className="h-3 w-3" />

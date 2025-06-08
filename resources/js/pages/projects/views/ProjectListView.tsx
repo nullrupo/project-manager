@@ -9,6 +9,7 @@ import { Project } from '@/types/project-manager';
 import { TaskInspector } from '@/components/project/task-inspector/TaskInspector';
 import ListTaskItem from '../components/ListTaskItem';
 import { getOrganizedTasks, toggleSectionCollapse } from '../utils/projectUtils';
+import { TaskDisplayCustomizer } from '@/components/task/TaskDisplayCustomizer';
 
 interface ProjectListViewProps {
     project: Project;
@@ -61,6 +62,8 @@ export default function ProjectListView({
                                 </CardDescription>
                             </div>
                             <div className="flex items-center gap-2">
+                                <TaskDisplayCustomizer pageKey={`project-list-${project.id}`} />
+                                <Separator orientation="vertical" className="h-6" />
                                 {state.listViewMode === 'sections' && project.can_manage_tasks && (
                                     <Button
                                         variant="outline"

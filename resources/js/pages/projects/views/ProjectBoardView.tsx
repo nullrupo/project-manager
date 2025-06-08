@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ListTodo } from 'lucide-react';
 import { Project } from '@/types/project-manager';
 import { SortableList, SortableTask } from '@/components/project/board/BoardComponents';
+import { TaskDisplayCustomizer } from '@/components/task/TaskDisplayCustomizer';
 
 interface ProjectBoardViewProps {
     project: Project;
@@ -31,14 +32,17 @@ export default function ProjectBoardView({
     return (
         <Card className="rounded-t-none border-t-0 mt-0">
             <CardHeader className="pb-4">
-                <div>
-                    <CardTitle className="flex items-center gap-2">
-                        <ListTodo className="h-5 w-5" />
-                        Board
-                    </CardTitle>
-                    <CardDescription>
-                        Organize and manage your tasks
-                    </CardDescription>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <CardTitle className="flex items-center gap-2">
+                            <ListTodo className="h-5 w-5" />
+                            Board
+                        </CardTitle>
+                        <CardDescription>
+                            Organize and manage your tasks
+                        </CardDescription>
+                    </div>
+                    <TaskDisplayCustomizer pageKey={`project-board-${project.id}`} />
                 </div>
             </CardHeader>
             <CardContent>

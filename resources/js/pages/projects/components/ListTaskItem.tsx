@@ -15,6 +15,7 @@ import { GripVertical, MoreHorizontal, Edit, Trash2 } from 'lucide-react';
 import { Project } from '@/types/project-manager';
 import { useShortName } from '@/hooks/use-initials';
 import { useTaskOperations } from '../hooks/useTaskOperations';
+import { TaskDisplay } from '@/components/task/TaskDisplay';
 
 interface ListTaskItemProps {
     task: any;
@@ -105,16 +106,7 @@ export default function ListTaskItem({
                 <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between">
                         <div className="flex-1">
-                            <h4 className={`font-medium text-sm ${
-                                task.status === 'done' ? 'line-through text-muted-foreground' : 'text-foreground'
-                            }`}>
-                                {task.title}
-                            </h4>
-                            {task.description && (
-                                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                                    {task.description}
-                                </p>
-                            )}
+                            <TaskDisplay task={task} compact pageKey={`project-list-${task.project_id}`} />
                         </div>
 
                         {/* Actions */}
@@ -148,37 +140,6 @@ export default function ListTaskItem({
                                 </>
                             )}
                         </div>
-                    </div>
-
-                    {/* Task metadata */}
-                    <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-xs">
-                            {task.priority}
-                        </Badge>
-                        {task.due_date && (
-                            <Badge variant="outline" className="text-xs">
-                                {new Date(task.due_date).toLocaleDateString()}
-                            </Badge>
-                        )}
-                        {task.assignees && task.assignees.length > 0 && (
-                            <div className="flex -space-x-1">
-                                {task.assignees.slice(0, 2).map((assignee: any) => (
-                                    <Avatar key={assignee.id} className="h-5 w-5 border border-background">
-                                        <AvatarImage src={assignee.avatar} />
-                                        <AvatarFallback className="text-xs">
-                                            {getShortName(assignee.name)}
-                                        </AvatarFallback>
-                                    </Avatar>
-                                ))}
-                                {task.assignees.length > 2 && (
-                                    <div className="h-5 w-5 rounded-full bg-muted border border-background flex items-center justify-center">
-                                        <span className="text-xs font-medium text-muted-foreground">
-                                            +{task.assignees.length - 2}
-                                        </span>
-                                    </div>
-                                )}
-                            </div>
-                        )}
                     </div>
                 </div>
             </div>
