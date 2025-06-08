@@ -1,10 +1,12 @@
 import { router } from '@inertiajs/react';
 import { Project } from '@/types/project-manager';
+import { useUndoNotification } from '@/contexts/UndoNotificationContext';
 
 /**
  * Custom hook for task operations
  */
-export const useTaskOperations = (project: Project) => {
+export const useTaskOperations = (project: Project, currentView?: string) => {
+    const { showUndoNotification } = useUndoNotification();
     
     /**
      * Toggle task completion status
@@ -33,11 +35,36 @@ export const useTaskOperations = (project: Project) => {
     };
 
     /**
-     * Delete a task
+     * Delete a task with undo functionality
      */
-    const deleteTask = (taskId: number) => {
-        if (confirm('Are you sure you want to delete this task?')) {
-            router.delete(route('tasks.destroy', { project: project.id, task: taskId }));
+    const deleteTask = async (taskId: number) => {
+        try {
+            const params: any = { project: project.id, task: taskId };
+            if (currentView) {
+                params.view = currentView;
+            }
+
+            const response = await fetch(route('tasks.destroy', params), {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'Accept': 'application/json',
+                },
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                // Show undo notification
+                showUndoNotification(data.message, data.undo_url);
+
+                // Reload the page to reflect the deletion
+                router.reload();
+            } else {
+                console.error('Failed to delete task:', data);
+            }
+        } catch (error) {
+            console.error('Failed to delete task:', error);
         }
     };
 

@@ -17,6 +17,7 @@ import { useShortName } from '@/hooks/use-initials';
 import { useGlobalTaskInspector } from '@/contexts/GlobalTaskInspectorContext';
 import { TaskDisplay } from '@/components/task/TaskDisplay';
 import { TaskDisplayCustomizer } from '@/components/task/TaskDisplayCustomizer';
+import { useUndoNotification } from '@/contexts/UndoNotificationContext';
 
 interface Task {
     id: number;
@@ -61,6 +62,7 @@ interface InboxPageProps {
 export default function InboxPage({ tasks = [], users = [], projects = [] }: InboxPageProps) {
     const getShortName = useShortName();
     const { openInspector } = useGlobalTaskInspector();
+    const { showUndoNotification } = useUndoNotification();
 
     // Helper function to get display status
     const getDisplayStatus = (task: Task): string => {
@@ -83,8 +85,6 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
     };
 
     const [editingTask, setEditingTask] = useState<Task | null>(null);
-    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-    const [taskToDelete, setTaskToDelete] = useState<number | null>(null);
     const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
     const [taskToMove, setTaskToMove] = useState<Task | null>(null);
     const [selectedProjectId, setSelectedProjectId] = useState<string>('');
@@ -328,17 +328,30 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
         }
     };
 
-    // Open delete confirmation dialog
-    const openDeleteDialog = (taskId: number) => {
-        setTaskToDelete(taskId);
-        setIsDeleteDialogOpen(true);
-    };
+    // Delete a task with undo functionality
+    const deleteTask = async (taskId: number) => {
+        try {
+            const response = await fetch(route('inbox.tasks.destroy', { task: taskId }), {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'Accept': 'application/json',
+                },
+            });
 
-    // Delete a task
-    const deleteTask = () => {
-        if (taskToDelete) {
-            router.delete(route('inbox.tasks.destroy', { task: taskToDelete }));
-            setTaskToDelete(null);
+            const data = await response.json();
+            if (data.success) {
+                // Show undo notification
+                showUndoNotification(data.message, data.undo_url);
+
+                // Reload the page to reflect the deletion
+                router.reload();
+            } else {
+                console.error('Failed to delete task:', data);
+            }
+        } catch (error) {
+            console.error('Failed to delete task:', error);
         }
     };
 
@@ -897,7 +910,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                                     className="h-8 w-8 p-0 text-red-500 hover:text-red-600"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        openDeleteDialog(task.id);
+                                                        deleteTask(task.id);
                                                     }}
                                                     title="Delete Task"
                                                 >
@@ -1139,34 +1152,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                 </DialogContent>
             </Dialog>
 
-            {/* Delete Confirmation Dialog */}
-            <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                        <DialogTitle>Delete Task</DialogTitle>
-                        <DialogDescription>
-                            Are you sure you want to delete this task? This action cannot be undone.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => setIsDeleteDialogOpen(false)}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            variant="destructive"
-                            onClick={() => {
-                                deleteTask();
-                                setIsDeleteDialogOpen(false);
-                            }}
-                        >
-                            Delete
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+
 
 
 

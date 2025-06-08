@@ -499,7 +499,7 @@ class TaskController extends Controller
     /**
      * Remove the specified task from storage.
      */
-    public function destroy(Project $project, Task $task): RedirectResponse
+    public function destroy(Request $request, Project $project, Task $task): RedirectResponse|\Illuminate\Http\JsonResponse
     {
         // Check if the task belongs to the project
         if ($task->project_id !== $project->id) {
@@ -511,9 +511,54 @@ class TaskController extends Controller
             abort(403, 'You do not have permission to delete this task.');
         }
 
+        // Soft delete the task
         $task->delete();
 
-        return redirect()->route('boards.show', [$project, $task->list->board])
+        // Preserve the current view if specified in the request
+        $redirectParams = ['project' => $project->id];
+        if ($request->has('view')) {
+            $redirectParams['view'] = $request->get('view');
+        }
+
+        // Return JSON response for AJAX requests (for undo functionality)
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Task deleted successfully',
+                'task_id' => $task->id,
+                'undo_url' => route('tasks.restore', ['project' => $project->id, 'task' => $task->id])
+            ]);
+        }
+
+        // Redirect back to the project page for non-AJAX requests
+        return redirect()->route('projects.show', $redirectParams)
             ->with('success', 'Task deleted successfully.');
+    }
+
+    /**
+     * Restore a soft-deleted task.
+     */
+    public function restore(Request $request, Project $project, $taskId): \Illuminate\Http\JsonResponse
+    {
+        // Find the soft-deleted task
+        $task = Task::withTrashed()->where('id', $taskId)->where('project_id', $project->id)->first();
+
+        if (!$task) {
+            return response()->json(['error' => 'Task not found'], 404);
+        }
+
+        // Check if user has permission to restore this task
+        if ($task->created_by !== Auth::id() && !ProjectPermissionService::can($project, 'can_manage_tasks')) {
+            return response()->json(['error' => 'You do not have permission to restore this task'], 403);
+        }
+
+        // Restore the task
+        $task->restore();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Task restored successfully',
+            'task' => $task->fresh(['assignees', 'labels', 'creator', 'list'])
+        ]);
     }
 }

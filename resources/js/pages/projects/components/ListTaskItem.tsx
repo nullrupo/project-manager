@@ -23,17 +23,19 @@ interface ListTaskItemProps {
     sectionId?: string;
     onTaskClick: (task: any) => void;
     onEditTask: (task: any) => void;
+    currentView?: string;
 }
 
-export default function ListTaskItem({ 
-    task, 
-    project, 
-    sectionId, 
-    onTaskClick, 
-    onEditTask 
+export default function ListTaskItem({
+    task,
+    project,
+    sectionId,
+    onTaskClick,
+    onEditTask,
+    currentView
 }: ListTaskItemProps) {
     const getShortName = useShortName();
-    const { toggleTaskCompletion, deleteTask } = useTaskOperations(project);
+    const { toggleTaskCompletion, deleteTask } = useTaskOperations(project, currentView);
 
     // Drag and drop functionality
     const {

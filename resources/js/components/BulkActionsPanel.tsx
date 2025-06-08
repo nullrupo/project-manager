@@ -35,15 +35,12 @@ export function BulkActionsPanel({
     showMoveToProject = false,
     isProcessing = false
 }: BulkActionsPanelProps) {
-    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-
     if (selectedTasks.size === 0) return null;
 
     const { allCompleted } = getCompletionState();
 
     const handleDelete = () => {
         onDelete();
-        setIsDeleteDialogOpen(false);
     };
 
     return (
@@ -80,7 +77,7 @@ export function BulkActionsPanel({
                         <Button
                             variant="destructive"
                             size="sm"
-                            onClick={() => setIsDeleteDialogOpen(true)}
+                            onClick={handleDelete}
                             disabled={isProcessing}
                         >
                             <Trash2 className="h-4 w-4 mr-1" />
@@ -99,33 +96,7 @@ export function BulkActionsPanel({
                 </div>
             </div>
 
-            {/* Delete Confirmation Dialog */}
-            <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                        <DialogTitle>Delete Tasks</DialogTitle>
-                        <DialogDescription>
-                            Are you sure you want to delete {selectedTasks.size} task{selectedTasks.size !== 1 ? 's' : ''}? This action cannot be undone.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => setIsDeleteDialogOpen(false)}
-                            disabled={isProcessing}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            variant="destructive"
-                            onClick={handleDelete}
-                            disabled={isProcessing}
-                        >
-                            Delete {selectedTasks.size} Task{selectedTasks.size !== 1 ? 's' : ''}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+
         </>
     );
 }

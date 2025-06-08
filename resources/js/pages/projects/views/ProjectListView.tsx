@@ -223,6 +223,7 @@ export default function ProjectListView({
                                                                     sectionId={section.id}
                                                                     onTaskClick={onTaskClick}
                                                                     onEditTask={onEditTask}
+                                                                    currentView={state.activeView}
                                                                 />
                                                             ))}
                                                             {section.tasks.length === 0 && (

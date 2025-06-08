@@ -5,6 +5,7 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 import { ThemeProvider } from './providers/theme-provider';
 import { GlobalTaskInspectorProvider } from './contexts/GlobalTaskInspectorContext';
+import { UndoNotificationProvider } from './contexts/UndoNotificationContext';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -16,9 +17,11 @@ createInertiaApp({
 
         root.render(
             <ThemeProvider defaultTheme="light">
-                <GlobalTaskInspectorProvider>
-                    <App {...props} />
-                </GlobalTaskInspectorProvider>
+                <UndoNotificationProvider>
+                    <GlobalTaskInspectorProvider>
+                        <App {...props} />
+                    </GlobalTaskInspectorProvider>
+                </UndoNotificationProvider>
             </ThemeProvider>
         );
     },

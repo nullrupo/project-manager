@@ -57,6 +57,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('projects/{project}/tasks/{task}/move', [TaskController::class, 'move'])->name('tasks.move');
     Route::post('projects/{project}/tasks/{task}/toggle-completion', [TaskController::class, 'toggleCompletion'])->name('tasks.toggle-completion');
     Route::delete('projects/{project}/tasks/{task}', [TaskController::class, 'destroy'])->name('tasks.destroy');
+    Route::post('projects/{project}/tasks/{task}/restore', [TaskController::class, 'restore'])->name('tasks.restore');
     Route::post('projects/{project}/tasks/positions', [TaskController::class, 'updatePositions'])->name('tasks.positions');
 
     // Comment routes
@@ -94,6 +95,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('inbox/tasks/{task}', [InboxController::class, 'destroy'])->name('inbox.tasks.destroy');
     Route::post('inbox/tasks/{task}/toggle-completion', [InboxController::class, 'toggleCompletion'])->name('inbox.tasks.toggle-completion');
     Route::post('inbox/tasks/{task}/move-to-project', [InboxController::class, 'moveToProject'])->name('inbox.tasks.move-to-project');
+    Route::post('inbox/tasks/{task}/restore', [InboxController::class, 'restore'])->name('inbox.tasks.restore');
     Route::post('inbox/cleanup', [InboxController::class, 'cleanup'])->name('inbox.cleanup');
 
     // Team routes

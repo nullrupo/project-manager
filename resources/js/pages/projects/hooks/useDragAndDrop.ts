@@ -18,7 +18,7 @@ export const useDragAndDrop = (
     state: any,
     listViewMode: 'status' | 'sections'
 ) => {
-    const { moveTask, updateTaskPositions } = useTaskOperations(project);
+    const { moveTask, updateTaskPositions } = useTaskOperations(project, state.activeView);
 
     // Drag and drop sensors
     const sensors = useSensors(

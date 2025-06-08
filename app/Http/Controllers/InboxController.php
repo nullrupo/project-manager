@@ -282,7 +282,7 @@ class InboxController extends Controller
     /**
      * Remove the specified inbox task.
      */
-    public function destroy(Task $task): RedirectResponse
+    public function destroy(Task $task): RedirectResponse|\Illuminate\Http\JsonResponse
     {
         // Check if the task is an inbox task
         if (!$task->is_inbox) {
@@ -294,7 +294,18 @@ class InboxController extends Controller
             abort(403, 'You do not have permission to delete this task.');
         }
 
+        // Soft delete the task
         $task->delete();
+
+        // Return JSON response for AJAX requests (for undo functionality)
+        if (request()->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Task deleted successfully',
+                'task_id' => $task->id,
+                'undo_url' => route('inbox.tasks.restore', ['task' => $task->id])
+            ]);
+        }
 
         return redirect()->route('inbox')
             ->with('success', 'Task deleted successfully.');
@@ -442,6 +453,33 @@ class InboxController extends Controller
 
         return response()->json([
             'success' => true,
+            'task' => $task->fresh(['project', 'assignees', 'labels', 'creator', 'checklistItems'])
+        ]);
+    }
+
+    /**
+     * Restore a soft-deleted inbox task.
+     */
+    public function restore($taskId): \Illuminate\Http\JsonResponse
+    {
+        // Find the soft-deleted task
+        $task = Task::withTrashed()->where('id', $taskId)->where('is_inbox', true)->first();
+
+        if (!$task) {
+            return response()->json(['error' => 'Task not found'], 404);
+        }
+
+        // Check if user has permission to restore this task
+        if ($task->created_by !== Auth::id() && !$task->assignees->contains(Auth::id())) {
+            return response()->json(['error' => 'You do not have permission to restore this task'], 403);
+        }
+
+        // Restore the task
+        $task->restore();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Task restored successfully',
             'task' => $task->fresh(['project', 'assignees', 'labels', 'creator', 'checklistItems'])
         ]);
     }
