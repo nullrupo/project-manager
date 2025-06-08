@@ -99,6 +99,15 @@ class TaskController extends Controller
             $reviewerId = null;
         }
 
+        // Handle section_id - assign default section if none provided but project has sections
+        $sectionId = $validated['section_id'] ?? null;
+        if ($sectionId === null && $project->sections()->count() > 0) {
+            $defaultSection = $project->sections()->orderBy('position')->first();
+            if ($defaultSection) {
+                $sectionId = $defaultSection->id;
+            }
+        }
+
         // Create the task
         $task = new Task([
             'title' => $validated['title'],
@@ -108,7 +117,7 @@ class TaskController extends Controller
             'estimate' => $validated['estimate'] ?? null,
             'due_date' => $validated['due_date'] ?? null,
             'reviewer_id' => $reviewerId,
-            'section_id' => $validated['section_id'] ?? null,
+            'section_id' => $sectionId,
             'position' => $maxPosition + 1,
         ]);
 

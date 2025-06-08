@@ -4,12 +4,13 @@ import { DndContext, closestCenter } from '@dnd-kit/core';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Menu, Plus, ChevronDown, ChevronRight, Layers, ListTodo } from 'lucide-react';
+import { Menu, Plus, ChevronDown, ChevronRight, Layers, ListTodo, Edit } from 'lucide-react';
 import { Project } from '@/types/project-manager';
 import { TaskInspector } from '@/components/project/task-inspector/TaskInspector';
 import ListTaskItem from '../components/ListTaskItem';
 import { getOrganizedTasks, toggleSectionCollapse } from '../utils/projectUtils';
 import { TaskDisplayCustomizer } from '@/components/task/TaskDisplayCustomizer';
+import { router } from '@inertiajs/react';
 
 interface ProjectListViewProps {
     project: Project;
@@ -23,6 +24,7 @@ interface ProjectListViewProps {
     onCreateSection: () => void;
     onEditSection: (section: any) => void;
     onDeleteSection: (section: any) => void;
+    onCreateTask?: (sectionId?: string, status?: string) => void;
 }
 
 export default function ProjectListView({
@@ -36,13 +38,37 @@ export default function ProjectListView({
     onEditTask,
     onCreateSection,
     onEditSection,
-    onDeleteSection
+    onDeleteSection,
+    onCreateTask
 }: ProjectListViewProps) {
     
     const sections = getOrganizedTasks(project, state.listViewMode);
 
     const handleSectionToggle = (sectionId: string) => {
         toggleSectionCollapse(sectionId, state.collapsedSections, state.setCollapsedSections);
+    };
+
+    const handleCreateTask = (sectionId?: string, status?: string) => {
+        if (onCreateTask) {
+            onCreateTask(sectionId, status);
+        } else {
+            // Fallback to direct navigation if no handler provided
+            const params: any = {
+                project: project.id,
+                board: project.boards?.[0]?.id,
+                list: project.boards?.[0]?.lists?.[0]?.id,
+                view: 'list'
+            };
+
+            if (sectionId && state.listViewMode === 'sections') {
+                params.section_id = sectionId;
+            }
+            if (status && state.listViewMode === 'status') {
+                params.status = status;
+            }
+
+            router.get(route('tasks.create', params));
+        }
     };
 
     return (
@@ -135,29 +161,49 @@ export default function ProjectListView({
                                                             ({section.tasks.length})
                                                         </span>
                                                     </div>
-                                                    {section.type === 'section' && project.can_manage_tasks && (
+                                                    {project.can_manage_tasks && (
                                                         <div className="flex items-center gap-1">
                                                             <Button
                                                                 variant="ghost"
                                                                 size="sm"
+                                                                className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    onEditSection(section);
+                                                                    handleCreateTask(
+                                                                        state.listViewMode === 'sections' ? section.id : undefined,
+                                                                        state.listViewMode === 'status' ? section.id : undefined
+                                                                    );
                                                                 }}
+                                                                title="Add Task"
                                                             >
-                                                                Edit
+                                                                <Plus className="h-4 w-4" />
                                                             </Button>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    onDeleteSection(section);
-                                                                }}
-                                                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                                            >
-                                                                Delete
-                                                            </Button>
+                                                            {section.type === 'section' && (
+                                                                <>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            onEditSection(section);
+                                                                        }}
+                                                                    >
+                                                                        Edit
+                                                                    </Button>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="text-red-600 hover:text-red-700 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            onDeleteSection(section);
+                                                                        }}
+                                                                    >
+                                                                        Delete
+                                                                    </Button>
+                                                                </>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>
@@ -181,7 +227,20 @@ export default function ProjectListView({
                                                             ))}
                                                             {section.tasks.length === 0 && (
                                                                 <div className="text-center py-8 text-muted-foreground">
-                                                                    <p>No tasks in this section</p>
+                                                                    <p className="mb-4">No tasks in this section</p>
+                                                                    {project.can_manage_tasks && (
+                                                                        <Button
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            onClick={() => handleCreateTask(
+                                                                                state.listViewMode === 'sections' ? section.id : undefined,
+                                                                                state.listViewMode === 'status' ? section.id : undefined
+                                                                            )}
+                                                                        >
+                                                                            <Plus className="h-4 w-4 mr-2" />
+                                                                            Add First Task
+                                                                        </Button>
+                                                                    )}
                                                                 </div>
                                                             )}
                                                         </div>

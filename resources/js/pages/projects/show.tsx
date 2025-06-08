@@ -76,6 +76,25 @@ export default function ProjectShow({ project }: ProjectShowProps) {
         }
     };
 
+    // Task creation handler
+    const handleCreateTask = (sectionId?: string, status?: string) => {
+        const params: any = {
+            project: project.id,
+            board: project.boards?.[0]?.id,
+            list: project.boards?.[0]?.lists?.[0]?.id,
+            view: 'list'
+        };
+
+        if (sectionId && state.listViewMode === 'sections') {
+            params.section_id = sectionId;
+        }
+        if (status && state.listViewMode === 'status') {
+            params.status = status;
+        }
+
+        router.get(route('tasks.create', params));
+    };
+
     // Member management
     const handleInviteMember = () => {
         state.setInviteModalOpen(true);
@@ -126,6 +145,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                     onCreateSection={handleCreateSection}
                     onEditSection={handleEditSection}
                     onDeleteSection={handleDeleteSection}
+                    onCreateTask={handleCreateTask}
                 />
             )}
 

@@ -86,6 +86,7 @@ class InboxController extends Controller
         $position = 0;
 
         // If project is assigned, find the appropriate list and position
+        $sectionId = null;
         if (!$isInboxTask) {
             $project = Project::findOrFail($validated['project_id']);
 
@@ -96,6 +97,14 @@ class InboxController extends Controller
                 if ($firstList) {
                     $listId = $firstList->id;
                     $position = Task::where('list_id', $listId)->max('position') + 1;
+                }
+            }
+
+            // Assign to default section if project has sections
+            if ($project->sections()->count() > 0) {
+                $defaultSection = $project->sections()->orderBy('position')->first();
+                if ($defaultSection) {
+                    $sectionId = $defaultSection->id;
                 }
             }
         }
@@ -109,6 +118,7 @@ class InboxController extends Controller
             'due_date' => $validated['due_date'] ?? null,
             'project_id' => $validated['project_id'] ?? null,
             'list_id' => $listId,
+            'section_id' => $sectionId,
             'position' => $position,
             'is_inbox' => $isInboxTask,
             'created_by' => Auth::id(),
@@ -189,6 +199,7 @@ class InboxController extends Controller
         $position = $task->position;
 
         // If project assignment is changing
+        $sectionId = $task->section_id; // Keep current section by default
         if ($newProjectId !== $currentProjectId) {
             if ($newProjectId) {
                 // Moving to a project - find appropriate list and position
@@ -203,10 +214,20 @@ class InboxController extends Controller
                         $position = Task::where('list_id', $listId)->max('position') + 1;
                     }
                 }
+
+                // Assign to default section if project has sections
+                $sectionId = null;
+                if ($project->sections()->count() > 0) {
+                    $defaultSection = $project->sections()->orderBy('position')->first();
+                    if ($defaultSection) {
+                        $sectionId = $defaultSection->id;
+                    }
+                }
             } else {
-                // Moving back to inbox - clear list and position
+                // Moving back to inbox - clear list, position, and section
                 $listId = null;
                 $position = 0;
+                $sectionId = null;
             }
         }
 
@@ -219,6 +240,7 @@ class InboxController extends Controller
             'due_date' => $validated['due_date'] ?? null,
             'project_id' => $newProjectId,
             'list_id' => $listId,
+            'section_id' => $sectionId,
             'position' => $position,
             'is_inbox' => $shouldBeInInbox,
         ];
@@ -324,10 +346,20 @@ class InboxController extends Controller
             }
         }
 
+        // Assign to default section if project has sections
+        $sectionId = null;
+        if ($project->sections()->count() > 0) {
+            $defaultSection = $project->sections()->orderBy('position')->first();
+            if ($defaultSection) {
+                $sectionId = $defaultSection->id;
+            }
+        }
+
         // Update the task to move it to the project
         $task->update([
             'project_id' => $project->id,
             'list_id' => $listId,
+            'section_id' => $sectionId,
             'is_inbox' => false,
             'position' => $listId ? \App\Models\Task::where('list_id', $listId)->max('position') + 1 : 0,
         ]);

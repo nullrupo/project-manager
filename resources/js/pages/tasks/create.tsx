@@ -21,6 +21,7 @@ interface TaskCreateForm {
     estimate: string;
     assignee_ids: number[];
     label_ids: number[];
+    section_id: number | null;
 }
 
 interface TaskCreateProps {
@@ -33,6 +34,7 @@ export default function TaskCreate({ project, board, list }: TaskCreateProps) {
     const { props } = usePage();
     const tab = (props as any).tab || 'list'; // Get tab from URL params
     const status = (props as any).status || 'to_do'; // Get status from URL params if provided
+    const sectionId = (props as any).section_id; // Get section_id from URL params if provided
 
     const { data, setData, post, processing, errors } = useForm<TaskCreateForm>({
         title: '',
@@ -43,6 +45,7 @@ export default function TaskCreate({ project, board, list }: TaskCreateProps) {
         estimate: '',
         assignee_ids: [],
         label_ids: [],
+        section_id: sectionId || null,
     });
 
     const breadcrumbs: BreadcrumbItem[] = [
