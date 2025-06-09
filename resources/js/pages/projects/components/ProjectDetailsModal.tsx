@@ -6,14 +6,13 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Project } from '@/types/project-manager';
 import { Link } from '@inertiajs/react';
-import { 
-    Settings, 
-    Tag, 
-    Tags, 
-    Users, 
-    Calendar, 
-    Globe, 
-    Shield, 
+import {
+    Settings,
+    Tag,
+    Tags,
+    Users,
+    Calendar,
+    Shield,
     Crown,
     ExternalLink,
     Edit
@@ -27,25 +26,14 @@ interface ProjectDetailsModalProps {
 
 export default function ProjectDetailsModal({ project, open, onOpenChange }: ProjectDetailsModalProps) {
     const getProjectIcon = () => {
-        if (project.visibility === 'private') {
-            return <Shield className="h-5 w-5 text-orange-500" />;
-        }
-        return <Globe className="h-5 w-5 text-blue-500" />;
+        return <Shield className="h-5 w-5 text-orange-500" />;
     };
 
     const getProjectBadge = () => {
-        if (project.visibility === 'private') {
-            return (
-                <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50">
-                    <Shield className="h-3 w-3 mr-1" />
-                    Private
-                </Badge>
-            );
-        }
         return (
-            <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50">
-                <Globe className="h-3 w-3 mr-1" />
-                Team
+            <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50">
+                <Shield className="h-3 w-3 mr-1" />
+                Private
             </Badge>
         );
     };

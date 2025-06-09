@@ -33,7 +33,6 @@ class Project extends Model
         'owner_id',
         'icon',
         'background_color',
-        'is_public',
         'is_archived',
         'completion_behavior',
         'requires_review',
@@ -46,7 +45,6 @@ class Project extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'is_public' => 'boolean',
         'is_archived' => 'boolean',
         'requires_review' => 'boolean',
     ];

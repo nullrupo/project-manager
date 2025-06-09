@@ -8,7 +8,6 @@ export interface Project {
     owner_id: number;
     icon: string | null;
     background_color: string | null;
-    is_public: boolean;
     is_archived: boolean;
     completion_behavior: 'simple' | 'review' | 'custom';
     requires_review: boolean;

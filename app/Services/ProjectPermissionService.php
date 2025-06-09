@@ -84,8 +84,7 @@ class ProjectPermissionService
         $membership = $project->members()->where('user_id', $user->id)->first();
 
         if (!$membership) {
-            // If project is public, allow viewing
-            return $project->is_public && $permission === 'can_view_project';
+            return false;
         }
 
         // Check specific permission
@@ -130,7 +129,7 @@ class ProjectPermissionService
         $membership = $project->members()->where('user_id', $user->id)->first();
 
         if (!$membership) {
-            return $project->is_public ? ['can_view_project' => true] : [];
+            return [];
         }
 
         return [

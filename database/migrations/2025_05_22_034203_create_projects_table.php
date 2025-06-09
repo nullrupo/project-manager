@@ -19,7 +19,6 @@ return new class extends Migration
             $table->foreignId('owner_id')->constrained('users');
             $table->string('icon')->nullable();
             $table->string('background_color')->nullable();
-            $table->boolean('is_public')->default(false);
             $table->boolean('is_archived')->default(false);
             $table->enum('completion_behavior', ['simple', 'review', 'custom'])->default('simple');
             $table->boolean('requires_review')->default(false);

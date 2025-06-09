@@ -7,7 +7,7 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Project } from '@/types/project-manager';
 import { Head, Link, usePage } from '@inertiajs/react';
-import { CalendarDays, Lock, Plus, User, Users, Globe, Shield, Archive, Star } from 'lucide-react';
+import { CalendarDays, Plus, User, Users, Globe, Archive } from 'lucide-react';
 import StarButton from '@/components/star-button';
 import { useState, useMemo } from 'react';
 import { useShortName } from '@/hooks/use-initials';
@@ -31,7 +31,7 @@ export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
             case 'team':
                 return projects.filter(project =>
                     project.owner_id !== auth.user.id &&
-                    (project.members?.some(member => member.id === auth.user.id) || project.is_public)
+                    project.members?.some(member => member.id === auth.user.id)
                 );
             case 'all':
             default:
@@ -86,7 +86,7 @@ export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
                     <Badge variant="secondary" className="ml-1">
                         {projects.filter(p =>
                             p.owner_id !== auth.user.id &&
-                            (p.members?.some(member => member.id === auth.user.id) || p.is_public)
+                            p.members?.some(member => member.id === auth.user.id)
                         ).length}
                     </Badge>
                 </Button>
@@ -148,17 +148,6 @@ export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
                                                 )}
                                             </div>
                                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                {project.is_public ? (
-                                                    <div className="flex items-center gap-1">
-                                                        <Globe className="h-3 w-3" />
-                                                        <span>Public</span>
-                                                    </div>
-                                                ) : (
-                                                    <div className="flex items-center gap-1">
-                                                        <Shield className="h-3 w-3" />
-                                                        <span>Private</span>
-                                                    </div>
-                                                )}
                                                 {project.is_archived && (
                                                     <div className="flex items-center gap-1">
                                                         <Archive className="h-3 w-3" />

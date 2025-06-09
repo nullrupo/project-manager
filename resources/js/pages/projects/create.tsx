@@ -9,16 +9,14 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, useForm } from '@inertiajs/react';
-import { LoaderCircle, Globe, Shield, Palette, Info } from 'lucide-react';
-import { FormEventHandler, useEffect } from 'react';
+import { LoaderCircle, Palette } from 'lucide-react';
+import { FormEventHandler } from 'react';
 
 interface ProjectCreateForm {
     name: string;
     description: string;
-    is_public: boolean;
     background_color: string;
     icon: string;
-    visibility: 'private' | 'public';
     completion_behavior: 'simple' | 'review' | 'custom';
     requires_review: boolean;
 }
@@ -38,18 +36,11 @@ export default function ProjectCreate() {
     const { data, setData, post, processing, errors } = useForm<ProjectCreateForm>({
         name: '',
         description: '',
-        is_public: false,
         background_color: '#3498db',
         icon: '',
-        visibility: 'private',
         completion_behavior: 'simple',
         requires_review: false,
     });
-
-    // Sync visibility with is_public
-    useEffect(() => {
-        setData('is_public', data.visibility === 'public');
-    }, [data.visibility]);
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
@@ -98,38 +89,6 @@ export default function ProjectCreate() {
                                     className="min-h-[100px] resize-none"
                                 />
                                 <InputError message={errors.description} />
-                            </div>
-
-                            {/* Project Visibility */}
-                            <div className="space-y-3">
-                                <Label className="text-sm font-medium">Project Visibility</Label>
-                                <RadioGroup
-                                    value={data.visibility}
-                                    onValueChange={(value: 'private' | 'public') => setData('visibility', value)}
-                                    className="space-y-3"
-                                >
-                                    <div className="flex items-center space-x-3 rounded-lg border p-4 hover:bg-muted/50 transition-colors">
-                                        <RadioGroupItem value="private" id="private" />
-                                        <div className="flex items-center gap-2 flex-1">
-                                            <Shield className="h-4 w-4 text-muted-foreground" />
-                                            <div>
-                                                <Label htmlFor="private" className="font-medium cursor-pointer">Private</Label>
-                                                <p className="text-sm text-muted-foreground">Only you and invited members can access this project</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center space-x-3 rounded-lg border p-4 hover:bg-muted/50 transition-colors">
-                                        <RadioGroupItem value="public" id="public" />
-                                        <div className="flex items-center gap-2 flex-1">
-                                            <Globe className="h-4 w-4 text-muted-foreground" />
-                                            <div>
-                                                <Label htmlFor="public" className="font-medium cursor-pointer">Public</Label>
-                                                <p className="text-sm text-muted-foreground">Anyone in your organization can view this project</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </RadioGroup>
-                                <InputError message={errors.is_public} />
                             </div>
 
                             {/* Task Completion Behavior */}

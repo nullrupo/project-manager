@@ -8,7 +8,6 @@ export interface Project {
     owner_id: number;
     icon: string | null;
     background_color: string | null;
-    is_public: boolean;
     is_archived: boolean;
     created_at: string;
     updated_at: string;

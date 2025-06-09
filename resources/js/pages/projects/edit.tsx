@@ -36,7 +36,6 @@ export default function ProjectEdit({ project, members }: ProjectEditProps) {
     const { data, setData, put, processing, errors } = useForm({
         name: project.name,
         description: project.description || '',
-        is_public: project.is_public,
         background_color: project.background_color || '#3498db',
         icon: project.icon || '',
         completion_behavior: project.completion_behavior || 'simple',
@@ -105,16 +104,6 @@ export default function ProjectEdit({ project, members }: ProjectEditProps) {
                                     />
                                 </div>
                                 <InputError message={errors.background_color} />
-                            </div>
-
-                            <div className="flex items-center space-x-2">
-                                <Checkbox
-                                    id="is_public"
-                                    checked={data.is_public}
-                                    onCheckedChange={(checked) => setData('is_public', !!checked)}
-                                />
-                                <Label htmlFor="is_public">Make this project public</Label>
-                                <InputError message={errors.is_public} />
                             </div>
 
                             <div className="space-y-4 border-t pt-4">

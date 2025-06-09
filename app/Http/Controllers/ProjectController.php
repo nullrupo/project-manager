@@ -55,7 +55,6 @@ class ProjectController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'is_public' => 'boolean',
             'background_color' => 'nullable|string|max:50',
             'icon' => 'nullable|string|max:50',
             'completion_behavior' => 'nullable|string|in:simple,review,custom',
@@ -200,7 +199,6 @@ class ProjectController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'is_public' => 'boolean',
             'background_color' => 'nullable|string|max:50',
             'icon' => 'nullable|string|max:50',
             'completion_behavior' => 'required|string|in:simple,review,custom',

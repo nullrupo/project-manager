@@ -2,15 +2,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { 
-    Globe, 
-    Shield, 
-    Crown, 
-    Clock, 
-    CheckCircle2, 
+import {
+    Shield,
+    Crown,
+    Clock,
     Settings,
     Users,
-    UserPlus 
+    UserPlus
 } from 'lucide-react';
 import { Project } from '@/types/project-manager';
 import { useShortName } from '@/hooks/use-initials';
@@ -31,45 +29,19 @@ export default function ProjectHeader({
     const getShortName = useShortName();
 
     const getProjectIcon = () => {
-        if (project.visibility === 'private') {
-            return <Shield className="h-5 w-5 text-orange-500" />;
-        }
-        return <Globe className="h-5 w-5 text-blue-500" />;
+        return <Shield className="h-5 w-5 text-orange-500" />;
     };
 
     const getProjectBadge = () => {
-        if (project.visibility === 'private') {
-            return (
-                <Badge variant="outline" className="border-orange-200 text-orange-700 bg-orange-50 dark:border-orange-800 dark:text-orange-300 dark:bg-orange-950/30">
-                    <Shield className="h-3 w-3 mr-1" />
-                    Private
-                </Badge>
-            );
-        }
         return (
-            <Badge variant="outline" className="border-blue-200 text-blue-700 bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:bg-blue-950/30">
-                <Globe className="h-3 w-3 mr-1" />
-                Public
+            <Badge variant="outline" className="border-orange-200 text-orange-700 bg-orange-50 dark:border-orange-800 dark:text-orange-300 dark:bg-orange-950/30">
+                <Shield className="h-3 w-3 mr-1" />
+                Private
             </Badge>
         );
     };
 
-    const getStatusBadge = () => {
-        if (project.status === 'completed') {
-            return (
-                <Badge className="bg-green-500 hover:bg-green-600 text-white">
-                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                    Completed
-                </Badge>
-            );
-        }
-        return (
-            <Badge variant="outline" className="border-blue-200 text-blue-700 bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:bg-blue-950/30">
-                <Clock className="h-3 w-3 mr-1" />
-                Active
-            </Badge>
-        );
-    };
+
 
     return (
         <Card className="border-0 shadow-none bg-transparent">
@@ -83,7 +55,6 @@ export default function ProjectHeader({
                             </CardTitle>
                             <div className="flex items-center gap-2">
                                 {getProjectBadge()}
-                                {getStatusBadge()}
                             </div>
                         </div>
                         
