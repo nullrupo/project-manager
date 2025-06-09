@@ -364,16 +364,18 @@ function SortableTask({
                     {/* Task Header */}
                     <div className="flex items-start justify-between pr-8">
                         <div className="flex-1 min-w-0">
-                            <h4 className="font-medium text-sm leading-tight line-clamp-2 group-hover:text-primary transition-colors">
-                                {task.title}
-                            </h4>
+                            <div className="flex items-center gap-2">
+                                <h4 className="font-medium text-sm leading-tight line-clamp-2 group-hover:text-primary transition-colors">
+                                    {task.title}
+                                </h4>
+                                {task.status === 'done' && (
+                                    <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                                )}
+                            </div>
                             <div className="flex items-center gap-2 mt-1">
                                 {getStatusBadge(task.status, listColor)}
                             </div>
                         </div>
-                        {task.status === 'done' && (
-                            <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0 ml-2" />
-                        )}
                     </div>
 
                     {/* Task Description */}

@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
 import TaskDetailModal from '@/components/task-detail-modal';
+import TaskCreateModal from '@/components/task-create-modal';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Project } from '@/types/project-manager';
 import { Head, Link, usePage, router } from '@inertiajs/react';
@@ -85,6 +86,9 @@ export default function ProjectShow({ project }: ProjectShowProps) {
 
     // Member panel state
     const [memberPanelOpen, setMemberPanelOpen] = useState(false);
+
+    // Task create modal state
+    const [taskCreateModalOpen, setTaskCreateModalOpen] = useState(false);
 
     // Get tab from URL parameters, default to 'boards'
     const getActiveTabFromUrl = () => {
@@ -494,7 +498,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                 // Directly assign member to task without modal
                 const currentAssignees = targetTask.assignees?.map((a: any) => a.id) || [];
                 const newAssignees = currentAssignees.includes(member.id)
-                    ? currentAssignees.filter(id => id !== member.id) // Remove if already assigned
+                    ? currentAssignees.filter((id: number) => id !== member.id) // Remove if already assigned
                     : [...currentAssignees, member.id]; // Add if not assigned
 
                 // Update task with new assignees
@@ -613,7 +617,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
 
     // Generate calendar data fresh each render for real-time updates
     const calendarDays = generateCalendarDays();
-    const weeks = [];
+    const weeks: any[][] = [];
     for (let i = 0; i < calendarDays.length; i += 7) {
         weeks.push(calendarDays.slice(i, i + 7));
     }
@@ -1461,7 +1465,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
 
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <AppLayout>
             <Head title={project.name} />
             <div className="space-y-6">
                 <div className="flex justify-between items-start">
@@ -1588,7 +1592,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
 
                 {/* Project Tabs */}
                 <div className="w-full">
-                    <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+                    <Tabs value={activeTab || undefined} onValueChange={handleTabChange} className="w-full">
                         <TabsList className="grid w-full grid-cols-5 h-auto p-1 bg-muted/50 rounded-b-none border-b-0">
                         <TabsTrigger
                             value="boards"
@@ -2127,6 +2131,10 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                                     <CardDescription>
                                                         Drag tasks to calendar days to set deadlines
                                                     </CardDescription>
+                                                    <Button className="mt-2" onClick={() => setTaskCreateModalOpen(true)}>
+                                                        <Plus className="h-4 w-4 mr-2" />
+                                                        Create Task
+                                                    </Button>
                                                 </CardHeader>
                                                 <CardContent>
                                                     <div className="space-y-2 max-h-[600px] overflow-y-auto">
@@ -2544,6 +2552,16 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                 open={taskDetailModalOpen}
                 onOpenChange={setTaskDetailModalOpen}
                 availableLists={project.boards?.flatMap(board => board.lists || []) || []}
+            />
+
+            {/* Task Create Modal */}
+            <TaskCreateModal
+                open={taskCreateModalOpen}
+                onOpenChange={setTaskCreateModalOpen}
+                project={project}
+                members={[...(project.members || []), ...(project.owner ? [project.owner] : [])].filter((m, i, arr) => arr.findIndex(x => x.id === m.id) === i)}
+                labels={project.boards?.flatMap(board => board.lists?.flatMap(list => list.tasks?.flatMap(task => task.labels || []) || []) || [])?.filter((v, i, a) => v && a.findIndex(t => t.id === v.id) === i) || []}
+                lists={project.boards?.flatMap(board => board.lists || []) || []}
             />
         </AppLayout>
     );
