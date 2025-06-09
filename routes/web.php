@@ -113,6 +113,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Team routes
     Route::get('team', [TeamController::class, 'index'])->name('team');
+    Route::post('team/{user}/invite-to-projects', [TeamController::class, 'inviteToProjects'])->name('team.invite-to-projects');
 
     // Calendar routes
     Route::get('calendar', [CalendarController::class, 'index'])->name('calendar');

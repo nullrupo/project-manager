@@ -68,6 +68,10 @@ export interface User {
     id: number;
     name: string;
     email: string;
+    mobile?: string;
+    phone?: string;
+    role?: string;
+    department?: string;
     avatar?: string;
     email_verified_at: string | null;
     is_admin?: boolean;
