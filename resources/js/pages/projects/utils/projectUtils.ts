@@ -50,18 +50,33 @@ export const getOrganizedTasks = (project: Project, listViewMode: 'status' | 'se
         ];
     } else {
         // Group by actual project sections
+        const sections = [];
+
+        // Add tasks without sections first (if any)
+        const tasksWithoutSection = allTasks.filter(task => !task.section_id);
+        if (tasksWithoutSection.length > 0) {
+            sections.push({
+                id: 'no-section',
+                name: 'No Section',
+                type: 'section',
+                description: 'Tasks not assigned to any section',
+                tasks: tasksWithoutSection
+            });
+        }
+
+        // Add actual project sections
         if (project.sections && project.sections.length > 0) {
-            return project.sections.map(section => ({
+            const sectionTasks = project.sections.map(section => ({
                 id: section.id.toString(),
                 name: section.name,
                 type: 'section',
                 description: section.description,
                 tasks: allTasks.filter(task => task.section_id === section.id)
             }));
-        } else {
-            // If no sections exist, show an empty state
-            return [];
+            sections.push(...sectionTasks);
         }
+
+        return sections;
     }
 };
 

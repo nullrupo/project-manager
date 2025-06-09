@@ -50,7 +50,9 @@ export default function ProjectListView({
 
     const handleCreateTask = (sectionId?: string, status?: string) => {
         if (onCreateTask) {
-            onCreateTask(sectionId, status);
+            // Handle special "no-section" case
+            const actualSectionId = sectionId === 'no-section' ? undefined : sectionId;
+            onCreateTask(actualSectionId, status);
         } else {
             // Fallback to direct navigation if no handler provided
             const params: any = {
@@ -60,7 +62,7 @@ export default function ProjectListView({
                 view: 'list'
             };
 
-            if (sectionId && state.listViewMode === 'sections') {
+            if (sectionId && sectionId !== 'no-section' && state.listViewMode === 'sections') {
                 params.section_id = sectionId;
             }
             if (status && state.listViewMode === 'status') {

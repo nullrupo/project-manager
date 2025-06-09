@@ -1,7 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import {
     Shield,
     Crown,
@@ -32,15 +31,6 @@ export default function ProjectHeader({
         return <Shield className="h-5 w-5 text-orange-500" />;
     };
 
-    const getProjectBadge = () => {
-        return (
-            <Badge variant="outline" className="border-orange-200 text-orange-700 bg-orange-50 dark:border-orange-800 dark:text-orange-300 dark:bg-orange-950/30">
-                <Shield className="h-3 w-3 mr-1" />
-                Private
-            </Badge>
-        );
-    };
-
 
 
     return (
@@ -53,16 +43,7 @@ export default function ProjectHeader({
                             <CardTitle className="text-2xl font-bold text-foreground">
                                 {project.name}
                             </CardTitle>
-                            <div className="flex items-center gap-2">
-                                {getProjectBadge()}
-                            </div>
                         </div>
-                        
-                        {project.description && (
-                            <CardDescription className="text-base text-muted-foreground max-w-2xl">
-                                {project.description}
-                            </CardDescription>
-                        )}
                         
                         <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
                             <div className="flex items-center gap-2">
@@ -113,7 +94,7 @@ export default function ProjectHeader({
                                 Invite
                             </Button>
                         )}
-                        
+
                         <Button
                             variant="outline"
                             size="sm"

@@ -116,10 +116,22 @@ export const useDragAndDrop = (
 
                 // Find the target list/section
                 let targetListId = null;
+                let targetSectionId = null;
 
                 if (listViewMode === 'sections') {
-                    // Moving to a specific list (section)
-                    targetListId = parseInt(sectionId);
+                    // Handle special "no-section" case
+                    if (sectionId === 'no-section') {
+                        // Moving to no section - use the first available list but no section_id
+                        const firstList = project.boards?.[0]?.lists?.[0];
+                        if (firstList) {
+                            targetListId = firstList.id;
+                            targetSectionId = null; // Explicitly set to null for no section
+                        }
+                    } else {
+                        // Moving to a specific section
+                        targetListId = parseInt(sectionId);
+                        targetSectionId = parseInt(sectionId);
+                    }
                 } else {
                     // Moving to a status group - use the first available list
                     const firstList = project.boards?.[0]?.lists?.[0];
@@ -128,8 +140,13 @@ export const useDragAndDrop = (
                     }
                 }
 
-                if (targetListId) {
+                if (targetListId !== null) {
                     const updates: any = { list_id: targetListId };
+
+                    // Set section_id for section-based view
+                    if (listViewMode === 'sections') {
+                        updates.section_id = targetSectionId;
+                    }
 
                     // If moving to status-based section, also update status
                     if (listViewMode === 'status') {
@@ -181,12 +198,31 @@ export const useDragAndDrop = (
                             allTasks.splice(newIndex, 0, movedTask);
 
                             // Prepare position updates
-                            const updates = allTasks.map((task: any, index: number) => ({
-                                id: task.id,
-                                position: index,
-                                list_id: targetSection.type === 'section' ? parseInt(targetSection.id) : task.list_id,
-                                ...(targetSection.type === 'status' ? { status: targetSection.id } : {})
-                            }));
+                            const updates = allTasks.map((task: any, index: number) => {
+                                const update: any = {
+                                    id: task.id,
+                                    position: index,
+                                };
+
+                                if (targetSection.type === 'section') {
+                                    if (targetSection.id === 'no-section') {
+                                        // Moving to no section
+                                        update.list_id = project.boards?.[0]?.lists?.[0]?.id || task.list_id;
+                                        update.section_id = null;
+                                    } else {
+                                        // Moving to a specific section
+                                        update.list_id = parseInt(targetSection.id);
+                                        update.section_id = parseInt(targetSection.id);
+                                    }
+                                } else if (targetSection.type === 'status') {
+                                    update.list_id = task.list_id;
+                                    update.status = targetSection.id;
+                                } else {
+                                    update.list_id = task.list_id;
+                                }
+
+                                return update;
+                            });
 
                             updateTaskPositions(updates);
                         }

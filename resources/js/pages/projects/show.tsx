@@ -86,7 +86,8 @@ export default function ProjectShow({ project }: ProjectShowProps) {
             view: 'list'
         };
 
-        if (sectionId && state.listViewMode === 'sections') {
+        // Handle special "no-section" case - don't pass section_id for tasks without sections
+        if (sectionId && sectionId !== 'no-section' && state.listViewMode === 'sections') {
             params.section_id = sectionId;
         }
         if (status && state.listViewMode === 'status') {

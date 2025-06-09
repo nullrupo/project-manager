@@ -102,17 +102,17 @@ export default function Team({ team = [], ownedProjects = [] }: TeamProps) {
                                         </Button>
                                     </div>
 
-                                    {/* Phone/Mobile with button (prioritize phone over mobile) */}
+                                    {/* Phone with button */}
                                     <div className="flex items-center justify-between min-h-[1.25rem]">
-                                        {(member.phone || member.mobile) ? (
+                                        {member.phone ? (
                                             <>
                                                 <span className="text-xs text-muted-foreground truncate flex-1 mr-1">
-                                                    {formatPhoneNumber(member.phone || member.mobile || '')}
+                                                    {formatPhoneNumber(member.phone)}
                                                 </span>
                                                 <Button
                                                     variant="outline"
                                                     size="sm"
-                                                    onClick={() => handlePhoneClick(member.phone || member.mobile || '')}
+                                                    onClick={() => handlePhoneClick(member.phone)}
                                                     className="shrink-0 h-5 w-5 p-0"
                                                     disabled={!isMobile}
                                                     title={isMobile ? 'Call' : 'Calling only available on mobile devices'}
