@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import { DndContext, closestCenter } from '@dnd-kit/core';
@@ -10,6 +11,9 @@ import { TaskInspector } from '@/components/project/task-inspector/TaskInspector
 import ListTaskItem from '../components/ListTaskItem';
 import { getOrganizedTasks, toggleSectionCollapse } from '../utils/projectUtils';
 import { TaskDisplayCustomizer } from '@/components/task/TaskDisplayCustomizer';
+import QuickAddTask from '@/components/project/QuickAddTask';
+import TaskCreateModal from '@/components/task-create-modal';
+import { useTags } from '@/hooks/useTags';
 import { router } from '@inertiajs/react';
 
 interface ProjectListViewProps {
@@ -41,7 +45,9 @@ export default function ProjectListView({
     onDeleteSection,
     onCreateTask
 }: ProjectListViewProps) {
-    
+    const [taskCreateModalOpen, setTaskCreateModalOpen] = useState(false);
+    const { tags } = useTags();
+
     const sections = getOrganizedTasks(project, state.listViewMode);
 
     const handleSectionToggle = (sectionId: string) => {
@@ -92,6 +98,16 @@ export default function ProjectListView({
                             <div className="flex items-center gap-2">
                                 <TaskDisplayCustomizer pageKey={`project-list-${project.id}`} />
                                 <Separator orientation="vertical" className="h-6" />
+                                {project.can_manage_tasks && (
+                                    <Button
+                                        variant="default"
+                                        size="sm"
+                                        onClick={() => setTaskCreateModalOpen(true)}
+                                    >
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        New Task
+                                    </Button>
+                                )}
                                 {state.listViewMode === 'sections' && project.can_manage_tasks && (
                                     <Button
                                         variant="outline"
@@ -124,15 +140,28 @@ export default function ProjectListView({
                     </CardHeader>
                     <CardContent className="flex-1 overflow-y-auto">
                         {project.boards && project.boards.length > 0 ? (
-                            <DndContext
-                                sensors={sensors}
-                                collisionDetection={closestCenter}
-                                onDragStart={onDragStart}
-                                onDragOver={onDragOver}
-                                onDragEnd={onDragEnd}
-                                modifiers={[restrictToWindowEdges]}
-                            >
-                                <div className="space-y-4">
+                            <>
+                                {/* Quick Add Task - Always visible at top */}
+                                {project.can_manage_tasks && (
+                                    <div className="mb-4">
+                                        <QuickAddTask
+                                            project={project}
+                                            sectionId={null}
+                                            status="to_do"
+                                            placeholder="Quick add a task (no section)..."
+                                        />
+                                    </div>
+                                )}
+
+                                <DndContext
+                                    sensors={sensors}
+                                    collisionDetection={closestCenter}
+                                    onDragStart={onDragStart}
+                                    onDragOver={onDragOver}
+                                    onDragEnd={onDragEnd}
+                                    modifiers={[restrictToWindowEdges]}
+                                >
+                                    <div className="space-y-4">
                                     {sections.map((section) => {
                                         const isCollapsed = state.collapsedSections.has(section.id);
                                         const taskIds = section.tasks.map((task: any) => `list-task-${task.id}`);
@@ -228,22 +257,22 @@ export default function ProjectListView({
                                                                     currentView={state.activeView}
                                                                 />
                                                             ))}
+                                                            {/* Quick Add for this section */}
+                                                            {project.can_manage_tasks && (
+                                                                <div className="mt-2">
+                                                                    <QuickAddTask
+                                                                        project={project}
+                                                                        sectionId={section.id}
+                                                                        status={state.listViewMode === 'status' ? section.id : 'to_do'}
+                                                                        placeholder={`Add task to ${section.name}...`}
+                                                                        className="border-dashed"
+                                                                    />
+                                                                </div>
+                                                            )}
+
                                                             {section.tasks.length === 0 && (
                                                                 <div className="text-center py-8 text-muted-foreground">
                                                                     <p className="mb-4">No tasks in this section</p>
-                                                                    {project.can_manage_tasks && (
-                                                                        <Button
-                                                                            variant="outline"
-                                                                            size="sm"
-                                                                            onClick={() => handleCreateTask(
-                                                                                state.listViewMode === 'sections' ? section.id : undefined,
-                                                                                state.listViewMode === 'status' ? section.id : undefined
-                                                                            )}
-                                                                        >
-                                                                            <Plus className="h-4 w-4 mr-2" />
-                                                                            Add First Task
-                                                                        </Button>
-                                                                    )}
                                                                 </div>
                                                             )}
                                                         </div>
@@ -253,7 +282,22 @@ export default function ProjectListView({
                                         );
                                     })}
 
-                                    {sections.length === 0 && (
+                                    {/* Show helpful message when no tasks exist at all */}
+                                    {sections.length === 0 && state.listViewMode === 'status' && (
+                                        <div className="text-center py-16 bg-gradient-to-br from-muted/20 to-muted/40 rounded-xl border-2 border-dashed border-muted-foreground/30">
+                                            <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                                                <ListTodo className="h-10 w-10 text-green-500" />
+                                            </div>
+                                            <h3 className="text-xl font-semibold text-foreground mb-2">
+                                                No Tasks Yet
+                                            </h3>
+                                            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+                                                Start by creating your first task using the quick-add form above.
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {sections.length === 0 && state.listViewMode === 'sections' && (
                                         <div className="text-center py-16 bg-gradient-to-br from-muted/20 to-muted/40 rounded-xl border-2 border-dashed border-muted-foreground/30">
                                             <div className="w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
                                                 <Layers className="h-10 w-10 text-blue-500" />
@@ -263,17 +307,22 @@ export default function ProjectListView({
                                             </h3>
                                             <p className="text-muted-foreground mb-6 max-w-md mx-auto">
                                                 Create sections to organize your tasks into logical groups and improve your workflow.
+                                                <br />
+                                                <span className="text-sm">Or use the quick-add above to create tasks without sections.</span>
                                             </p>
                                             {project.can_manage_tasks && (
-                                                <Button onClick={onCreateSection}>
-                                                    <Plus className="h-4 w-4 mr-2" />
-                                                    Create First Section
-                                                </Button>
+                                                <div className="flex gap-2 justify-center">
+                                                    <Button onClick={onCreateSection}>
+                                                        <Plus className="h-4 w-4 mr-2" />
+                                                        Create Section
+                                                    </Button>
+                                                </div>
                                             )}
                                         </div>
                                     )}
-                                </div>
-                            </DndContext>
+                                    </div>
+                                </DndContext>
+                            </>
                         ) : (
                             <div className="text-center py-16">
                                 <p className="text-muted-foreground">No board available for this project.</p>
@@ -283,6 +332,20 @@ export default function ProjectListView({
                 </Card>
             </div>
 
+            {/* Task Create Modal */}
+            <TaskCreateModal
+                open={taskCreateModalOpen}
+                onOpenChange={setTaskCreateModalOpen}
+                project={project}
+                members={project.members || []}
+                labels={project.labels || []}
+                tags={tags}
+                sections={project.sections || []}
+                onSuccess={() => {
+                    // Refresh the page to show the new task
+                    router.reload();
+                }}
+            />
         </div>
     );
 }

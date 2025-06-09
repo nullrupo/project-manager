@@ -6,13 +6,14 @@ use App\Models\Board;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\TaskList;
-use App\Services\ProjectPermissionService;
+use App\Models\Section;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
+use App\Services\ProjectPermissionService;
 
 class TaskController extends Controller
 {
@@ -79,6 +80,11 @@ class TaskController extends Controller
             abort(404, 'List not found in this board.');
         }
 
+        // Check if user has permission to manage tasks in this project
+        if (!ProjectPermissionService::can($project, 'can_manage_tasks')) {
+            abort(403, 'You do not have permission to create tasks in this project.');
+        }
+
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -105,14 +111,126 @@ class TaskController extends Controller
             $reviewerId = null;
         }
 
-        // Handle section_id - assign default section if none provided but project has sections
+        // Handle section_id - allow tasks without sections or auto-create default section
         $sectionId = $validated['section_id'] ?? null;
-        if ($sectionId === null && $project->sections()->count() > 0) {
-            $defaultSection = $project->sections()->orderBy('position')->first();
-            if ($defaultSection) {
-                $sectionId = $defaultSection->id;
+
+        // Optional: Auto-create a default section if requested via query parameter
+        if ($sectionId === null && $request->get('auto_create_section') === 'true') {
+            $defaultSection = $project->sections()->where('name', 'General')->first();
+            if (!$defaultSection) {
+                $maxPosition = $project->sections()->max('position') ?? -1;
+                $defaultSection = Section::create([
+                    'name' => 'General',
+                    'description' => 'Default section for tasks',
+                    'project_id' => $project->id,
+                    'position' => $maxPosition + 1,
+                ]);
+            }
+            $sectionId = $defaultSection->id;
+        }
+
+        // Create the task
+        $task = new Task([
+            'title' => $validated['title'],
+            'description' => $validated['description'],
+            'priority' => $validated['priority'],
+            'status' => $validated['status'],
+            'estimate' => $validated['estimate'] ?? null,
+            'due_date' => $validated['due_date'] ?? null,
+            'reviewer_id' => $reviewerId,
+            'section_id' => $sectionId,
+            'position' => $maxPosition + 1,
+        ]);
+
+        $task->project_id = $project->id;
+        $task->list_id = $list->id;
+        $task->created_by = Auth::id();
+        $task->save();
+
+        // Attach assignees if any
+        if (!empty($validated['assignee_ids'])) {
+            $task->assignees()->attach($validated['assignee_ids']);
+        }
+
+        // Attach labels if any
+        if (!empty($validated['label_ids'])) {
+            $task->labels()->attach($validated['label_ids']);
+        }
+
+        // Attach tags if any (with permission check)
+        if (!empty($validated['tag_ids'])) {
+            $userTags = Auth::user()->tags()->whereIn('id', $validated['tag_ids'])->pluck('id');
+            if ($userTags->isNotEmpty()) {
+                $task->tags()->attach($userTags);
             }
         }
+
+        // Check if there's a tab parameter to preserve navigation state
+        $tab = $request->get('tab', 'list'); // Default to list tab
+
+        return redirect()->route('projects.show', ['project' => $project->id, 'tab' => $tab])
+            ->with('success', 'Task created successfully.');
+    }
+
+    /**
+     * Store a newly created task directly in a project (for List tab view).
+     */
+    public function storeProjectTask(Request $request, Project $project): RedirectResponse
+    {
+        // Check if user has permission to manage tasks in this project
+        if (!ProjectPermissionService::can($project, 'can_manage_tasks')) {
+            abort(403, 'You do not have permission to create tasks in this project.');
+        }
+
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'priority' => 'required|string|in:low,medium,high,urgent',
+            'status' => 'required|string',
+            'estimate' => 'nullable|integer|min:0',
+            'due_date' => 'nullable|date',
+            'reviewer_id' => 'nullable|string',
+            'section_id' => 'nullable|exists:sections,id',
+            'assignee_ids' => 'nullable|array',
+            'assignee_ids.*' => 'exists:users,id',
+            'label_ids' => 'nullable|array',
+            'label_ids.*' => 'exists:labels,id',
+            'tag_ids' => 'nullable|array',
+            'tag_ids.*' => 'exists:tags,id',
+        ]);
+
+        // Get or create a default board and list for the project
+        $board = $project->boards()->first();
+        if (!$board) {
+            $board = Board::create([
+                'name' => 'Main Board',
+                'description' => 'Default board for project tasks',
+                'project_id' => $project->id,
+                'position' => 0,
+            ]);
+        }
+
+        $list = $board->lists()->first();
+        if (!$list) {
+            $list = TaskList::create([
+                'name' => 'To Do',
+                'description' => 'Default list for new tasks',
+                'board_id' => $board->id,
+                'position' => 0,
+            ]);
+        }
+
+        // Get the highest position value
+        $maxPosition = $list->tasks()->max('position') ?? -1;
+
+        // Handle reviewer_id
+        $reviewerId = $validated['reviewer_id'] ?? null;
+        if ($reviewerId === 'default' || empty($reviewerId)) {
+            $reviewerId = null;
+        }
+
+        // Handle section_id
+        $sectionId = $validated['section_id'] ?? null;
 
         // Create the task
         $task = new Task([
