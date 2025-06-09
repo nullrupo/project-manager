@@ -116,6 +116,15 @@ class Task extends Model
     }
 
     /**
+     * Get the tags for the task.
+     */
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class)
+            ->withTimestamps();
+    }
+
+    /**
      * Get the comments for the task.
      */
     public function comments(): HasMany

@@ -9,6 +9,8 @@ export interface TaskDisplayPreferences {
     show_checklist_progress: boolean;
     show_assignee: boolean;
     show_status: boolean;
+    show_tags: boolean;
+    show_labels: boolean;
 }
 
 export function useTaskDisplayPreferences() {
@@ -23,6 +25,8 @@ export function useTaskDisplayPreferences() {
         show_checklist_progress: true,
         show_assignee: true,
         show_status: true,
+        show_tags: true,
+        show_labels: true,
     };
 
     const [preferences, setPreferences] = useState<TaskDisplayPreferences>(() =>
@@ -96,6 +100,8 @@ export function usePageTaskDisplayPreferences(pageKey: string) {
         show_checklist_progress: true,
         show_assignee: true,
         show_status: true,
+        show_tags: true,
+        show_labels: true,
     };
 
     // Get page-specific preferences from localStorage

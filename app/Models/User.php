@@ -108,6 +108,14 @@ class User extends Authenticatable
     }
 
     /**
+     * Get the tags created by the user.
+     */
+    public function tags(): HasMany
+    {
+        return $this->hasMany(Tag::class);
+    }
+
+    /**
      * Check if the user is an admin.
      */
     public function isAdmin(): bool

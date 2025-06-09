@@ -18,6 +18,8 @@ import { useGlobalTaskInspector } from '@/contexts/GlobalTaskInspectorContext';
 import { TaskDisplay } from '@/components/task/TaskDisplay';
 import { TaskDisplayCustomizer } from '@/components/task/TaskDisplayCustomizer';
 import { useUndoNotification } from '@/contexts/UndoNotificationContext';
+import { TagSelector } from '@/components/tag/TagSelector';
+import { useTags } from '@/hooks/useTags';
 
 interface Task {
     id: number;
@@ -51,18 +53,29 @@ interface Project {
     key: string;
 }
 
+interface Tag {
+    id: number;
+    name: string;
+    color: string;
+    user_id: number;
+    description: string | null;
+    is_default: boolean;
+}
+
 interface InboxPageProps {
     tasks: Task[];
     users: User[];
     projects: Project[];
+    tags: Tag[];
 }
 
 // Remove breadcrumbs to eliminate redundant "inbox" text at top
 
-export default function InboxPage({ tasks = [], users = [], projects = [] }: InboxPageProps) {
+export default function InboxPage({ tasks = [], users = [], projects = [], tags = [] }: InboxPageProps) {
     const getShortName = useShortName();
     const { openInspector } = useGlobalTaskInspector();
     const { showUndoNotification } = useUndoNotification();
+    const { createTag } = useTags();
 
     // Helper function to get display status
     const getDisplayStatus = (task: Task): string => {
@@ -125,6 +138,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
         priority: 'medium' as 'low' | 'medium' | 'high',
         due_date: null as string | null,
         assignee_ids: [] as number[],
+        tag_ids: [] as number[],
         project_id: null as number | null
     });
     const [isCreatingTask, setIsCreatingTask] = useState(false);
@@ -627,6 +641,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
             priority: 'medium',
             due_date: null,
             assignee_ids: [],
+            tag_ids: [],
             project_id: null
         });
         setSelectedProject(null);
@@ -642,6 +657,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
             priority: 'medium',
             due_date: null,
             assignee_ids: [],
+            tag_ids: [],
             project_id: null
         });
         setSelectedProject(null);
@@ -668,6 +684,18 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                 setIsCreatingTask(false);
             }
         });
+    };
+
+    // Tag handling functions
+    const handleTagsChange = (selectedTags: Tag[]) => {
+        setCreateTaskData(prev => ({
+            ...prev,
+            tag_ids: selectedTags.map(tag => tag.id)
+        }));
+    };
+
+    const handleCreateTag = async (name: string, color: string): Promise<Tag> => {
+        return await createTag(name, color);
     };
 
     // Project search and selection helpers
@@ -1309,6 +1337,15 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                     </SelectContent>
                                 </Select>
                             </div>
+
+                            {/* 7. Tags */}
+                            <TagSelector
+                                selectedTags={tags.filter(tag => createTaskData.tag_ids.includes(tag.id))}
+                                availableTags={tags}
+                                onTagsChange={handleTagsChange}
+                                onCreateTag={handleCreateTag}
+                                placeholder="Select personal tags..."
+                            />
                         </div>
 
                         <DialogFooter>

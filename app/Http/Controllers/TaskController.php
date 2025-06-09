@@ -26,7 +26,7 @@ class TaskController extends Controller
         // All authenticated users can view projects
 
         $tasks = $project->tasks()
-            ->with(['list', 'assignees', 'labels', 'creator', 'checklistItems'])
+            ->with(['list', 'assignees', 'labels', 'tags', 'creator', 'checklistItems'])
             ->orderBy('created_at', 'desc')
             ->paginate(20);
 
@@ -54,12 +54,16 @@ class TaskController extends Controller
         // Get project labels
         $labels = $project->labels()->get();
 
+        // Get user's tags
+        $tags = Auth::user()->tags()->orderBy('name')->get();
+
         return Inertia::render('tasks/create', [
             'project' => $project,
             'board' => $board,
             'list' => $list,
             'members' => $members,
             'labels' => $labels,
+            'tags' => $tags,
             'tab' => $request->get('tab', 'list'), // Pass tab parameter
             'status' => $request->get('status'), // Pass status parameter if provided
         ]);
@@ -88,6 +92,8 @@ class TaskController extends Controller
             'assignee_ids.*' => 'exists:users,id',
             'label_ids' => 'nullable|array',
             'label_ids.*' => 'exists:labels,id',
+            'tag_ids' => 'nullable|array',
+            'tag_ids.*' => 'exists:tags,id',
         ]);
 
         // Get the highest position value
@@ -136,6 +142,14 @@ class TaskController extends Controller
             $task->labels()->attach($validated['label_ids']);
         }
 
+        // Attach tags if any (with permission check)
+        if (!empty($validated['tag_ids'])) {
+            $userTags = Auth::user()->tags()->whereIn('id', $validated['tag_ids'])->pluck('id');
+            if ($userTags->isNotEmpty()) {
+                $task->tags()->attach($userTags);
+            }
+        }
+
         // Check if there's a tab parameter to preserve navigation state
         $tab = $request->get('tab', 'list'); // Default to list tab
 
@@ -163,6 +177,7 @@ class TaskController extends Controller
             'list',
             'assignees',
             'labels',
+            'tags',
             'creator',
             'reviewer',
             'section',
@@ -211,6 +226,7 @@ class TaskController extends Controller
             'list',
             'assignees',
             'labels',
+            'tags',
             'creator',
             'checklistItems',
         ]);
@@ -223,6 +239,9 @@ class TaskController extends Controller
         // Get project labels
         $labels = $project->labels()->get();
 
+        // Get user's tags
+        $tags = Auth::user()->tags()->orderBy('name')->get();
+
         // Get all lists in the project for list selection
         $lists = $project->boards()->with('lists')->get()->flatMap(function ($board) {
             return $board->lists;
@@ -233,6 +252,7 @@ class TaskController extends Controller
             'task' => $task,
             'members' => $members,
             'labels' => $labels,
+            'tags' => $tags,
             'lists' => $lists,
         ]);
     }
@@ -264,6 +284,8 @@ class TaskController extends Controller
             'assignee_ids.*' => 'exists:users,id',
             'label_ids' => 'nullable|array',
             'label_ids.*' => 'exists:labels,id',
+            'tag_ids' => 'nullable|array',
+            'tag_ids.*' => 'exists:tags,id',
             'is_archived' => 'boolean',
         ]);
 
@@ -309,6 +331,14 @@ class TaskController extends Controller
         // Sync labels
         $task->labels()->sync($validated['label_ids'] ?? []);
 
+        // Sync tags (with permission check - only user's own tags)
+        if (isset($validated['tag_ids'])) {
+            $userTags = Auth::user()->tags()->whereIn('id', $validated['tag_ids'])->pluck('id');
+            $task->tags()->sync($userTags);
+        } else {
+            $task->tags()->sync([]);
+        }
+
         // Check if this is an AJAX/Inertia request that wants to stay on the same page
         if ($request->wantsJson() || $request->header('X-Inertia')) {
             return redirect()->back()->with('success', 'Task updated successfully.');
@@ -348,7 +378,7 @@ class TaskController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Task due date updated successfully.',
-            'task' => $task->fresh(['assignees', 'labels', 'creator'])
+            'task' => $task->fresh(['assignees', 'labels', 'tags', 'creator'])
         ]);
     }
 
@@ -397,7 +427,7 @@ class TaskController extends Controller
 
         return response()->json([
             'success' => true,
-            'task' => $task->fresh(['assignees', 'labels', 'creator', 'list'])
+            'task' => $task->fresh(['assignees', 'labels', 'tags', 'creator', 'list'])
         ]);
     }
 
@@ -492,7 +522,7 @@ class TaskController extends Controller
 
         return response()->json([
             'success' => true,
-            'task' => $task->fresh(['project', 'assignees', 'labels', 'creator', 'list'])
+            'task' => $task->fresh(['project', 'assignees', 'labels', 'tags', 'creator', 'list'])
         ]);
     }
 
@@ -558,7 +588,7 @@ class TaskController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Task restored successfully',
-            'task' => $task->fresh(['assignees', 'labels', 'creator', 'list'])
+            'task' => $task->fresh(['assignees', 'labels', 'tags', 'creator', 'list'])
         ]);
     }
 }

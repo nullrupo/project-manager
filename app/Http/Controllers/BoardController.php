@@ -76,6 +76,7 @@ class BoardController extends Controller
             },
             'lists.tasks.assignees',
             'lists.tasks.labels',
+            'lists.tasks.tags',
             'lists.tasks.creator',
             'lists.tasks.checklistItems',
             'lists.tasks.comments.user',

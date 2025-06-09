@@ -98,6 +98,7 @@ export interface Task {
     checklist_items?: ChecklistItem[];
     assignees?: User[];
     labels?: Label[];
+    tags?: Tag[];
     comments?: Comment[];
 }
 
@@ -110,6 +111,19 @@ export interface Label {
     created_at: string;
     updated_at: string;
     project?: Project;
+    tasks?: Task[];
+}
+
+export interface Tag {
+    id: number;
+    name: string;
+    color: string;
+    user_id: number;
+    description: string | null;
+    is_default: boolean;
+    created_at: string;
+    updated_at: string;
+    user?: User;
     tasks?: Task[];
 }
 

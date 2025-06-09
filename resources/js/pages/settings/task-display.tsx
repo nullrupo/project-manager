@@ -82,6 +82,16 @@ export default function TaskDisplaySettings() {
             label: 'Status',
             description: 'Show task status badges (To Do, In Progress, Done)',
         },
+        {
+            key: 'show_tags' as keyof TaskDisplayPreferences,
+            label: 'Personal Tags',
+            description: 'Show personal tags assigned to tasks',
+        },
+        {
+            key: 'show_labels' as keyof TaskDisplayPreferences,
+            label: 'Project Labels',
+            description: 'Show project labels assigned to tasks',
+        },
     ];
 
     if (isLoading) {

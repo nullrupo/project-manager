@@ -25,7 +25,8 @@ import {
     Star,
     PanelLeftClose,
     PanelLeftOpen,
-    Settings2
+    Settings2,
+    Tags
 } from 'lucide-react';
 import AppLogo from './app-logo';
 
@@ -80,6 +81,13 @@ const mainNavGroups: NavGroup[] = [
                 title: 'Calendar',
                 href: route('calendar'),
                 icon: Calendar,
+                user_created: false,
+            },
+            {
+                id: 'tags',
+                title: 'Personal Tags',
+                href: route('tags.manage'),
+                icon: Tags,
                 user_created: false,
             },
         ]

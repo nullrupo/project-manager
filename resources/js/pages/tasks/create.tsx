@@ -5,11 +5,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
-import { Project, Board, TaskList } from '@/types/project-manager';
+import { Project, Board, TaskList, User, Label as LabelType, Tag } from '@/types/project-manager';
+import { TagSelector } from '@/components/tag/TagSelector';
+import { LabelSelector } from '@/components/label/LabelSelector';
+import { useTags } from '@/hooks/useTags';
 import { Head, useForm, usePage } from '@inertiajs/react';
-import { LoaderCircle, Calendar, AlertCircle, User } from 'lucide-react';
+import { LoaderCircle, Calendar, AlertCircle, User as UserIcon, Tag as TagIcon } from 'lucide-react';
 import { FormEventHandler } from 'react';
 
 interface TaskCreateForm {
@@ -21,6 +25,7 @@ interface TaskCreateForm {
     estimate: string;
     assignee_ids: number[];
     label_ids: number[];
+    tag_ids: number[];
     section_id: number | null;
 }
 
@@ -28,14 +33,18 @@ interface TaskCreateProps {
     project: Project;
     board: Board;
     list: TaskList;
+    members: User[];
+    labels: LabelType[];
+    tags: Tag[];
 }
 
-export default function TaskCreate({ project, board, list }: TaskCreateProps) {
+export default function TaskCreate({ project, board, list, members, labels, tags }: TaskCreateProps) {
     const { props } = usePage();
     const tab = (props as any).tab || 'list'; // Get tab from URL params
     const status = (props as any).status || 'to_do'; // Get status from URL params if provided
     const sectionId = (props as any).section_id; // Get section_id from URL params if provided
 
+    const { createTag } = useTags();
     const { data, setData, post, processing, errors } = useForm<TaskCreateForm>({
         title: '',
         description: '',
@@ -45,6 +54,7 @@ export default function TaskCreate({ project, board, list }: TaskCreateProps) {
         estimate: '',
         assignee_ids: [],
         label_ids: [],
+        tag_ids: [],
         section_id: sectionId || null,
     });
 
@@ -70,6 +80,34 @@ export default function TaskCreate({ project, board, list }: TaskCreateProps) {
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
         post(route('tasks.store', { project: project.id, board: board.id, list: list.id, tab }));
+    };
+
+    const handleAssigneeChange = (userId: number, checked: boolean) => {
+        if (checked) {
+            setData('assignee_ids', [...data.assignee_ids, userId]);
+        } else {
+            setData('assignee_ids', data.assignee_ids.filter(id => id !== userId));
+        }
+    };
+
+    const handleLabelChange = (labelId: number, checked: boolean) => {
+        if (checked) {
+            setData('label_ids', [...data.label_ids, labelId]);
+        } else {
+            setData('label_ids', data.label_ids.filter(id => id !== labelId));
+        }
+    };
+
+    const handleLabelsChange = (selectedLabels: LabelType[]) => {
+        setData('label_ids', selectedLabels.map(label => label.id));
+    };
+
+    const handleTagsChange = (selectedTags: Tag[]) => {
+        setData('tag_ids', selectedTags.map(tag => tag.id));
+    };
+
+    const handleCreateTag = async (name: string, color: string): Promise<Tag> => {
+        return await createTag(name, color);
     };
 
     const getPriorityColor = (priority: string) => {
@@ -190,6 +228,51 @@ export default function TaskCreate({ project, board, list }: TaskCreateProps) {
                                     <InputError message={errors.due_date} />
                                 </div>
                             </div>
+
+                            {/* Assignees */}
+                            {members && members.length > 0 && (
+                                <div className="space-y-3">
+                                    <Label className="flex items-center gap-2">
+                                        <UserIcon className="h-4 w-4" />
+                                        Assignees
+                                    </Label>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                        {members.map((member) => (
+                                            <div key={member.id} className="flex items-center space-x-2">
+                                                <Checkbox
+                                                    id={`assignee-${member.id}`}
+                                                    checked={data.assignee_ids.includes(member.id)}
+                                                    onCheckedChange={(checked) => handleAssigneeChange(member.id, checked as boolean)}
+                                                />
+                                                <Label htmlFor={`assignee-${member.id}`} className="text-sm font-normal cursor-pointer">
+                                                    {member.name}
+                                                </Label>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <InputError message={errors.assignee_ids} />
+                                </div>
+                            )}
+
+                            {/* Labels */}
+                            {labels && labels.length > 0 && (
+                                <LabelSelector
+                                    selectedLabels={labels.filter(label => data.label_ids.includes(label.id))}
+                                    availableLabels={labels}
+                                    onLabelsChange={handleLabelsChange}
+                                    placeholder="Select project labels..."
+                                    canManageLabels={project.can_manage_labels}
+                                />
+                            )}
+
+                            {/* Tags */}
+                            <TagSelector
+                                selectedTags={tags.filter(tag => data.tag_ids.includes(tag.id))}
+                                availableTags={tags}
+                                onTagsChange={handleTagsChange}
+                                onCreateTag={handleCreateTag}
+                                placeholder="Select personal tags..."
+                            />
 
                             {/* Status */}
                             <div className="space-y-2">

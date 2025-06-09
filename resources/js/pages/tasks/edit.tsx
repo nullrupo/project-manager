@@ -9,7 +9,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
-import { Project, Task, TaskList, User, Label as ProjectLabel } from '@/types/project-manager';
+import { Project, Task, TaskList, User, Label as ProjectLabel, Tag } from '@/types/project-manager';
+import { TagSelector } from '@/components/tag/TagSelector';
+import { LabelSelector } from '@/components/label/LabelSelector';
+import { useTags } from '@/hooks/useTags';
 import { Head, useForm, Link } from '@inertiajs/react';
 import { LoaderCircle, Calendar, User as UserIcon, Tag, List, ArrowLeft, Save } from 'lucide-react';
 import { FormEventHandler, useState } from 'react';
@@ -19,6 +22,7 @@ interface TaskEditProps {
     task: Task;
     members: User[];
     labels: ProjectLabel[];
+    tags: Tag[];
     lists: TaskList[];
 }
 
@@ -32,10 +36,12 @@ interface TaskEditForm {
     list_id: number;
     assignee_ids: number[];
     label_ids: number[];
+    tag_ids: number[];
     is_archived: boolean;
 }
 
-export default function TaskEdit({ project, task, members, labels, lists }: TaskEditProps) {
+export default function TaskEdit({ project, task, members, labels, tags, lists }: TaskEditProps) {
+    const { createTag } = useTags();
     const { data, setData, put, processing, errors } = useForm<TaskEditForm>({
         title: task.title,
         description: task.description || '',
@@ -46,6 +52,7 @@ export default function TaskEdit({ project, task, members, labels, lists }: Task
         list_id: task.list_id || 0,
         assignee_ids: task.assignees?.map(a => a.id) || [],
         label_ids: task.labels?.map(l => l.id) || [],
+        tag_ids: task.tags?.map(t => t.id) || [],
         is_archived: task.is_archived,
     });
 
@@ -87,6 +94,18 @@ export default function TaskEdit({ project, task, members, labels, lists }: Task
         } else {
             setData('label_ids', data.label_ids.filter(id => id !== labelId));
         }
+    };
+
+    const handleLabelsChange = (selectedLabels: LabelType[]) => {
+        setData('label_ids', selectedLabels.map(label => label.id));
+    };
+
+    const handleTagsChange = (selectedTags: Tag[]) => {
+        setData('tag_ids', selectedTags.map(tag => tag.id));
+    };
+
+    const handleCreateTag = async (name: string, color: string): Promise<Tag> => {
+        return await createTag(name, color);
     };
 
     const priorityColors = {
@@ -260,32 +279,23 @@ export default function TaskEdit({ project, task, members, labels, lists }: Task
 
                             {/* Labels */}
                             {labels.length > 0 && (
-                                <div className="space-y-3">
-                                    <Label className="flex items-center gap-2">
-                                        <Tag className="h-4 w-4" />
-                                        Labels
-                                    </Label>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                        {labels.map((label) => (
-                                            <div key={label.id} className="flex items-center space-x-2">
-                                                <Checkbox
-                                                    id={`label-${label.id}`}
-                                                    checked={data.label_ids.includes(label.id)}
-                                                    onCheckedChange={(checked) => handleLabelChange(label.id, checked as boolean)}
-                                                />
-                                                <Label htmlFor={`label-${label.id}`} className="text-sm font-normal cursor-pointer flex items-center gap-2">
-                                                    <span
-                                                        className="w-3 h-3 rounded-full"
-                                                        style={{ backgroundColor: label.color }}
-                                                    />
-                                                    {label.name}
-                                                </Label>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <InputError message={errors.label_ids} />
-                                </div>
+                                <LabelSelector
+                                    selectedLabels={labels.filter(label => data.label_ids.includes(label.id))}
+                                    availableLabels={labels}
+                                    onLabelsChange={handleLabelsChange}
+                                    placeholder="Select project labels..."
+                                    canManageLabels={project.can_manage_labels}
+                                />
                             )}
+
+                            {/* Tags */}
+                            <TagSelector
+                                selectedTags={tags.filter(tag => data.tag_ids.includes(tag.id))}
+                                availableTags={tags}
+                                onTagsChange={handleTagsChange}
+                                onCreateTag={handleCreateTag}
+                                placeholder="Select personal tags..."
+                            />
 
                             {/* Archive Option */}
                             <div className="flex items-center space-x-2">

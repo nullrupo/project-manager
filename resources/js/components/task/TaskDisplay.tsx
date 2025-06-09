@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { UrgencyIndicator } from './UrgencyIndicator';
 import { ChecklistProgress } from './ChecklistProgress';
+import { TagBadge } from '../tag/TagBadge';
 import { useTaskDisplayPreferences } from '@/hooks/use-task-display-preferences';
 import { useTaskDisplayPreferencesContext } from '@/contexts/TaskDisplayPreferencesContext';
 import { Task } from '@/types/project-manager';
@@ -138,6 +139,40 @@ export function TaskDisplay({ task, className = '', compact = false, pageKey }: 
                     </div>
                 )}
             </div>
+
+            {/* Labels and Tags */}
+            {(preferences.show_labels || preferences.show_tags) && (
+                <div className="flex flex-wrap gap-1">
+                    {/* Project Labels */}
+                    {preferences.show_labels && task.labels && task.labels.length > 0 && (
+                        <>
+                            {task.labels.map(label => (
+                                <Badge
+                                    key={`label-${label.id}`}
+                                    variant="secondary"
+                                    className="text-xs px-2 py-1 border"
+                                    style={{
+                                        backgroundColor: `${label.color}20`,
+                                        borderColor: label.color,
+                                        color: label.color
+                                    }}
+                                >
+                                    {label.name}
+                                </Badge>
+                            ))}
+                        </>
+                    )}
+
+                    {/* Personal Tags */}
+                    {preferences.show_tags && task.tags && task.tags.length > 0 && (
+                        <>
+                            {task.tags.map(tag => (
+                                <TagBadge key={`tag-${tag.id}`} tag={tag} size="sm" />
+                            ))}
+                        </>
+                    )}
+                </div>
+            )}
         </div>
     );
 }

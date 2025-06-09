@@ -66,6 +66,16 @@ const displayOptions: DisplayOption[] = [
         label: 'Full Note',
         icon: FileText,
     },
+    {
+        key: 'show_tags',
+        label: 'Personal Tags',
+        icon: Tag,
+    },
+    {
+        key: 'show_labels',
+        label: 'Project Labels',
+        icon: Tag,
+    },
 ];
 
 export function TaskDisplayCustomizer({ pageKey, className = '' }: TaskDisplayCustomizerProps) {

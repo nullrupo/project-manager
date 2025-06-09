@@ -8,6 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { AlertCircle, CheckCircle2, Save, X } from 'lucide-react';
 import { router } from '@inertiajs/react';
 import TaskChecklist from '@/components/task-checklist';
+import { TagSelector } from '@/components/tag/TagSelector';
+import { LabelSelector } from '@/components/label/LabelSelector';
+import { useTags } from '@/hooks/useTags';
+import { Tag, Label as LabelType } from '@/types/project-manager';
 
 interface TaskInspectorProps {
     task: any;
@@ -23,13 +27,16 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
 }, ref) => {
     if (!inspectorTask) return null;
 
+    const { createTag } = useTags();
     const [taskData, setTaskData] = useState({
         title: '',
         description: '',
         priority: 'medium',
         status: 'to_do',
         due_date: '',
-        list_id: ''
+        list_id: '',
+        tag_ids: [] as number[],
+        label_ids: [] as number[]
     });
 
     // Save state tracking
@@ -55,7 +62,9 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
                 priority: inspectorTask.priority || 'medium',
                 status: inspectorTask.status || 'to_do',
                 due_date: inspectorTask.due_date ? inspectorTask.due_date.split('T')[0] : '',
-                list_id: inspectorTask.list_id || inspectorTask.list?.id || ''
+                list_id: inspectorTask.list_id || inspectorTask.list?.id || '',
+                tag_ids: inspectorTask.tags?.map((t: any) => t.id) || [],
+                label_ids: inspectorTask.labels?.map((l: any) => l.id) || []
             });
             setHasUnsavedChanges(false);
             setSaveState('idle');
@@ -91,7 +100,8 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
             status: taskData.status || 'to_do',
             due_date: taskData.due_date || null,
             assignee_ids: inspectorTask.assignees?.map((a: any) => a.id) || [],
-            label_ids: inspectorTask.labels?.map((l: any) => l.id) || [],
+            label_ids: taskData.label_ids || [],
+            tag_ids: taskData.tag_ids || [],
             is_archived: inspectorTask.is_archived || false
         };
 
@@ -399,6 +409,32 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
                             ))}
                         </div>
                     </div>
+                )}
+
+                {/* Tags */}
+                <TagSelector
+                    selectedTags={(inspectorTask.tags || []).filter((tag: any) => taskData.tag_ids.includes(tag.id))}
+                    availableTags={inspectorTask.tags || []}
+                    onTagsChange={(selectedTags: Tag[]) => {
+                        const tagIds = selectedTags.map(tag => tag.id);
+                        handleFieldChange('tag_ids', tagIds);
+                    }}
+                    onCreateTag={createTag}
+                    placeholder="Select personal tags..."
+                />
+
+                {/* Labels */}
+                {project.can_manage_labels && (
+                    <LabelSelector
+                        selectedLabels={(inspectorTask.labels || []).filter((label: any) => taskData.label_ids.includes(label.id))}
+                        availableLabels={inspectorTask.labels || []}
+                        onLabelsChange={(selectedLabels: LabelType[]) => {
+                            const labelIds = selectedLabels.map(label => label.id);
+                            handleFieldChange('label_ids', labelIds);
+                        }}
+                        placeholder="Select project labels..."
+                        canManageLabels={project.can_manage_labels}
+                    />
                 )}
 
                 {/* Checklist */}

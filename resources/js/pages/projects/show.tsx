@@ -8,6 +8,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import InviteMemberModal from '@/components/invite-member-modal';
 import MemberPermissionModal from '@/components/member-permission-modal';
 import { SectionEditForm, SectionCreateForm } from '@/components/project/sections/SectionForms';
+import ProjectDetailsModal from './components/ProjectDetailsModal';
 
 // Import view components
 import ProjectListView from './views/ProjectListView';
@@ -203,6 +204,13 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                 member={state.editingMember}
                 open={state.permissionModalOpen}
                 onOpenChange={state.setPermissionModalOpen}
+            />
+
+            {/* Project Details Modal */}
+            <ProjectDetailsModal
+                project={project}
+                open={state.detailsModalOpen}
+                onOpenChange={state.setDetailsModalOpen}
             />
 
             {/* Section Management Modals */}

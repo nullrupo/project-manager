@@ -8,6 +8,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FavoritesController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\LabelController;
+use App\Http\Controllers\TagController;
 use App\Http\Controllers\MyTasksController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectMemberController;
@@ -72,6 +73,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('projects/{project}/labels/{label}/edit', [LabelController::class, 'edit'])->name('labels.edit');
     Route::put('projects/{project}/labels/{label}', [LabelController::class, 'update'])->name('labels.update');
     Route::delete('projects/{project}/labels/{label}', [LabelController::class, 'destroy'])->name('labels.destroy');
+
+    // Tag routes
+    Route::get('tags', [TagController::class, 'index'])->name('tags.index');
+    Route::get('tags/manage', function () {
+        return Inertia::render('tags/index');
+    })->name('tags.manage');
+    Route::post('tags', [TagController::class, 'store'])->name('tags.store');
+    Route::put('tags/{tag}', [TagController::class, 'update'])->name('tags.update');
+    Route::delete('tags/{tag}', [TagController::class, 'destroy'])->name('tags.destroy');
+    Route::post('tags/{tag}/tasks/{task}/assign', [TagController::class, 'assignToTask'])->name('tags.assign-to-task');
+    Route::delete('tags/{tag}/tasks/{task}/remove', [TagController::class, 'removeFromTask'])->name('tags.remove-from-task');
+    Route::get('tasks/{task}/available-tags', [TagController::class, 'getAvailableForTask'])->name('tags.available-for-task');
 
     // Section routes
     Route::post('projects/{project}/sections', [SectionController::class, 'store'])->name('sections.store');

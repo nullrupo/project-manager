@@ -28,7 +28,7 @@ class InboxController extends Controller
                           $q->where('users.id', $user->id);
                       });
             })
-            ->with(['assignees', 'labels', 'creator', 'project', 'checklistItems'])
+            ->with(['assignees', 'labels', 'tags', 'creator', 'project', 'checklistItems'])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -43,10 +43,14 @@ class InboxController extends Controller
                   });
         })->orderBy('name')->get();
 
+        // Get user's tags
+        $tags = $user->tags()->orderBy('name')->get();
+
         return Inertia::render('inbox', [
             'tasks' => $tasks,
             'users' => $users,
             'projects' => $projects,
+            'tags' => $tags,
         ]);
     }
 
@@ -63,6 +67,8 @@ class InboxController extends Controller
             'due_date' => 'nullable|date',
             'assignee_ids' => 'nullable|array',
             'assignee_ids.*' => 'exists:users,id',
+            'tag_ids' => 'nullable|array',
+            'tag_ids.*' => 'exists:tags,id',
             'project_id' => 'nullable|exists:projects,id',
         ]);
 
@@ -131,6 +137,14 @@ class InboxController extends Controller
             $task->assignees()->attach($validated['assignee_ids']);
         }
 
+        // Attach tags if provided (with permission check - only user's own tags)
+        if (isset($validated['tag_ids']) && !empty($validated['tag_ids'])) {
+            $userTags = Auth::user()->tags()->whereIn('id', $validated['tag_ids'])->pluck('id');
+            if ($userTags->isNotEmpty()) {
+                $task->tags()->attach($userTags);
+            }
+        }
+
         // Check if this is a quick task (minimal data) to avoid notification spam
         $isQuickTask = empty($validated['description']) &&
                       $validated['priority'] === 'medium' &&
@@ -177,6 +191,8 @@ class InboxController extends Controller
             'project_id' => 'nullable|exists:projects,id',
             'assignee_ids' => 'nullable|array',
             'assignee_ids.*' => 'exists:users,id',
+            'tag_ids' => 'nullable|array',
+            'tag_ids.*' => 'exists:tags,id',
         ]);
 
         // Check if user has permission to assign task to the project
@@ -262,6 +278,14 @@ class InboxController extends Controller
         // Sync assignees if provided
         if (isset($validated['assignee_ids'])) {
             $task->assignees()->sync($validated['assignee_ids']);
+        }
+
+        // Sync tags (with permission check - only user's own tags)
+        if (isset($validated['tag_ids'])) {
+            $userTags = Auth::user()->tags()->whereIn('id', $validated['tag_ids'])->pluck('id');
+            $task->tags()->sync($userTags);
+        } else {
+            $task->tags()->sync([]);
         }
 
         // Determine success message based on what happened
@@ -453,7 +477,7 @@ class InboxController extends Controller
 
         return response()->json([
             'success' => true,
-            'task' => $task->fresh(['project', 'assignees', 'labels', 'creator', 'checklistItems'])
+            'task' => $task->fresh(['project', 'assignees', 'labels', 'tags', 'creator', 'checklistItems'])
         ]);
     }
 
@@ -480,7 +504,7 @@ class InboxController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Task restored successfully',
-            'task' => $task->fresh(['project', 'assignees', 'labels', 'creator', 'checklistItems'])
+            'task' => $task->fresh(['project', 'assignees', 'labels', 'tags', 'creator', 'checklistItems'])
         ]);
     }
 }
