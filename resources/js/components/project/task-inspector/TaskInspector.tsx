@@ -17,17 +17,21 @@ interface TaskInspectorProps {
     task: any;
     onClose: () => void;
     project: any;
+    availableTags?: Tag[];
+    availableLabels?: LabelType[];
 }
 
 // TaskInspector Component (moved outside to prevent recreation on re-renders)
 export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, TaskInspectorProps>(({
     task: inspectorTask,
     onClose,
-    project
+    project,
+    availableTags = [],
+    availableLabels = []
 }, ref) => {
     if (!inspectorTask) return null;
 
-    const { createTag } = useTags();
+    const { createTag, tags: userTags } = useTags();
     const [taskData, setTaskData] = useState({
         title: '',
         description: '',
@@ -414,7 +418,7 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
                 {/* Tags */}
                 <TagSelector
                     selectedTags={(inspectorTask.tags || []).filter((tag: any) => taskData.tag_ids.includes(tag.id))}
-                    availableTags={inspectorTask.tags || []}
+                    availableTags={availableTags.length > 0 ? availableTags : userTags}
                     onTagsChange={(selectedTags: Tag[]) => {
                         const tagIds = selectedTags.map(tag => tag.id);
                         handleFieldChange('tag_ids', tagIds);
@@ -424,10 +428,10 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
                 />
 
                 {/* Labels */}
-                {project.can_manage_labels && (
+                {(project.can_manage_labels || availableLabels.length > 0) && (
                     <LabelSelector
                         selectedLabels={(inspectorTask.labels || []).filter((label: any) => taskData.label_ids.includes(label.id))}
-                        availableLabels={inspectorTask.labels || []}
+                        availableLabels={availableLabels}
                         onLabelsChange={(selectedLabels: LabelType[]) => {
                             const labelIds = selectedLabels.map(label => label.id);
                             handleFieldChange('label_ids', labelIds);

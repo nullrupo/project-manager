@@ -1,10 +1,16 @@
 import React, { useRef, useEffect } from 'react';
 import { useGlobalTaskInspector } from '@/contexts/GlobalTaskInspectorContext';
 import { TaskInspector } from '@/components/project/task-inspector/TaskInspector';
+import { useTags } from '@/hooks/useTags';
+import { useLabels } from '@/hooks/useLabels';
 
 export function GlobalTaskInspector() {
     const { isOpen, task, project, closeInspector, saveInspectorRef } = useGlobalTaskInspector();
     const taskInspectorRef = useRef<{ saveTask: () => Promise<void> } | null>(null);
+
+    // Fetch available tags and labels
+    const { tags: availableTags } = useTags();
+    const { labels: availableLabels } = useLabels(project?.id);
 
     // Register the save function with the global context
     useEffect(() => {
@@ -29,6 +35,8 @@ export function GlobalTaskInspector() {
                 task={task}
                 project={project}
                 onClose={closeInspector}
+                availableTags={availableTags}
+                availableLabels={availableLabels}
             />
         </div>
     );

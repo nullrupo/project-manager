@@ -18,7 +18,7 @@ class LabelController extends Controller
     /**
      * Display a listing of the labels for a project.
      */
-    public function index(Project $project): Response
+    public function index(Project $project): Response|JsonResponse
     {
         // All authenticated users can view projects
 
@@ -26,6 +26,14 @@ class LabelController extends Controller
 
         // Add permission information
         $project->can_edit = Auth::id() === $project->owner_id;
+
+        // Return JSON if requested via AJAX
+        if (request()->expectsJson()) {
+            return response()->json([
+                'labels' => $labels,
+                'project' => $project
+            ]);
+        }
 
         return Inertia::render('labels/index', [
             'project' => $project,

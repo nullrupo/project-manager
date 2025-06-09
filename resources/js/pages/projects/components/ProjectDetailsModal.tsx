@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Project } from '@/types/project-manager';
-import { Link } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { type SharedData } from '@/types';
 import {
     Settings,
     Tag,
@@ -15,7 +17,8 @@ import {
     Shield,
     Crown,
     ExternalLink,
-    Edit
+    Edit,
+    Trash2
 } from 'lucide-react';
 
 interface ProjectDetailsModalProps {
@@ -25,6 +28,12 @@ interface ProjectDetailsModalProps {
 }
 
 export default function ProjectDetailsModal({ project, open, onOpenChange }: ProjectDetailsModalProps) {
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const { auth } = usePage<SharedData>().props;
+
+    // Check if current user is the project owner
+    const isProjectOwner = auth.user.id === project.owner_id;
+
     const getProjectIcon = () => {
         return <Shield className="h-5 w-5 text-orange-500" />;
     };
@@ -36,6 +45,14 @@ export default function ProjectDetailsModal({ project, open, onOpenChange }: Pro
                 Private
             </Badge>
         );
+    };
+
+    const handleDeleteProject = () => {
+        router.delete(route('projects.destroy', { project: project.id }), {
+            onSuccess: () => {
+                onOpenChange(false);
+            }
+        });
     };
 
     return (
@@ -177,18 +194,43 @@ export default function ProjectDetailsModal({ project, open, onOpenChange }: Pro
                                             </p>
                                         </div>
                                     </div>
-                                    <Link href={route('projects.edit', { project: project.id })}>
-                                        <Button variant="outline" size="sm">
-                                            <ExternalLink className="h-4 w-4 mr-2" />
-                                            Edit
-                                        </Button>
-                                    </Link>
+                                    <div className="flex items-center gap-2">
+                                        <Link href={route('projects.edit', { project: project.id })}>
+                                            <Button variant="outline" size="sm">
+                                                <ExternalLink className="h-4 w-4 mr-2" />
+                                                Edit
+                                            </Button>
+                                        </Link>
+                                        {isProjectOwner && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setShowDeleteConfirm(true)}
+                                                className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                                            >
+                                                <Trash2 className="h-4 w-4 mr-2" />
+                                                Delete
+                                            </Button>
+                                        )}
+                                    </div>
                                 </div>
                             )}
                         </CardContent>
                     </Card>
                 </div>
             </DialogContent>
+
+            {/* Delete Confirmation Dialog */}
+            <ConfirmDialog
+                open={showDeleteConfirm}
+                onOpenChange={setShowDeleteConfirm}
+                title="Delete Project"
+                description={`Are you sure you want to delete "${project.name}"? This action cannot be undone and will permanently delete all tasks, boards, and data associated with this project.`}
+                confirmText="Delete Project"
+                cancelText="Cancel"
+                onConfirm={handleDeleteProject}
+                variant="destructive"
+            />
         </Dialog>
     );
 }
