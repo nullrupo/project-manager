@@ -111,6 +111,39 @@ class User extends Authenticatable
     }
 
     /**
+     * Get invitations sent by this user.
+     */
+    public function sentInvitations(): HasMany
+    {
+        return $this->hasMany(ProjectInvitation::class, 'invited_by');
+    }
+
+    /**
+     * Get invitations received by this user.
+     */
+    public function receivedInvitations(): HasMany
+    {
+        return $this->hasMany(ProjectInvitation::class, 'invited_user_id');
+    }
+
+    /**
+     * Get pending invitations for this user's email.
+     */
+    public function pendingInvitations(): HasMany
+    {
+        return $this->hasMany(ProjectInvitation::class, 'invited_user_id')
+            ->where('status', 'pending');
+    }
+
+    /**
+     * Get permission templates created by this user.
+     */
+    public function permissionTemplates(): HasMany
+    {
+        return $this->hasMany(PermissionTemplate::class, 'created_by');
+    }
+
+    /**
      * Get the tags created by the user.
      */
     public function tags(): HasMany

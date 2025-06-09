@@ -103,6 +103,23 @@ class ProjectMemberController extends Controller
     }
 
     /**
+     * Get project invitations for management
+     */
+    public function invitations(Project $project)
+    {
+        if (!ProjectPermissionService::can($project, 'can_manage_members')) {
+            abort(403, 'You do not have permission to view project invitations.');
+        }
+
+        $invitations = $project->invitations()
+            ->with(['invitedBy:id,name,email', 'invitedUser:id,name,email'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json($invitations);
+    }
+
+    /**
      * Add member to project
      */
     public function store(Request $request, Project $project): RedirectResponse

@@ -7,10 +7,13 @@ use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FavoritesController;
 use App\Http\Controllers\InboxController;
+use App\Http\Controllers\InvitationDashboardController;
 use App\Http\Controllers\LabelController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\MyTasksController;
+use App\Http\Controllers\PermissionTemplateController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ProjectInvitationController;
 use App\Http\Controllers\ProjectMemberController;
 use App\Http\Controllers\SectionController;
 use App\Http\Controllers\TaskController;
@@ -114,6 +117,35 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Team routes
     Route::get('team', [TeamController::class, 'index'])->name('team');
     Route::post('team/{user}/invite-to-projects', [TeamController::class, 'inviteToProjects'])->name('team.invite-to-projects');
+
+    // Project invitation routes
+    Route::prefix('invitations')->name('invitations.')->group(function () {
+        Route::get('/', [InvitationDashboardController::class, 'index'])->name('dashboard');
+        Route::get('/stats', [InvitationDashboardController::class, 'stats'])->name('stats');
+        Route::get('{token}', [ProjectInvitationController::class, 'show'])->name('show');
+        Route::post('{token}/accept', [ProjectInvitationController::class, 'accept'])->name('accept');
+        Route::post('{token}/decline', [ProjectInvitationController::class, 'decline'])->name('decline');
+        Route::post('{invitation}/cancel', [ProjectInvitationController::class, 'cancel'])->name('cancel');
+        Route::post('{invitation}/resend', [ProjectInvitationController::class, 'resend'])->name('resend');
+    });
+
+    // Project-specific invitation routes
+    Route::post('projects/{project}/invitations', [ProjectInvitationController::class, 'store'])->name('projects.invitations.store');
+    Route::get('projects/{project}/invitations', [ProjectMemberController::class, 'invitations'])->name('projects.invitations.index');
+    Route::post('invitations/bulk', [ProjectInvitationController::class, 'bulkStore'])->name('invitations.bulk');
+
+    // Permission template routes
+    Route::prefix('permission-templates')->name('permission-templates.')->group(function () {
+        Route::get('/', [PermissionTemplateController::class, 'index'])->name('index');
+        Route::post('/', [PermissionTemplateController::class, 'store'])->name('store');
+        Route::put('{template}', [PermissionTemplateController::class, 'update'])->name('update');
+        Route::delete('{template}', [PermissionTemplateController::class, 'destroy'])->name('destroy');
+        Route::get('suggested', [PermissionTemplateController::class, 'suggested'])->name('suggested');
+        Route::post('{template}/apply', [PermissionTemplateController::class, 'apply'])->name('apply');
+        Route::post('from-invitation', [PermissionTemplateController::class, 'createFromInvitation'])->name('from-invitation');
+        Route::get('projects/{project}', [PermissionTemplateController::class, 'forProject'])->name('for-project');
+        Route::post('bulk-import', [PermissionTemplateController::class, 'bulkImport'])->name('bulk-import');
+    });
 
     // Calendar routes
     Route::get('calendar', [CalendarController::class, 'index'])->name('calendar');

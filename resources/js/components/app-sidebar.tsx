@@ -26,7 +26,8 @@ import {
     PanelLeftClose,
     PanelLeftOpen,
     Settings2,
-    Tags
+    Tags,
+    UserPlus
 } from 'lucide-react';
 import AppLogo from './app-logo';
 
@@ -141,6 +142,13 @@ const mainNavGroups: NavGroup[] = [
                 title: 'Team',
                 href: route('team'),
                 icon: Users,
+                user_created: false,
+            },
+            {
+                id: 'invitations',
+                title: 'Invitations',
+                href: route('invitations.dashboard'),
+                icon: UserPlus,
                 user_created: false,
             },
             {

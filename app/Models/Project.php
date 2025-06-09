@@ -100,6 +100,30 @@ class Project extends Model
     }
 
     /**
+     * Get the invitations for the project.
+     */
+    public function invitations(): HasMany
+    {
+        return $this->hasMany(ProjectInvitation::class);
+    }
+
+    /**
+     * Get pending invitations for the project.
+     */
+    public function pendingInvitations(): HasMany
+    {
+        return $this->hasMany(ProjectInvitation::class)->where('status', 'pending');
+    }
+
+    /**
+     * Get permission templates for the project.
+     */
+    public function permissionTemplates(): HasMany
+    {
+        return $this->hasMany(PermissionTemplate::class);
+    }
+
+    /**
      * Get the default reviewer for the project.
      */
     public function defaultReviewer(): BelongsTo
