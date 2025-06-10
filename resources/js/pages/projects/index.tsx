@@ -27,11 +27,13 @@ export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
     const filteredProjects = useMemo(() => {
         switch (activeFilter) {
             case 'personal':
-                return projects.filter(project => project.owner_id === auth.user.id);
+                return projects.filter(project =>
+                    project.owner_id === auth.user.id && project.is_personal_project
+                );
             case 'team':
                 return projects.filter(project =>
-                    project.owner_id !== auth.user.id &&
-                    project.members?.some(member => member.id === auth.user.id)
+                    (project.owner_id === auth.user.id && project.is_team_project) ||
+                    (project.owner_id !== auth.user.id && project.members?.some(member => member.id === auth.user.id))
                 );
             case 'all':
             default:
@@ -73,7 +75,7 @@ export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
                     <User className="h-4 w-4" />
                     Personal
                     <Badge variant="secondary" className="ml-1">
-                        {projects.filter(p => p.owner_id === auth.user.id).length}
+                        {projects.filter(p => p.owner_id === auth.user.id && p.is_personal_project).length}
                     </Badge>
                 </Button>
                 <Button
@@ -85,8 +87,8 @@ export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
                     Team
                     <Badge variant="secondary" className="ml-1">
                         {projects.filter(p =>
-                            p.owner_id !== auth.user.id &&
-                            p.members?.some(member => member.id === auth.user.id)
+                            (p.owner_id === auth.user.id && p.is_team_project) ||
+                            (p.owner_id !== auth.user.id && p.members?.some(member => member.id === auth.user.id))
                         ).length}
                     </Badge>
                 </Button>
@@ -135,15 +137,15 @@ export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
                                                     </Tooltip>
                                                 </TooltipProvider>
                                                 {/* Project type indicator */}
-                                                {project.owner_id === auth.user.id ? (
-                                                    <Badge variant="outline" className="text-xs">
-                                                        <User className="h-3 w-3 mr-1" />
-                                                        Personal
-                                                    </Badge>
-                                                ) : (
+                                                {project.is_team_project ? (
                                                     <Badge variant="outline" className="text-xs">
                                                         <Users className="h-3 w-3 mr-1" />
                                                         Team
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge variant="outline" className="text-xs">
+                                                        <User className="h-3 w-3 mr-1" />
+                                                        Personal
                                                     </Badge>
                                                 )}
                                             </div>

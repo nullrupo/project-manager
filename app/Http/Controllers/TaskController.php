@@ -286,8 +286,8 @@ class TaskController extends Controller
             abort(404, 'Task not found in this project.');
         }
 
-        // Check if user has access to the project
-        if (!$project->is_public && !$project->members->contains(Auth::id()) && $project->owner_id !== Auth::id()) {
+        // Check if user has access to the project (all projects are private, check membership)
+        if (!$project->members->contains(Auth::id()) && $project->owner_id !== Auth::id()) {
             abort(403, 'You do not have permission to view this project.');
         }
 

@@ -33,6 +33,8 @@ export interface Project {
         can_comment: boolean;
     };
     is_favorited?: boolean;
+    is_team_project?: boolean;
+    is_personal_project?: boolean;
 }
 
 export interface Board {

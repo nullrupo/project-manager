@@ -138,4 +138,30 @@ class Project extends Model
     {
         return $this->hasMany(Section::class);
     }
+
+    /**
+     * Check if this project is a team project.
+     * A project is considered a team project if:
+     * 1. It has members other than the owner, OR
+     * 2. It has pending invitations
+     */
+    public function isTeamProject(): bool
+    {
+        // Check if there are members other than the owner
+        $hasOtherMembers = $this->members()->where('user_id', '!=', $this->owner_id)->exists();
+
+        // Check if there are pending invitations
+        $hasPendingInvitations = $this->pendingInvitations()->exists();
+
+        return $hasOtherMembers || $hasPendingInvitations;
+    }
+
+    /**
+     * Check if this project is a personal project.
+     * A project is personal if it's not a team project.
+     */
+    public function isPersonalProject(): bool
+    {
+        return !$this->isTeamProject();
+    }
 }

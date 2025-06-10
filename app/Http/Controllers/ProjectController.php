@@ -24,7 +24,7 @@ class ProjectController extends Controller
         $user = Auth::user();
 
         // Get all projects for all users to view
-        $projects = Project::with(['owner', 'members'])
+        $projects = Project::with(['owner', 'members', 'pendingInvitations'])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -32,6 +32,8 @@ class ProjectController extends Controller
         $projects->each(function ($project) use ($user) {
             $project->can_edit = Auth::id() === $project->owner_id;
             $project->is_favorited = $project->isFavoritedBy($user);
+            $project->is_team_project = $project->isTeamProject();
+            $project->is_personal_project = $project->isPersonalProject();
         });
 
         return Inertia::render('projects/index', [
