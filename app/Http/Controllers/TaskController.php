@@ -710,4 +710,83 @@ class TaskController extends Controller
             'task' => $task->fresh(['assignees', 'labels', 'tags', 'creator', 'list'])
         ]);
     }
+
+    /**
+     * Clean up completed tasks from the project.
+     * Archives completed tasks by setting is_archived = true.
+     */
+    public function cleanup(Request $request, Project $project): RedirectResponse
+    {
+        // Check if user has permission to manage tasks in this project
+        if (!ProjectPermissionService::can($project, 'can_manage_tasks')) {
+            abort(403, 'You do not have permission to manage tasks in this project.');
+        }
+
+        $user = Auth::user();
+
+        // Find completed tasks in this project that the user can manage
+        $completedTasks = Task::where('project_id', $project->id)
+            ->where('status', 'done')
+            ->where('is_archived', false) // Only non-archived tasks
+            ->where(function ($query) use ($user) {
+                $query->where('created_by', $user->id)
+                      ->orWhereHas('assignees', function ($q) use ($user) {
+                          $q->where('users.id', $user->id);
+                      });
+            })
+            ->whereNull('deleted_at') // Only non-deleted tasks
+            ->get();
+
+        $cleanupCount = 0;
+
+        // Archive completed tasks by setting is_archived = true
+        foreach ($completedTasks as $task) {
+            if ($task->created_by === $user->id || $task->assignees->contains($user->id)) {
+                $task->update(['is_archived' => true]);
+                $cleanupCount++;
+            }
+        }
+
+        // Preserve the current view if specified in the request
+        $redirectParams = ['project' => $project->id];
+        if ($request->has('view')) {
+            $redirectParams['view'] = $request->get('view');
+        }
+
+        return redirect()->route('projects.show', $redirectParams)
+            ->with('success', "Project cleaned! {$cleanupCount} completed tasks moved to project archive.");
+    }
+
+    /**
+     * Unarchive a task (restore from project archive).
+     */
+    public function unarchive(Request $request, Project $project, Task $task): \Illuminate\Http\JsonResponse
+    {
+        // Check if the task belongs to the project
+        if ($task->project_id !== $project->id) {
+            abort(404, 'Task not found in this project.');
+        }
+
+        // Check if user has permission to manage this task
+        if (!ProjectPermissionService::can($project, 'can_manage_tasks')) {
+            abort(403, 'You do not have permission to manage tasks in this project.');
+        }
+
+        // Check if task is actually archived
+        if (!$task->is_archived) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Task is not archived'
+            ], 400);
+        }
+
+        // Unarchive the task
+        $task->update(['is_archived' => false]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Task restored from archive successfully',
+            'task' => $task->fresh(['assignees', 'labels', 'tags', 'creator', 'section', 'list'])
+        ]);
+    }
 }

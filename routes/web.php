@@ -63,6 +63,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('projects/{project}/tasks/{task}/toggle-completion', [TaskController::class, 'toggleCompletion'])->name('tasks.toggle-completion');
     Route::delete('projects/{project}/tasks/{task}', [TaskController::class, 'destroy'])->name('tasks.destroy');
     Route::post('projects/{project}/tasks/{task}/restore', [TaskController::class, 'restore'])->name('tasks.restore');
+    Route::post('projects/{project}/cleanup', [TaskController::class, 'cleanup'])->name('projects.cleanup');
+    Route::get('projects/{project}/archive', [ProjectController::class, 'archive'])->name('projects.archive');
+    Route::post('projects/{project}/tasks/{task}/unarchive', [TaskController::class, 'unarchive'])->name('tasks.unarchive');
     Route::post('projects/{project}/tasks/positions', [TaskController::class, 'updatePositions'])->name('tasks.positions');
 
     // Comment routes

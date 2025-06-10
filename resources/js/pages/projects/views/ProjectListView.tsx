@@ -1,11 +1,11 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Menu, Plus, ChevronDown, ChevronRight, Layers, ListTodo } from 'lucide-react';
+import { Menu, Plus, ChevronDown, ChevronRight, Layers, ListTodo, Sparkles, Clock, Archive } from 'lucide-react';
 import { Project } from '@/types/project-manager';
 import ListTaskItem from '../components/ListTaskItem';
 import { getOrganizedTasks, getAllTasksFromSections, toggleSectionCollapse } from '../utils/projectUtils';
@@ -15,7 +15,8 @@ import TaskCreateModal from '@/components/task-create-modal';
 import { useTags } from '@/hooks/useTags';
 import { router } from '@inertiajs/react';
 import { BulkActionsPanel } from '@/components/BulkActionsPanel';
-import { Checkbox } from '@/components/ui/checkbox';
+
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface ProjectListViewProps {
     project: Project;
@@ -50,8 +51,16 @@ export default function ProjectListView({
     const { tags } = useTags();
     const taskListRef = useRef<HTMLDivElement>(null);
 
+    // Cleanup state
+    const [isCleaningUp, setIsCleaningUp] = useState(false);
+
     const sections = getOrganizedTasks(project, state.listViewMode);
     const allTasks = getAllTasksFromSections(sections);
+
+    // Calculate cleanup-eligible tasks (completed tasks)
+    const cleanupEligibleTasks = useMemo(() => {
+        return allTasks.filter(task => task.status === 'done');
+    }, [allTasks]);
 
     const handleSectionToggle = (sectionId: string) => {
         toggleSectionCollapse(sectionId, state.collapsedSections, state.setCollapsedSections);
@@ -279,14 +288,22 @@ export default function ProjectListView({
         }
     }, [state.selectedTasks, project.id, isProcessing]);
 
-    const selectAllTasks = (checked: boolean) => {
-        if (checked) {
-            state.setSelectedTasks(new Set(allTasks.map(task => task.id)));
-            state.setShowBulkActions(true);
-        } else {
-            state.setSelectedTasks(new Set());
-            state.setShowBulkActions(false);
-        }
+
+
+    // Perform cleanup of completed tasks
+    const performCleanup = () => {
+        if (isCleaningUp) return; // Prevent double-clicks
+
+        setIsCleaningUp(true);
+        router.post(route('projects.cleanup', { project: project.id }), {}, {
+            onSuccess: () => {
+                setIsCleaningUp(false);
+                // Success message will be shown via Inertia flash message
+            },
+            onError: () => {
+                setIsCleaningUp(false);
+            }
+        });
     };
 
     // Enhanced task click handler that supports selection
@@ -343,32 +360,9 @@ export default function ProjectListView({
                                 </CardTitle>
                                 <CardDescription>
                                     Hierarchical outline view with inspector panel
-                                    {allTasks.length > 0 && (
-                                        <span className="block text-xs text-muted-foreground mt-1">
-                                            Tip: Use Ctrl/Cmd+click for multi-select, Shift+click for range select, Space to toggle completion
-                                        </span>
-                                    )}
                                 </CardDescription>
                             </div>
                             <div className="flex items-center gap-2">
-                                {allTasks.length > 0 && (
-                                    <>
-                                        <div className="flex items-center gap-2">
-                                            <Checkbox
-                                                checked={state.selectedTasks.size === allTasks.length && allTasks.length > 0}
-                                                onCheckedChange={selectAllTasks}
-                                                className="mr-1"
-                                            />
-                                            <span className="text-sm text-muted-foreground">
-                                                {state.selectedTasks.size > 0
-                                                    ? `${state.selectedTasks.size} selected`
-                                                    : 'Select all'
-                                                }
-                                            </span>
-                                        </div>
-                                        <Separator orientation="vertical" className="h-6" />
-                                    </>
-                                )}
                                 <TaskDisplayCustomizer pageKey={`project-list-${project.id}`} />
                                 <Separator orientation="vertical" className="h-6" />
                                 {project.can_manage_tasks && (
@@ -391,6 +385,59 @@ export default function ProjectListView({
                                         Add Section
                                     </Button>
                                 )}
+
+                                {/* Cleanup button */}
+                                {project.can_manage_tasks && cleanupEligibleTasks.length > 0 && (
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={performCleanup}
+                                                    disabled={isCleaningUp}
+                                                    className="flex items-center gap-2"
+                                                >
+                                                    {isCleaningUp ? (
+                                                        <>
+                                                            <Clock className="h-4 w-4 animate-spin" />
+                                                            Cleaning...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Sparkles className="h-4 w-4" />
+                                                            Clean Up ({cleanupEligibleTasks.length})
+                                                        </>
+                                                    )}
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>Archive all completed tasks in this project</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                )}
+
+                                {/* Archive button */}
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => router.visit(route('projects.archive', project.id))}
+                                                className="flex items-center gap-2"
+                                            >
+                                                <Archive className="h-4 w-4" />
+                                                Archive
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>View archived tasks for this project</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+
                                 <Separator orientation="vertical" className="h-6" />
                                 <Button
                                     variant={state.listViewMode === 'sections' ? 'default' : 'outline'}

@@ -140,6 +140,9 @@ class ProjectController extends Controller
             'sections' => function ($query) {
                 $query->orderBy('position');
             },
+            'sections.tasks' => function ($query) {
+                $query->where('is_archived', false)->orderBy('position');
+            },
             'boards' => function ($query) {
                 $query->orderBy('position');
             },
@@ -147,7 +150,7 @@ class ProjectController extends Controller
                 $query->orderBy('position');
             },
             'boards.lists.tasks' => function ($query) {
-                $query->orderBy('position');
+                $query->where('is_archived', false)->orderBy('position');
             },
             'boards.lists.tasks.assignees',
             'boards.lists.tasks.labels',
@@ -167,6 +170,34 @@ class ProjectController extends Controller
 
         return Inertia::render('projects/show', [
             'project' => $project,
+        ]);
+    }
+
+    /**
+     * Display the archived tasks for the specified project.
+     */
+    public function archive(Project $project): Response
+    {
+        // Check if user has permission to view this project
+        if (!ProjectPermissionService::can($project, 'can_view_project')) {
+            abort(403, 'You do not have permission to view this project.');
+        }
+
+        // Load archived tasks with their relationships
+        $archivedTasks = $project->tasks()
+            ->where('is_archived', true)
+            ->with(['assignees', 'labels', 'tags', 'creator', 'section', 'list'])
+            ->orderBy('completed_at', 'desc')
+            ->paginate(50);
+
+        // Add permission information
+        $user = Auth::user();
+        $project->can_manage_tasks = ProjectPermissionService::can($project, 'can_manage_tasks');
+        $project->user_role = ProjectPermissionService::getUserRole($project, $user);
+
+        return Inertia::render('projects/archive', [
+            'project' => $project,
+            'archivedTasks' => $archivedTasks,
         ]);
     }
 
