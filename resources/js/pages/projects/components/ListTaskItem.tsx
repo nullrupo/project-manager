@@ -1,8 +1,7 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
+
 import { Checkbox } from '@/components/ui/checkbox';
 import { 
     DropdownMenu, 
@@ -13,7 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { GripVertical, MoreHorizontal, Edit, Trash2 } from 'lucide-react';
 import { Project } from '@/types/project-manager';
-import { useShortName } from '@/hooks/use-initials';
+
 import { useTaskOperations } from '../hooks/useTaskOperations';
 import { TaskDisplay } from '@/components/task/TaskDisplay';
 
@@ -21,9 +20,11 @@ interface ListTaskItemProps {
     task: any;
     project: Project;
     sectionId?: string;
-    onTaskClick: (task: any) => void;
+    onTaskClick: (task: any, event?: React.MouseEvent) => void;
     onEditTask: (task: any) => void;
     currentView?: string;
+    isSelected?: boolean;
+    onToggleSelection?: (taskId: number, event?: React.MouseEvent) => void;
 }
 
 export default function ListTaskItem({
@@ -32,9 +33,11 @@ export default function ListTaskItem({
     sectionId,
     onTaskClick,
     onEditTask,
-    currentView
+    currentView,
+    isSelected = false,
+    onToggleSelection
 }: ListTaskItemProps) {
-    const getShortName = useShortName();
+
     const { toggleTaskCompletion, deleteTask } = useTaskOperations(project, currentView);
 
     // Drag and drop functionality
@@ -61,9 +64,9 @@ export default function ListTaskItem({
         zIndex: isDragging ? 1000 : 'auto',
     };
 
-    const handleTaskClick = () => {
+    const handleTaskClick = (event: React.MouseEvent) => {
         if (!isDragging) {
-            onTaskClick(task);
+            onTaskClick(task, event);
         }
     };
 
@@ -82,6 +85,9 @@ export default function ListTaskItem({
             style={style}
             className={`group relative bg-white dark:bg-gray-800 border border-border rounded-lg p-3 hover:shadow-md transition-all duration-200 cursor-pointer ${
                 task.status === 'done' ? 'opacity-60' : ''
+            } ${isSelected
+                ? 'ring-2 ring-primary/30 border-primary/30'
+                : 'hover:border-primary/20'
             }`}
             data-task-clickable
             onClick={handleTaskClick}

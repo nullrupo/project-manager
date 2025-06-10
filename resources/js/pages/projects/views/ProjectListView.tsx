@@ -1,20 +1,21 @@
-import { useState } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Menu, Plus, ChevronDown, ChevronRight, Layers, ListTodo, Edit } from 'lucide-react';
+import { Menu, Plus, ChevronDown, ChevronRight, Layers, ListTodo } from 'lucide-react';
 import { Project } from '@/types/project-manager';
-import { TaskInspector } from '@/components/project/task-inspector/TaskInspector';
 import ListTaskItem from '../components/ListTaskItem';
-import { getOrganizedTasks, toggleSectionCollapse } from '../utils/projectUtils';
+import { getOrganizedTasks, getAllTasksFromSections, toggleSectionCollapse } from '../utils/projectUtils';
 import { TaskDisplayCustomizer } from '@/components/task/TaskDisplayCustomizer';
 import QuickAddTask from '@/components/project/QuickAddTask';
 import TaskCreateModal from '@/components/task-create-modal';
 import { useTags } from '@/hooks/useTags';
 import { router } from '@inertiajs/react';
+import { BulkActionsPanel } from '@/components/BulkActionsPanel';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface ProjectListViewProps {
     project: Project;
@@ -47,12 +48,257 @@ export default function ProjectListView({
 }: ProjectListViewProps) {
     const [taskCreateModalOpen, setTaskCreateModalOpen] = useState(false);
     const { tags } = useTags();
+    const taskListRef = useRef<HTMLDivElement>(null);
 
     const sections = getOrganizedTasks(project, state.listViewMode);
+    const allTasks = getAllTasksFromSections(sections);
 
     const handleSectionToggle = (sectionId: string) => {
         toggleSectionCollapse(sectionId, state.collapsedSections, state.setCollapsedSections);
     };
+
+    // Clear selection when tasks change if focused task no longer exists
+    useEffect(() => {
+        if (allTasks.length === 0) {
+            // Clear selection when no tasks
+            state.setSelectedTasks(new Set());
+            state.setCurrentFocusedTaskId(null);
+            state.setLastSelectedTaskId(null);
+        } else if (state.currentFocusedTaskId && !allTasks.find(t => t.id === state.currentFocusedTaskId)) {
+            // If focused task no longer exists, clear selection
+            state.setSelectedTasks(new Set());
+            state.setCurrentFocusedTaskId(null);
+            state.setLastSelectedTaskId(null);
+        }
+    }, [allTasks, state.currentFocusedTaskId]);
+
+    // Clear selection when switching view modes
+    useEffect(() => {
+        state.setSelectedTasks(new Set());
+        state.setCurrentFocusedTaskId(null);
+        state.setLastSelectedTaskId(null);
+        state.setShowBulkActions(false);
+    }, [state.listViewMode]);
+
+    // Task selection function
+    const toggleTaskSelection = useCallback((taskId: number, event?: React.MouseEvent) => {
+        const newSelected = new Set(state.selectedTasks);
+
+        if (event?.shiftKey && state.lastSelectedTaskId !== null) {
+            // Shift+click: select range
+            const currentIndex = allTasks.findIndex(t => t.id === taskId);
+            const lastIndex = allTasks.findIndex(t => t.id === state.lastSelectedTaskId);
+
+            if (currentIndex !== -1 && lastIndex !== -1) {
+                const start = Math.min(currentIndex, lastIndex);
+                const end = Math.max(currentIndex, lastIndex);
+
+                // Clear existing selection and add range
+                newSelected.clear();
+                for (let i = start; i <= end; i++) {
+                    newSelected.add(allTasks[i].id);
+                }
+            }
+        } else if (event?.ctrlKey || event?.metaKey) {
+            // Ctrl/Cmd+click: toggle individual task (multi-select)
+            if (newSelected.has(taskId)) {
+                newSelected.delete(taskId);
+            } else {
+                newSelected.add(taskId);
+            }
+        } else {
+            // Regular click: single selection
+            newSelected.clear();
+            newSelected.add(taskId);
+        }
+
+        state.setSelectedTasks(newSelected);
+        state.setCurrentFocusedTaskId(taskId);
+        state.setLastSelectedTaskId(taskId);
+        state.setShowBulkActions(newSelected.size > 0);
+    }, [allTasks, state.selectedTasks, state.lastSelectedTaskId]);
+
+    // Keyboard navigation functions
+    const moveSelection = (direction: 'up' | 'down', shiftKey: boolean = false) => {
+        if (allTasks.length === 0) return;
+
+        const currentIndex = state.currentFocusedTaskId
+            ? allTasks.findIndex(t => t.id === state.currentFocusedTaskId)
+            : -1;
+
+        let newIndex;
+        if (direction === 'up') {
+            newIndex = currentIndex <= 0 ? allTasks.length - 1 : currentIndex - 1;
+        } else {
+            newIndex = currentIndex >= allTasks.length - 1 ? 0 : currentIndex + 1;
+        }
+
+        const newTaskId = allTasks[newIndex]?.id;
+        if (newTaskId) {
+            if (shiftKey && state.currentFocusedTaskId) {
+                // Shift + Arrow: Add to selection
+                const newSelected = new Set(state.selectedTasks);
+                newSelected.add(newTaskId);
+                state.setSelectedTasks(newSelected);
+            } else {
+                // Regular Arrow: Single task focus
+                state.setSelectedTasks(new Set([newTaskId]));
+            }
+            state.setCurrentFocusedTaskId(newTaskId);
+            state.setLastSelectedTaskId(newTaskId);
+            state.setShowBulkActions(state.selectedTasks.size > 0 || shiftKey);
+        }
+    };
+
+    const handleKeyDown = (event: React.KeyboardEvent) => {
+        // Only handle keyboard navigation when not in an input field, textarea, or dropdown
+        if (event.target instanceof HTMLInputElement ||
+            event.target instanceof HTMLTextAreaElement ||
+            event.target instanceof HTMLSelectElement) {
+            return;
+        }
+
+        // Don't handle if modals are open
+        if (taskCreateModalOpen || state.taskEditModalOpen || state.taskViewModalOpen) {
+            return;
+        }
+
+        switch (event.key) {
+            case 'ArrowUp':
+                event.preventDefault();
+                moveSelection('up', event.shiftKey);
+                break;
+            case 'ArrowDown':
+                event.preventDefault();
+                moveSelection('down', event.shiftKey);
+                break;
+            case ' ':
+                event.preventDefault();
+                // Toggle completion for all selected tasks
+                if (state.selectedTasks.size > 0) {
+                    bulkToggleCompletion();
+                }
+                break;
+        }
+    };
+
+    // Custom batch operations for project tasks (need project parameter)
+    const [isProcessing, setIsProcessing] = useState(false);
+
+    const getSelectedTasksCompletionState = useCallback(() => {
+        const selectedTasksList = allTasks.filter(task => state.selectedTasks.has(task.id));
+        const completedCount = selectedTasksList.filter(task => task.status === 'done').length;
+        const totalCount = selectedTasksList.length;
+        const allCompleted = totalCount > 0 && completedCount === totalCount;
+        const hasIncomplete = completedCount < totalCount;
+
+        return {
+            allCompleted,
+            hasIncomplete,
+            completedCount,
+            totalCount
+        };
+    }, [allTasks, state.selectedTasks]);
+
+    const bulkToggleCompletion = useCallback(async () => {
+        if (isProcessing) return;
+
+        const taskIds = Array.from(state.selectedTasks);
+        setIsProcessing(true);
+
+        try {
+            // Process all tasks concurrently
+            await Promise.all(taskIds.map(async (taskId) => {
+                try {
+                    const response = await fetch(route('tasks.toggle-completion', {
+                        project: project.id,
+                        task: taskId
+                    }), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify({})
+                    });
+
+                    if (!response.ok) {
+                        console.error('Failed to toggle task completion:', taskId);
+                    }
+                } catch (error) {
+                    console.error('Failed to toggle task completion:', taskId, error);
+                }
+            }));
+
+            // Reload the page to reflect changes
+            router.reload();
+        } finally {
+            setIsProcessing(false);
+            state.setSelectedTasks(new Set());
+            state.setShowBulkActions(false);
+        }
+    }, [state.selectedTasks, project.id, isProcessing]);
+
+    const bulkDelete = useCallback(async () => {
+        if (isProcessing) return;
+
+        const taskIds = Array.from(state.selectedTasks);
+        setIsProcessing(true);
+
+        try {
+            // Process all tasks concurrently
+            await Promise.all(taskIds.map(async (taskId) => {
+                try {
+                    const response = await fetch(route('tasks.destroy', {
+                        project: project.id,
+                        task: taskId
+                    }), {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                            'Accept': 'application/json',
+                        }
+                    });
+
+                    if (!response.ok) {
+                        console.error('Failed to delete task:', taskId);
+                    }
+                } catch (error) {
+                    console.error('Failed to delete task:', taskId, error);
+                }
+            }));
+
+            // Reload the page to reflect changes
+            router.reload();
+        } finally {
+            setIsProcessing(false);
+            state.setSelectedTasks(new Set());
+            state.setShowBulkActions(false);
+        }
+    }, [state.selectedTasks, project.id, isProcessing]);
+
+    const selectAllTasks = (checked: boolean) => {
+        if (checked) {
+            state.setSelectedTasks(new Set(allTasks.map(task => task.id)));
+            state.setShowBulkActions(true);
+        } else {
+            state.setSelectedTasks(new Set());
+            state.setShowBulkActions(false);
+        }
+    };
+
+    // Enhanced task click handler that supports selection
+    const handleTaskClick = useCallback((task: any, event?: React.MouseEvent) => {
+        if (event && (event.ctrlKey || event.metaKey || event.shiftKey)) {
+            // Multi-select behavior with modifier keys
+            toggleTaskSelection(task.id, event);
+        } else {
+            // Single click opens inspector (existing behavior)
+            onTaskClick(task);
+        }
+    }, [toggleTaskSelection, onTaskClick]);
 
     const handleCreateTask = (sectionId?: string, status?: string) => {
         if (onCreateTask) {
@@ -80,7 +326,11 @@ export default function ProjectListView({
     };
 
     return (
-        <div className="flex h-[calc(100vh-200px)] mt-0">
+        <div
+            className="flex h-[calc(100vh-200px)] mt-0"
+            onKeyDown={handleKeyDown}
+            tabIndex={0}
+        >
             {/* Main List Content */}
             <div className={`flex-1 ${state.inspectorOpen ? 'mr-0' : ''}`}>
                 <Card className="rounded-t-none border-t-0 h-full">
@@ -93,9 +343,32 @@ export default function ProjectListView({
                                 </CardTitle>
                                 <CardDescription>
                                     Hierarchical outline view with inspector panel
+                                    {allTasks.length > 0 && (
+                                        <span className="block text-xs text-muted-foreground mt-1">
+                                            Tip: Use Ctrl/Cmd+click for multi-select, Shift+click for range select, Space to toggle completion
+                                        </span>
+                                    )}
                                 </CardDescription>
                             </div>
                             <div className="flex items-center gap-2">
+                                {allTasks.length > 0 && (
+                                    <>
+                                        <div className="flex items-center gap-2">
+                                            <Checkbox
+                                                checked={state.selectedTasks.size === allTasks.length && allTasks.length > 0}
+                                                onCheckedChange={selectAllTasks}
+                                                className="mr-1"
+                                            />
+                                            <span className="text-sm text-muted-foreground">
+                                                {state.selectedTasks.size > 0
+                                                    ? `${state.selectedTasks.size} selected`
+                                                    : 'Select all'
+                                                }
+                                            </span>
+                                        </div>
+                                        <Separator orientation="vertical" className="h-6" />
+                                    </>
+                                )}
                                 <TaskDisplayCustomizer pageKey={`project-list-${project.id}`} />
                                 <Separator orientation="vertical" className="h-6" />
                                 {project.can_manage_tasks && (
@@ -161,7 +434,18 @@ export default function ProjectListView({
                                     onDragEnd={onDragEnd}
                                     modifiers={[restrictToWindowEdges]}
                                 >
-                                    <div className="space-y-4">
+                                    <div
+                                        className="space-y-4"
+                                        ref={taskListRef}
+                                        onClick={(e) => {
+                                            // Click away functionality - deselect all tasks if clicking on empty space
+                                            if (e.target === e.currentTarget) {
+                                                state.setSelectedTasks(new Set());
+                                                state.setCurrentFocusedTaskId(null);
+                                                state.setShowBulkActions(false);
+                                            }
+                                        }}
+                                    >
                                     {sections.map((section) => {
                                         const isCollapsed = state.collapsedSections.has(section.id);
                                         const taskIds = section.tasks.map((task: any) => `list-task-${task.id}`);
@@ -252,9 +536,11 @@ export default function ProjectListView({
                                                                     task={task}
                                                                     project={project}
                                                                     sectionId={section.id}
-                                                                    onTaskClick={onTaskClick}
+                                                                    onTaskClick={handleTaskClick}
                                                                     onEditTask={onEditTask}
                                                                     currentView={state.activeView}
+                                                                    isSelected={state.selectedTasks.has(task.id)}
+                                                                    onToggleSelection={toggleTaskSelection}
                                                                 />
                                                             ))}
                                                             {/* Quick Add for this section */}
@@ -332,13 +618,27 @@ export default function ProjectListView({
                 </Card>
             </div>
 
+            {/* Bulk Actions Panel */}
+            <BulkActionsPanel
+                selectedTasks={state.selectedTasks}
+                onClearSelection={() => {
+                    state.setSelectedTasks(new Set());
+                    state.setCurrentFocusedTaskId(null);
+                    state.setShowBulkActions(false);
+                }}
+                onToggleCompletion={() => bulkToggleCompletion()}
+                onDelete={() => bulkDelete()}
+                getCompletionState={getSelectedTasksCompletionState}
+                isProcessing={isProcessing}
+            />
+
             {/* Task Create Modal */}
             <TaskCreateModal
                 open={taskCreateModalOpen}
                 onOpenChange={setTaskCreateModalOpen}
                 project={project}
                 members={project.members || []}
-                labels={project.labels || []}
+                labels={[]}
                 tags={tags}
                 sections={project.sections || []}
                 onSuccess={() => {

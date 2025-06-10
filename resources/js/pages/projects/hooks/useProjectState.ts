@@ -37,6 +37,12 @@ export const useProjectState = (project: Project) => {
     const [inspectorOpen, setInspectorOpen] = useState(false);
     const [inspectorTask, setInspectorTask] = useState<any>(null);
     const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+
+    // Task selection state
+    const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
+    const [currentFocusedTaskId, setCurrentFocusedTaskId] = useState<number | null>(null);
+    const [lastSelectedTaskId, setLastSelectedTaskId] = useState<number | null>(null);
+    const [showBulkActions, setShowBulkActions] = useState(false);
     
     // Section management state
     const [editingSection, setEditingSection] = useState<any>(null);
@@ -126,6 +132,16 @@ export const useProjectState = (project: Project) => {
         setInspectorTask,
         collapsedSections,
         setCollapsedSections,
+
+        // Task selection state
+        selectedTasks,
+        setSelectedTasks,
+        currentFocusedTaskId,
+        setCurrentFocusedTaskId,
+        lastSelectedTaskId,
+        setLastSelectedTaskId,
+        showBulkActions,
+        setShowBulkActions,
         
         // Section management state
         editingSection,

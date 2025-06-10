@@ -20,6 +20,13 @@ export const updateViewInUrl = (newView: string): void => {
 };
 
 /**
+ * Get all tasks from organized sections (for selection purposes)
+ */
+export const getAllTasksFromSections = (sections: any[]) => {
+    return sections.flatMap(section => section.tasks || []);
+};
+
+/**
  * Get tasks organized by sections or status
  */
 export const getOrganizedTasks = (project: Project, listViewMode: 'status' | 'sections') => {
