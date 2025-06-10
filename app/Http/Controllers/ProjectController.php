@@ -157,6 +157,7 @@ class ProjectController extends Controller
             'boards.lists.tasks.creator',
             'boards.lists.tasks.reviewer',
             'boards.lists.tasks.checklistItems',
+            'boards.lists.tasks.list.board',
         ]);
 
         // Add permission information using the new permission system

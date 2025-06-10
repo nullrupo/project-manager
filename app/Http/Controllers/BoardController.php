@@ -79,7 +79,9 @@ class BoardController extends Controller
             'lists.tasks.tags',
             'lists.tasks.creator',
             'lists.tasks.checklistItems',
+            'lists.tasks.project',
             'lists.tasks.comments.user',
+            'lists.tasks.list.board',
         ]);
 
         // Load project members and labels for task modals

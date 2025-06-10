@@ -277,106 +277,6 @@ class TaskController extends Controller
     }
 
     /**
-     * Display the specified task.
-     */
-    public function show(Project $project, Task $task): Response
-    {
-        // Check if the task belongs to the project
-        if ($task->project_id !== $project->id) {
-            abort(404, 'Task not found in this project.');
-        }
-
-        // Check if user has access to the project (all projects are private, check membership)
-        if (!$project->members->contains(Auth::id()) && $project->owner_id !== Auth::id()) {
-            abort(403, 'You do not have permission to view this project.');
-        }
-
-        // Load the task with its relationships
-        $task->load([
-            'list',
-            'assignees',
-            'labels',
-            'tags',
-            'creator',
-            'reviewer',
-            'section',
-            'checklistItems',
-            'comments' => function ($query) {
-                $query->whereNull('parent_id')->orderBy('created_at', 'desc');
-            },
-            'comments.user',
-            'comments.replies',
-            'comments.replies.user',
-        ]);
-
-        // Get project members for assignee selection
-        $members = $project->members()->get();
-        $members->push($project->owner);
-        $members = $members->unique('id');
-
-        // Get project labels
-        $labels = $project->labels()->get();
-
-        return Inertia::render('tasks/show', [
-            'project' => $project,
-            'task' => $task,
-            'members' => $members,
-            'labels' => $labels,
-        ]);
-    }
-
-    /**
-     * Show the form for editing the specified task.
-     */
-    public function edit(Project $project, Task $task): Response
-    {
-        // Check if the task belongs to the project
-        if ($task->project_id !== $project->id) {
-            abort(404, 'Task not found in this project.');
-        }
-
-        // Check if user has permission to edit this task
-        if (!ProjectPermissionService::can($project, 'can_manage_tasks')) {
-            abort(403, 'You do not have permission to edit this task.');
-        }
-
-        // Load the task with its relationships
-        $task->load([
-            'list',
-            'assignees',
-            'labels',
-            'tags',
-            'creator',
-            'checklistItems',
-        ]);
-
-        // Get project members for assignee selection
-        $members = $project->members()->get();
-        $members->push($project->owner);
-        $members = $members->unique('id');
-
-        // Get project labels
-        $labels = $project->labels()->get();
-
-        // Get user's tags
-        $tags = Auth::user()->tags()->orderBy('name')->get();
-
-        // Get all lists in the project for list selection
-        $lists = $project->boards()->with('lists')->get()->flatMap(function ($board) {
-            return $board->lists;
-        });
-
-        return Inertia::render('tasks/edit', [
-            'project' => $project,
-            'task' => $task,
-            'members' => $members,
-            'labels' => $labels,
-            'tags' => $tags,
-            'lists' => $lists,
-        ]);
-    }
-
-    /**
      * Update the specified task in storage.
      */
     public function update(Request $request, Project $project, Task $task): RedirectResponse
@@ -414,12 +314,18 @@ class TaskController extends Controller
             $reviewerId = null;
         }
 
-        // Update the task
+        // Get the new list to determine the appropriate status
+        $newList = TaskList::find($validated['list_id']);
+        $newStatus = $this->getStatusFromListName($newList->name);
+
+        // Use the list-based status if available, otherwise use the provided status
+        $statusToUse = $newStatus ?? $validated['status'];
+
         $updateData = [
             'title' => $validated['title'],
             'description' => $validated['description'],
             'priority' => $validated['priority'],
-            'status' => $validated['status'],
+            'status' => $statusToUse,
             'estimate' => $validated['estimate'] ?? null,
             'due_date' => $validated['due_date'] ?? null,
             'start_date' => $validated['start_date'] ?? null,
@@ -435,13 +341,16 @@ class TaskController extends Controller
             $updateData['review_status'] = $validated['review_status'];
         }
 
-        // Set completed_at timestamp when marking as done
-        if ($validated['status'] === 'done' && $task->status !== 'done') {
+        // If moving to 'Done' status, set completed_at timestamp
+        if ($statusToUse === 'done' && $task->status !== 'done') {
             $updateData['completed_at'] = now();
-        } elseif ($validated['status'] !== 'done' && $task->status === 'done') {
+        }
+        // If moving away from 'Done' status, clear completed_at timestamp
+        elseif ($statusToUse !== 'done' && $task->status === 'done') {
             $updateData['completed_at'] = null;
         }
 
+        // Update the task
         $task->update($updateData);
 
         // Sync assignees
@@ -458,13 +367,8 @@ class TaskController extends Controller
             $task->tags()->sync([]);
         }
 
-        // Check if this is an AJAX/Inertia request that wants to stay on the same page
-        if ($request->wantsJson() || $request->header('X-Inertia')) {
-            return redirect()->back()->with('success', 'Task updated successfully.');
-        }
-
-        return redirect()->route('tasks.show', [$project, $task])
-            ->with('success', 'Task updated successfully.');
+        // Always redirect back since we no longer have a task detail page
+        return redirect()->back()->with('success', 'Task updated successfully.');
     }
 
     /**
@@ -565,6 +469,8 @@ class TaskController extends Controller
             'tasks.*.id' => 'required|integer|exists:tasks,id',
             'tasks.*.position' => 'required|integer|min:0',
             'tasks.*.list_id' => 'required|integer|exists:lists,id',
+            'tasks.*.status' => 'nullable|string|max:255',
+            'tasks.*.completed_at' => 'nullable|date',
         ]);
 
         foreach ($validated['tasks'] as $taskData) {
@@ -572,27 +478,32 @@ class TaskController extends Controller
 
             // Make sure the task belongs to the project
             if ($task && $task->project_id === $project->id) {
-                // Get the new list to determine the appropriate status
-                $newList = TaskList::find($taskData['list_id']);
-                $newStatus = $this->getStatusFromListName($newList->name);
-
                 $updateData = [
                     'position' => $taskData['position'],
                     'list_id' => $taskData['list_id'],
                 ];
 
-                // Update status if it should change based on the list
-                if ($newStatus && $newStatus !== $task->status) {
-                    $updateData['status'] = $newStatus;
+                // Use status from frontend if provided, otherwise determine from list name
+                $newStatus = $taskData['status'] ?? null;
+                if (!$newStatus) {
+                    $newList = TaskList::find($taskData['list_id']);
+                    $newStatus = $this->getStatusFromListName($newList->name);
+                }
 
+                // Update status if it should change
+                if ($newStatus !== $task->status) {
+                    $updateData['status'] = $newStatus;
+                }
+
+                // Handle completed_at timestamp
+                if (isset($taskData['completed_at'])) {
+                    $updateData['completed_at'] = $taskData['completed_at'];
+                } elseif ($newStatus === 'done' && $task->status !== 'done') {
                     // If moving to 'Done' status, set completed_at timestamp
-                    if ($newStatus === 'done' && $task->status !== 'done') {
-                        $updateData['completed_at'] = now();
-                    }
+                    $updateData['completed_at'] = now();
+                } elseif ($newStatus !== 'done' && $task->status === 'done') {
                     // If moving away from 'Done' status, clear completed_at timestamp
-                    elseif ($newStatus !== 'done' && $task->status === 'done') {
-                        $updateData['completed_at'] = null;
-                    }
+                    $updateData['completed_at'] = null;
                 }
 
                 $task->update($updateData);
@@ -605,13 +516,13 @@ class TaskController extends Controller
     /**
      * Map list name to appropriate task status
      */
-    private function getStatusFromListName(string $listName): ?string
+    private function getStatusFromListName(string $listName): string
     {
         // Convert to lowercase for case-insensitive matching
-        $listName = strtolower(trim($listName));
+        $name = strtolower(trim($listName));
 
-        // Map common list names to task statuses
-        return match($listName) {
+        // Map common list names to standard statuses
+        return match($name) {
             'to do', 'todo', 'backlog', 'new', 'open' => 'to_do',
             'doing', 'in progress', 'in-progress', 'inprogress', 'active', 'working' => 'in_progress',
             'review', 'testing', 'qa', 'pending review' => 'review',

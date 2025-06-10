@@ -52,7 +52,7 @@ class CommentController extends Controller
         $comment->user_id = Auth::id();
         $comment->save();
 
-        return redirect()->route('tasks.show', [$project, $task])
+        return redirect()->back()
             ->with('success', 'Comment added successfully.');
     }
 
@@ -80,7 +80,7 @@ class CommentController extends Controller
             'is_edited' => true,
         ]);
 
-        return redirect()->route('tasks.show', [$project, $task])
+        return redirect()->back()
             ->with('success', 'Comment updated successfully.');
     }
 
@@ -102,7 +102,7 @@ class CommentController extends Controller
 
         $comment->delete();
 
-        return redirect()->route('tasks.show', [$project, $task])
+        return redirect()->back()
             ->with('success', 'Comment deleted successfully.');
     }
 }

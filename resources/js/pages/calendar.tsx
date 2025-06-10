@@ -738,15 +738,7 @@ export default function Calendar({
                                     <Button variant="outline" onClick={() => setIsTaskDetailOpen(false)}>
                                         Close
                                     </Button>
-                                    {selectedTask.project ? (
-                                        <Button
-                                            onClick={() => {
-                                                router.visit(route('tasks.show', [selectedTask.project!.id, selectedTask.id]));
-                                            }}
-                                        >
-                                            View Full Task
-                                        </Button>
-                                    ) : (
+                                    {!selectedTask.project && (
                                         <Button
                                             onClick={() => {
                                                 router.visit(route('inbox'));

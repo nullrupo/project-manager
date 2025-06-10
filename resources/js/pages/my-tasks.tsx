@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
+import TaskDetailModal from '@/components/task-detail-modal';
 import { Task } from '@/types/project-manager';
 import { Head, Link, router } from '@inertiajs/react';
 import { CalendarDays, CheckCircle, Clock, ListFilter, Plus, Archive, Trash2 } from 'lucide-react';
@@ -23,6 +24,10 @@ export default function MyTasks({ tasks = [], filter: initialFilter }: MyTasksPr
         }
         return 'all';
     });
+
+    // Task detail modal state
+    const [taskDetailModalOpen, setTaskDetailModalOpen] = useState(false);
+    const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
     // Update URL when filter changes
     const handleFilterChange = (newFilter: typeof filter) => {
@@ -151,11 +156,17 @@ export default function MyTasks({ tasks = [], filter: initialFilter }: MyTasksPr
                                             </Button>
                                         </Link>
                                     ) : (
-                                        <Link href={route('tasks.show', [task.project_id, task.id])} className="w-full">
-                                            <Button variant="outline" size="sm" className="w-full">
-                                                View Task
-                                            </Button>
-                                        </Link>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="w-full"
+                                            onClick={() => {
+                                                setSelectedTask(task);
+                                                setTaskDetailModalOpen(true);
+                                            }}
+                                        >
+                                            View Task
+                                        </Button>
                                     )}
                                 </CardFooter>
                             </Card>
@@ -175,6 +186,14 @@ export default function MyTasks({ tasks = [], filter: initialFilter }: MyTasksPr
                     )}
                 </div>
             </div>
+
+            {/* Task Detail Modal */}
+            <TaskDetailModal
+                task={selectedTask}
+                open={taskDetailModalOpen}
+                onOpenChange={setTaskDetailModalOpen}
+                availableLists={[]} // No list changes available in my-tasks view
+            />
         </AppLayout>
     );
 }
