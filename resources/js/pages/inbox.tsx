@@ -6,9 +6,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    DropdownMenuSeparator
+} from '@/components/ui/dropdown-menu';
 import AppLayout from '@/layouts/app-layout';
 import { Head, router } from '@inertiajs/react';
-import { CalendarDays, Clock, Inbox, Plus, Trash2, FolderOpen, ArrowRight, Sparkles, FileText, Search, X } from 'lucide-react';
+import { CalendarDays, Clock, Inbox, Plus, Trash2, FolderOpen, ArrowRight, Sparkles, FileText, Search, X, MoreHorizontal, Edit } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useBatchTaskOperations } from '@/hooks/useBatchTaskOperations';
@@ -873,10 +880,11 @@ export default function InboxPage({ tasks = [], users = [], projects = [], tags 
                                     return (
                                         <div
                                             key={task.id}
-                                            className={`group flex items-start gap-3 p-3 rounded-lg border-2 transition-all cursor-pointer bg-white ${
-                                                isOverdue
-                                                    ? 'border-red-300 shadow-sm'
-                                                    : 'border-border shadow-sm hover:shadow-md'
+                                            className={`group flex items-start gap-3 p-3 rounded-lg border border-border transition-all duration-200 cursor-pointer bg-white dark:bg-gray-800 hover:shadow-md ${
+                                                task.status === 'done' ? 'opacity-60' : ''
+                                            } ${isOverdue
+                                                ? 'border-red-300'
+                                                : ''
                                             } ${isSelected
                                                 ? 'ring-2 ring-primary/30 border-primary/30'
                                                 : 'hover:border-primary/20'
@@ -901,7 +909,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [], tags 
                                                     quickUpdateStatus(task.id, newStatus);
                                                 }}
                                                 onClick={(e) => e.stopPropagation()}
-                                                className="mt-1 border-2 border-muted-foreground/40 data-[state=checked]:border-primary data-[state=checked]:bg-primary"
+                                                className="mt-1"
                                             />
 
                                             <div className="flex-1 min-w-0">
@@ -921,34 +929,43 @@ export default function InboxPage({ tasks = [], users = [], projects = [], tags 
                                                 )}
                                             </div>
 
-                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                {projects.length > 0 && (
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="h-8 w-8 p-0 text-blue-500 hover:text-blue-600"
-                                                        onClick={(e) => {
+                                            <div className="flex items-center gap-1 ml-2">
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                                            <MoreHorizontal className="h-3 w-3" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuItem onClick={(e) => {
                                                             e.stopPropagation();
-                                                            openMoveDialog(task);
-                                                        }}
-                                                        title="Move to Project"
-                                                    >
-                                                        <ArrowRight className="h-4 w-4" />
-                                                    </Button>
-                                                )}
-
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="h-8 w-8 p-0 text-red-500 hover:text-red-600"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        deleteTask(task.id);
-                                                    }}
-                                                    title="Delete Task"
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
+                                                            editTask(task);
+                                                        }}>
+                                                            <Edit className="h-4 w-4 mr-2" />
+                                                            Edit
+                                                        </DropdownMenuItem>
+                                                        {projects.length > 0 && (
+                                                            <DropdownMenuItem onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                openMoveDialog(task);
+                                                            }}>
+                                                                <ArrowRight className="h-4 w-4 mr-2" />
+                                                                Move to Project
+                                                            </DropdownMenuItem>
+                                                        )}
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                deleteTask(task.id);
+                                                            }}
+                                                            className="text-destructive"
+                                                        >
+                                                            <Trash2 className="h-4 w-4 mr-2" />
+                                                            Delete
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
                                             </div>
                                         </div>
                                     );
