@@ -124,7 +124,7 @@ class TaskController extends Controller
     /**
      * Update the specified task in storage.
      */
-    public function update(Request $request, Project $project, Task $task): RedirectResponse|JsonResponse
+    public function update(Request $request, Project $project, Task $task): RedirectResponse
     {
         // Check if the task belongs to the project
         if ($task->project_id !== $project->id) {
@@ -185,15 +185,6 @@ class TaskController extends Controller
 
         // Sync labels
         $task->labels()->sync($validated['label_ids'] ?? []);
-
-        // Return JSON for AJAX requests, redirect for regular form submissions
-        if ($request->expectsJson() || $request->ajax()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Task updated successfully.',
-                'task' => $task->fresh(['assignees', 'labels', 'creator', 'list.board'])
-            ]);
-        }
 
         // Always redirect back since we no longer have a task detail page
         return redirect()->back()->with('success', 'Task updated successfully.');
