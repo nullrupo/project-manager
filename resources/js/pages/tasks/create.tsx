@@ -21,7 +21,7 @@ interface TaskCreateForm {
     description: string;
     priority: 'low' | 'medium' | 'high';
     due_date: string;
-    status: 'to_do' | 'in_progress' | 'done';
+    status: 'to_do' | 'in_progress' | 'review' | 'done';
     estimate: string;
     assignee_ids: number[];
     label_ids: number[];
@@ -40,7 +40,7 @@ interface TaskCreateProps {
 
 export default function TaskCreate({ project, board, list, members, labels, tags }: TaskCreateProps) {
     const { props } = usePage();
-    const tab = (props as any).tab || 'list'; // Get tab from URL params
+    const view = (props as any).view || 'list'; // Get view from URL params
     const status = (props as any).status || 'to_do'; // Get status from URL params if provided
     const sectionId = (props as any).section_id; // Get section_id from URL params if provided
 
@@ -79,7 +79,16 @@ export default function TaskCreate({ project, board, list, members, labels, tags
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
-        post(route('tasks.store', { project: project.id, board: board.id, list: list.id, tab }));
+
+        // Simple redirect using the view parameter
+        const redirectParams = {
+            project: project.id,
+            board: board.id,
+            list: list.id,
+            view: view // Use the view parameter from props
+        };
+
+        post(route('tasks.store', redirectParams));
     };
 
     const handleAssigneeChange = (userId: number, checked: boolean) => {
@@ -277,13 +286,14 @@ export default function TaskCreate({ project, board, list, members, labels, tags
                             {/* Status */}
                             <div className="space-y-2">
                                 <Label className="text-sm font-medium">Status</Label>
-                                <Select value={data.status} onValueChange={(value: 'to_do' | 'in_progress' | 'done') => setData('status', value)}>
+                                <Select value={data.status} onValueChange={(value: 'to_do' | 'in_progress' | 'review' | 'done') => setData('status', value)}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select status" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="to_do">To Do</SelectItem>
-                                        <SelectItem value="in_progress">In Progress</SelectItem>
+                                        <SelectItem value="in_progress">Doing</SelectItem>
+                                        <SelectItem value="review">Review</SelectItem>
                                         <SelectItem value="done">Done</SelectItem>
                                     </SelectContent>
                                 </Select>

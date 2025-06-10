@@ -4,9 +4,12 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { router } from '@inertiajs/react';
-import { Plus, Lock, Edit, Eye, CheckCircle2 } from 'lucide-react';
+import { Plus, Lock, Edit, Eye, CheckCircle2, GripVertical } from 'lucide-react';
 import { Project } from '@/types/project-manager';
 import { TaskDisplay } from '@/components/task/TaskDisplay';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { useDroppable } from '@dnd-kit/core';
 
 interface SortableListProps {
     list: any;
@@ -24,8 +27,16 @@ interface SortableTaskProps {
 
 // Sortable List Component
 export const SortableList = ({ list, children, project }: SortableListProps) => {
+    const { setNodeRef } = useDroppable({
+        id: `list-${list.id}`,
+        data: {
+            type: 'list',
+            list,
+        },
+    });
+
     return (
-        <div className="w-80 flex-shrink-0">
+        <div ref={setNodeRef} className="w-80 flex-shrink-0">
             <Card className="h-full bg-muted/20 border-2 border-dashed border-muted-foreground/20 transition-all duration-200 hover:border-muted-foreground/40">
                 <CardHeader className="pb-3">
                     <div className="flex justify-between items-center">
@@ -86,12 +97,39 @@ export const SortableList = ({ list, children, project }: SortableListProps) => 
 
 // Sortable Task Component
 export const SortableTask = ({ task, project, onViewTask, onEditTask, onTaskClick }: SortableTaskProps) => {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+        id: `task-${task.id}`,
+        data: {
+            type: 'task',
+            task,
+            listId: task.list_id,
+        },
+    });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        cursor: isDragging ? 'grabbing' : 'grab',
+    };
+
     return (
         <div
+            ref={setNodeRef}
+            style={style}
             className="mb-3 rounded-lg border bg-card p-4 shadow-sm hover:shadow-md transition-all duration-200 group cursor-pointer relative"
             data-task-clickable
             onClick={() => onTaskClick?.(task)}
+            {...attributes}
         >
+            {/* Drag handle - positioned absolutely on the left */}
+            <div
+                className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 cursor-grab active:cursor-grabbing"
+                {...listeners}
+            >
+                <GripVertical className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+            </div>
+
             {/* Action buttons - positioned absolutely */}
             <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex gap-1">
                 {/* View button - always available */}
@@ -123,7 +161,7 @@ export const SortableTask = ({ task, project, onViewTask, onEditTask, onTaskClic
                 )}
             </div>
 
-            <div className="space-y-2 pr-12">
+            <div className="space-y-2 pl-6 pr-12">
                 <TaskDisplay
                     task={task}
                     compact

@@ -91,15 +91,23 @@ export default function ProjectBoardView({
                             </SortableContext>
                         </div>
 
-                        <DragOverlay>
+                        <DragOverlay dropAnimation={null}>
                             {state.activeItem?.type === 'task' && state.activeItem.task && (
-                                <SortableTask
-                                    task={state.activeItem.task}
-                                    project={project}
-                                    onViewTask={onViewTask}
-                                    onEditTask={onEditTask}
-                                    onTaskClick={onTaskClick}
-                                />
+                                <div className="mb-3 rounded-lg border bg-card p-4 shadow-lg border-2 border-primary opacity-90 transform rotate-2 cursor-grabbing">
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <div className="font-medium">{state.activeItem.task.title}</div>
+                                            {state.activeItem.task.status === 'done' && (
+                                                <div className="h-4 w-4 text-green-500 flex-shrink-0">✓</div>
+                                            )}
+                                        </div>
+                                        {state.activeItem.task.description && (
+                                            <div className="text-sm text-muted-foreground line-clamp-2">
+                                                {state.activeItem.task.description}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             )}
                         </DragOverlay>
                     </DndContext>

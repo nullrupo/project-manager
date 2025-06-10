@@ -77,7 +77,7 @@ class ReviewerTestSeeder extends Seeder
 
             // Create default lists
             $board->lists()->create(['name' => 'To Do', 'position' => 0]);
-            $board->lists()->create(['name' => 'In Progress', 'position' => 1]);
+            $board->lists()->create(['name' => 'Doing', 'position' => 1]);
             $board->lists()->create(['name' => 'Review', 'position' => 2]);
             $board->lists()->create(['name' => 'Done', 'position' => 3]);
         }

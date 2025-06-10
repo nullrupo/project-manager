@@ -261,6 +261,12 @@ class Task extends Model
      */
     public function getDisplayStatus(): string
     {
+        // If task has explicit review status, return it
+        if ($this->status === 'review') {
+            return 'review';
+        }
+
+        // Legacy support: if task is in_progress with pending review, show as review
         if ($this->status === 'in_progress' && $this->review_status === 'pending') {
             return 'review';
         }

@@ -26,7 +26,7 @@ interface Task {
     title: string;
     description: string | null;
     priority: 'low' | 'medium' | 'high';
-    status: 'to_do' | 'in_progress' | 'done';
+    status: 'to_do' | 'in_progress' | 'review' | 'done';
     review_status?: 'pending' | 'approved' | 'rejected' | null;
     due_date: string | null;
     project?: {
@@ -79,6 +79,11 @@ export default function InboxPage({ tasks = [], users = [], projects = [], tags 
 
     // Helper function to get display status
     const getDisplayStatus = (task: Task): string => {
+        // If task has explicit review status, return it
+        if (task.status === 'review') {
+            return 'review';
+        }
+        // Legacy support: if task is in_progress with pending review, show as review
         if (task.status === 'in_progress' && task.review_status === 'pending') {
             return 'review';
         }
@@ -91,7 +96,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [], tags 
         switch (displayStatus) {
             case 'to_do': return 'bg-gray-100 text-gray-800 border-gray-200';
             case 'in_progress': return 'bg-blue-100 text-blue-800 border-blue-200';
-            case 'review': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+            case 'review': return 'bg-purple-100 text-purple-800 border-purple-200';
             case 'done': return 'bg-green-100 text-green-800 border-green-200';
             default: return 'bg-gray-100 text-gray-800 border-gray-200';
         }
@@ -223,7 +228,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [], tags 
                     bValue = b.due_date ? new Date(b.due_date).getTime() : 0;
                     break;
                 case 'status':
-                    const statusOrder = { to_do: 1, in_progress: 2, done: 3 };
+                    const statusOrder = { to_do: 1, in_progress: 2, review: 3, done: 4 };
                     aValue = statusOrder[a.status];
                     bValue = statusOrder[b.status];
                     break;

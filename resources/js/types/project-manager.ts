@@ -78,7 +78,7 @@ export interface Task {
     section_id: number | null;
     position: number;
     priority: 'low' | 'medium' | 'high';
-    status: 'to_do' | 'in_progress' | 'done';
+    status: 'to_do' | 'in_progress' | 'review' | 'done';
     review_status?: 'pending' | 'approved' | 'rejected' | null;
     estimate: number | null;
     due_date: string | null;

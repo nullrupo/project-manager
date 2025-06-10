@@ -94,14 +94,20 @@ class ProjectController extends Controller
         ]);
 
         $board->lists()->create([
-            'name' => 'In Progress',
+            'name' => 'Doing',
             'position' => 1,
             'color' => '#f39c12',
         ]);
 
         $board->lists()->create([
-            'name' => 'Done',
+            'name' => 'Review',
             'position' => 2,
+            'color' => '#9b59b6',
+        ]);
+
+        $board->lists()->create([
+            'name' => 'Done',
+            'position' => 3,
             'color' => '#2ecc71',
         ]);
 

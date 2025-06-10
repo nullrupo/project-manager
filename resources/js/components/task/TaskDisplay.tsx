@@ -48,6 +48,7 @@ export function TaskDisplay({ task, className = '', compact = false, pageKey }: 
         switch (status) {
             case 'to_do': return 'bg-gray-100 text-gray-800';
             case 'in_progress': return 'bg-blue-100 text-blue-800';
+            case 'review': return 'bg-purple-100 text-purple-800';
             case 'done': return 'bg-green-100 text-green-800';
             default: return 'bg-gray-100 text-gray-800';
         }
@@ -56,7 +57,8 @@ export function TaskDisplay({ task, className = '', compact = false, pageKey }: 
     const getStatusLabel = (status: string) => {
         switch (status) {
             case 'to_do': return 'To Do';
-            case 'in_progress': return 'In Progress';
+            case 'in_progress': return 'Doing';
+            case 'review': return 'Review';
             case 'done': return 'Done';
             default: return status;
         }

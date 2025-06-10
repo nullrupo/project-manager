@@ -84,7 +84,7 @@ class ProjectSeeder extends Seeder
             ]);
 
             // Create default lists for the board
-            $defaultLists = ['To Do', 'In Progress', 'Review', 'Done'];
+            $defaultLists = ['To Do', 'Doing', 'Review', 'Done'];
             foreach ($defaultLists as $index => $listName) {
                 TaskList::create([
                     'name' => $listName,

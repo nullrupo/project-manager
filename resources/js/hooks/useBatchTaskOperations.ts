@@ -5,7 +5,7 @@ interface Task {
     id: number;
     title: string;
     description?: string | null;
-    status: 'to_do' | 'in_progress' | 'done';
+    status: 'to_do' | 'in_progress' | 'review' | 'done';
     priority?: 'low' | 'medium' | 'high';
     due_date?: string | null;
     created_by?: number;

@@ -95,7 +95,7 @@ export default function ListTaskItem({
                 <GripVertical className="h-4 w-4 text-muted-foreground hover:text-foreground" />
             </div>
 
-            <div className="flex items-start gap-3">
+            <div className="flex items-start gap-3 ml-6">
                 {/* Completion checkbox */}
                 <Checkbox
                     checked={task.status === 'done'}

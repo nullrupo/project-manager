@@ -24,7 +24,9 @@ export const useDragAndDrop = (
     const sensors = useSensors(
         useSensor(PointerSensor, {
             activationConstraint: {
-                distance: 3,
+                distance: 8, // Increased distance to prevent accidental drags
+                tolerance: 5,
+                delay: 100,
             },
         }),
         useSensor(KeyboardSensor, {
@@ -69,11 +71,76 @@ export const useDragAndDrop = (
 
         if (!over) return;
 
+        console.log('Board drag end:', { active: active.id, over: over.id });
+
         // Handle task movement between lists
         if (active.id.startsWith('task-') && over.id.startsWith('list-')) {
             const taskId = parseInt(active.id.replace('task-', ''));
             const newListId = parseInt(over.id.replace('list-', ''));
+
+            console.log('Moving task', taskId, 'to list', newListId);
             moveTask(taskId, { list_id: newListId });
+        }
+
+        // Handle task reordering within the same list or between tasks
+        if (active.id.startsWith('task-') && over.id.startsWith('task-')) {
+            const activeTaskId = parseInt(active.id.replace('task-', ''));
+            const overTaskId = parseInt(over.id.replace('task-', ''));
+
+            if (activeTaskId !== overTaskId) {
+                console.log('Reordering task', activeTaskId, 'relative to task', overTaskId);
+
+                // Find the tasks and their lists
+                const allLists = state.lists || [];
+                let sourceList = null;
+                let targetList = null;
+                let sourceTask = null;
+                let targetTask = null;
+
+                for (const list of allLists) {
+                    const foundSource = list.tasks?.find((t: any) => t.id === activeTaskId);
+                    const foundTarget = list.tasks?.find((t: any) => t.id === overTaskId);
+
+                    if (foundSource) {
+                        sourceList = list;
+                        sourceTask = foundSource;
+                    }
+                    if (foundTarget) {
+                        targetList = list;
+                        targetTask = foundTarget;
+                    }
+                }
+
+                if (sourceTask && targetTask && sourceList && targetList) {
+                    // If moving between different lists
+                    if (sourceList.id !== targetList.id) {
+                        console.log('Moving between lists:', sourceList.id, '->', targetList.id);
+                        moveTask(activeTaskId, { list_id: targetList.id });
+                    } else {
+                        // Reordering within the same list
+                        console.log('Reordering within same list:', sourceList.id);
+                        const tasks = [...sourceList.tasks];
+                        const sourceIndex = tasks.findIndex((t: any) => t.id === activeTaskId);
+                        const targetIndex = tasks.findIndex((t: any) => t.id === overTaskId);
+
+                        if (sourceIndex !== -1 && targetIndex !== -1) {
+                            // Remove source task
+                            const [movedTask] = tasks.splice(sourceIndex, 1);
+                            // Insert at new position
+                            tasks.splice(targetIndex, 0, movedTask);
+
+                            // Update positions
+                            const updates = tasks.map((task: any, index: number) => ({
+                                id: task.id,
+                                position: index,
+                                list_id: task.list_id,
+                            }));
+
+                            updateTaskPositions(updates);
+                        }
+                    }
+                }
+            }
         }
     };
 

@@ -645,17 +645,18 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
             case 'new':
             case 'open':
                 return 'to_do';
+            case 'doing':
             case 'in progress':
             case 'in-progress':
             case 'inprogress':
-            case 'doing':
             case 'active':
             case 'working':
+                return 'in_progress';
             case 'review':
             case 'testing':
             case 'qa':
             case 'pending review':
-                return 'in_progress';
+                return 'review';
             case 'done':
             case 'completed':
             case 'finished':

@@ -70,7 +70,7 @@ export interface Task {
     created_by: number;
     position: number;
     priority: 'low' | 'medium' | 'high';
-    status: 'to_do' | 'in_progress' | 'done';
+    status: 'to_do' | 'in_progress' | 'review' | 'done';
     estimate: number | null;
     due_date: string | null;
     completed_at: string | null;

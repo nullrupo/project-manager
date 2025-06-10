@@ -194,7 +194,8 @@ export default function TaskEdit({ project, task, members, labels, tags, lists }
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="to_do">To Do</SelectItem>
-                                            <SelectItem value="in_progress">In Progress</SelectItem>
+                                            <SelectItem value="in_progress">Doing</SelectItem>
+                                            <SelectItem value="review">Review</SelectItem>
                                             <SelectItem value="done">Done</SelectItem>
                                         </SelectContent>
                                     </Select>

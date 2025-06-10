@@ -268,10 +268,11 @@ class TaskController extends Controller
             }
         }
 
-        // Check if there's a tab parameter to preserve navigation state
-        $tab = $request->get('tab', 'list'); // Default to list tab
+        // Check if there's a view parameter to preserve navigation state
+        $view = $request->get('view', 'list'); // Default to list view
 
-        return redirect()->route('projects.show', ['project' => $project->id, 'tab' => $tab])
+        // Redirect based on the view parameter - use consistent URL structure
+        return redirect()->route('projects.show', ['project' => $project->id, 'view' => $view])
             ->with('success', 'Task created successfully.');
     }
 
@@ -612,9 +613,9 @@ class TaskController extends Controller
         // Map common list names to task statuses
         return match($listName) {
             'to do', 'todo', 'backlog', 'new', 'open' => 'to_do',
-            'in progress', 'in-progress', 'inprogress', 'doing', 'active', 'working' => 'in_progress',
+            'doing', 'in progress', 'in-progress', 'inprogress', 'active', 'working' => 'in_progress',
+            'review', 'testing', 'qa', 'pending review' => 'review',
             'done', 'completed', 'finished', 'closed', 'complete' => 'done',
-            'review', 'testing', 'qa', 'pending review' => 'in_progress', // Treat review as in_progress
             default => null, // Don't change status for unrecognized list names
         };
     }
