@@ -545,6 +545,177 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
         setDraggedTask(null);
     };
 
+    // Handle task resize
+    const handleTaskResize = async (task: any, newDuration: number) => {
+        console.log(`handleTaskResize called: task ${task.id}, newDuration: ${newDuration}`);
+
+        // Get current task data (including any local updates)
+        const currentTask = { ...task, ...(localTaskUpdates[task.id] || {}) };
+
+        if (newDuration === currentTask.duration_days) {
+            console.log('Duration unchanged, skipping update');
+            return;
+        }
+
+        // Calculate new due date based on duration
+        const startDate = new Date(currentTask.start_date.split('T')[0]);
+        const newDueDate = new Date(startDate);
+        newDueDate.setDate(startDate.getDate() + newDuration - 1);
+
+        // Apply optimistic update for real-time feedback
+        setLocalTaskUpdates(prev => ({
+            ...prev,
+            [task.id]: {
+                ...prev[task.id],
+                duration_days: newDuration,
+                due_date: newDueDate.toISOString().split('T')[0]
+            }
+        }));
+
+        // Send update to server
+        router.put(route('tasks.update', { project: project.id, task: task.id }), {
+            title: task.title,
+            description: task.description || '',
+            priority: task.priority,
+            status: task.status,
+            estimate: task.estimate,
+            start_date: task.start_date,
+            due_date: newDueDate.toISOString().split('T')[0],
+            duration_days: newDuration,
+            list_id: task.list_id,
+            assignee_ids: task.assignees?.map((a: any) => a.id) || [],
+            label_ids: task.labels?.map((l: any) => l.id) || [],
+            is_archived: task.is_archived || false,
+        }, {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                console.log('Task duration updated successfully');
+                // Clear local update since server has the latest data
+                setLocalTaskUpdates(prev => {
+                    const updated = { ...prev };
+                    delete updated[task.id];
+                    return updated;
+                });
+            },
+            onError: (errors) => {
+                console.error('Failed to update task duration:', errors);
+                // Revert optimistic update on error
+                setLocalTaskUpdates(prev => {
+                    const updated = { ...prev };
+                    delete updated[task.id];
+                    return updated;
+                });
+            }
+        });
+    };
+
+    // Enhanced Resize Handle Component with colored edges
+    const ResizeHandle = ({ task, direction, onResize }: { task: any; direction: 'start' | 'end'; onResize: (newDuration: number) => void }) => {
+        const [isResizing, setIsResizing] = useState(false);
+
+        const handleMouseDown = (e: React.MouseEvent) => {
+            e.stopPropagation();
+            e.preventDefault();
+            e.nativeEvent.stopImmediatePropagation();
+
+            console.log(`Starting resize: direction=${direction}, currentDuration=${task.duration_days}`);
+
+            const startXPos = e.clientX;
+            const originalDur = task.duration_days || 1;
+
+            setIsResizing(true);
+            setIsAnyHandleResizing(true);
+
+            const mouseMoveHandler = (e: MouseEvent) => {
+                const deltaX = e.clientX - startXPos;
+                const calendarElement = document.querySelector('.grid.grid-cols-7');
+                if (!calendarElement) return;
+
+                const calendarWidth = calendarElement.getBoundingClientRect().width;
+                const dayWidth = calendarWidth / 7;
+                const daysDelta = Math.round(deltaX / dayWidth);
+
+                let newDuration = originalDur;
+                if (direction === 'end') {
+                    // For end handle: positive delta = extend, negative delta = shrink
+                    newDuration = Math.max(1, originalDur + daysDelta);
+                } else {
+                    // For start handle: negative delta = extend backward, positive delta = shrink from start
+                    newDuration = Math.max(1, originalDur - daysDelta);
+                }
+
+                if (newDuration !== originalDur) {
+                    console.log(`Mouse move: ${originalDur} -> ${newDuration} (delta: ${daysDelta}, direction: ${direction})`);
+                    onResize(newDuration);
+                }
+            };
+
+            const mouseUpHandler = (e: MouseEvent) => {
+                const deltaX = e.clientX - startXPos;
+                const calendarElement = document.querySelector('.grid.grid-cols-7');
+                if (!calendarElement) return;
+
+                const calendarWidth = calendarElement.getBoundingClientRect().width;
+                const dayWidth = calendarWidth / 7;
+                const daysDelta = Math.round(deltaX / dayWidth);
+
+                let newDuration = originalDur;
+                if (direction === 'end') {
+                    // For end handle: positive delta = extend, negative delta = shrink
+                    newDuration = Math.max(1, originalDur + daysDelta);
+                } else {
+                    // For start handle: negative delta = extend backward, positive delta = shrink from start
+                    newDuration = Math.max(1, originalDur - daysDelta);
+                }
+
+                if (newDuration !== originalDur) {
+                    console.log(`Resize complete: ${originalDur} -> ${newDuration} days (direction: ${direction})`);
+                    onResize(newDuration);
+                }
+
+                setIsResizing(false);
+                setIsAnyHandleResizing(false);
+                document.removeEventListener('mousemove', mouseMoveHandler);
+                document.removeEventListener('mouseup', mouseUpHandler);
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+            };
+
+            document.addEventListener('mousemove', mouseMoveHandler);
+            document.addEventListener('mouseup', mouseUpHandler);
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+        };
+
+        // Get priority-based colors for the resize handles - clean and simple
+        const getHandleColor = (priority: string) => {
+            switch (priority) {
+                case 'urgent': return 'bg-red-500/90 hover:bg-red-500';
+                case 'high': return 'bg-orange-500/90 hover:bg-orange-500';
+                case 'medium': return 'bg-yellow-500/90 hover:bg-yellow-500';
+                case 'low': return 'bg-green-500/90 hover:bg-green-500';
+                default: return 'bg-blue-500/90 hover:bg-blue-500';
+            }
+        };
+
+        return (
+            <div
+                className={`resize-handle absolute ${direction === 'start' ? 'left-0' : 'right-0'} top-0 bottom-0 w-2 cursor-col-resize transition-all duration-200 ease-out ${isResizing ? 'opacity-100 bg-white/40' : 'opacity-0 group-hover:opacity-60 hover:bg-white/20'} ${direction === 'start' ? 'rounded-l' : 'rounded-r'}`}
+                onMouseDown={handleMouseDown}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+                title={`Drag to ${direction === 'start' ? 'move start date' : 'extend/shrink duration'}`}
+                style={{
+                    background: isResizing ? 'rgba(255,255,255,0.4)' : undefined,
+                }}
+            >
+                {/* Colored edge indicator */}
+                <div className={`absolute ${direction === 'start' ? 'left-0' : 'right-0'} top-0 bottom-0 w-0.5 ${getHandleColor(task.priority)} transition-all duration-200 ${isResizing ? 'opacity-100' : 'opacity-0 group-hover:opacity-80'}`} />
+            </div>
+        );
+    };
+
     // Early return for loading state
     if (!isMounted) {
         return (
@@ -560,7 +731,8 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
     const DraggableMember = ({ member }: { member: any }) => {
         const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
             id: `member-${member.id}`,
-            data: { member, type: 'member' }
+            data: { member, type: 'member' },
+            disabled: isAnyHandleResizing
         });
 
         const style = {
@@ -595,7 +767,8 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
     const DraggableTask = ({ task }: { task: any }) => {
         const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } = useDraggable({
             id: task.id.toString(),
-            data: { task }
+            data: { task },
+            disabled: isAnyHandleResizing
         });
 
         const { setNodeRef: setDropRef, isOver } = useDroppable({
@@ -797,7 +970,8 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
 
         const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } = useDraggable({
             id: `multiday-task-${currentTask.id}`,
-            data: { task: currentTask, source: 'calendar' }
+            data: { task: currentTask, source: 'calendar' },
+            disabled: isAnyHandleResizing
         });
 
         const { setNodeRef: setDropRef, isOver } = useDroppable({
@@ -884,7 +1058,7 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                             ...(index === 0 ? style : {}),
                             zIndex: 20 + (currentTask.taskRow || 0) // Ensure proper layering
                         }}
-                        {...(index === 0 ? { ...listeners, ...attributes } : {})}
+                        {...(index === 0 && !isAnyHandleResizing ? { ...listeners, ...attributes } : {})}
                         onClick={(e) => {
                             if (!isDragging && !isDragInProgress && !recentDragRef.current && !(e.target as HTMLElement).closest('.resize-handle')) {
                                 setSelectedTaskForDetail(task);
@@ -937,6 +1111,22 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                                     </div>
                                 </div>
                             </div>
+                        )}
+
+                        {/* Resize handles - only on first and last segments */}
+                        {segment.isFirst && (
+                            <ResizeHandle
+                                task={currentTask}
+                                direction="start"
+                                onResize={(newDuration) => handleTaskResize(task, newDuration)}
+                            />
+                        )}
+                        {segment.isLast && (
+                            <ResizeHandle
+                                task={currentTask}
+                                direction="end"
+                                onResize={(newDuration) => handleTaskResize(task, newDuration)}
+                            />
                         )}
                     </div>
                 ))}
