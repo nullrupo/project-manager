@@ -240,7 +240,7 @@ export default function TaskCreateModal({
                                     <SelectValue placeholder="Add assignee..." />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {members.map(member => (
+                                    {(members || []).map(member => (
                                         <SelectItem
                                             key={member.id}
                                             value={member.id.toString()}
@@ -256,7 +256,7 @@ export default function TaskCreateModal({
                             {createTaskData.assignee_ids.length > 0 && (
                                 <div className="flex flex-wrap gap-2 mt-2">
                                     {createTaskData.assignee_ids.map(userId => {
-                                        const user = members.find(m => m.id === userId);
+                                        const user = (members || []).find(m => m.id === userId);
                                         return user ? (
                                             <span
                                                 key={userId}
@@ -284,8 +284,8 @@ export default function TaskCreateModal({
                         <div className="space-y-2">
                             <Label className="text-sm font-medium">Project Labels</Label>
                             <LabelSelector
-                                selectedLabels={labels.filter(label => createTaskData.label_ids.includes(label.id))}
-                                availableLabels={labels}
+                                selectedLabels={(labels || []).filter(label => createTaskData.label_ids.includes(label.id))}
+                                availableLabels={labels || []}
                                 onLabelsChange={handleLabelsChange}
                                 placeholder="Select project labels..."
                             />
@@ -298,8 +298,8 @@ export default function TaskCreateModal({
                                 Personal Tags
                             </Label>
                             <TagSelector
-                                selectedTags={tags.filter(tag => createTaskData.tag_ids.includes(tag.id))}
-                                availableTags={tags}
+                                selectedTags={(tags || []).filter(tag => createTaskData.tag_ids.includes(tag.id))}
+                                availableTags={tags || []}
                                 onTagsChange={handleTagsChange}
                                 onCreateTag={handleCreateTagCallback}
                                 placeholder="Select personal tags..."
