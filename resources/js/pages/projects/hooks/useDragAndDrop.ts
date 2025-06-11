@@ -24,9 +24,9 @@ export const useDragAndDrop = (
     const sensors = useSensors(
         useSensor(PointerSensor, {
             activationConstraint: {
-                distance: 8, // Increased distance to prevent accidental drags
+                distance: 3, // Reduced distance for more responsive dragging
                 tolerance: 5,
-                delay: 100,
+                delay: 50, // Reduced delay
             },
         }),
         useSensor(KeyboardSensor, {
@@ -64,6 +64,11 @@ export const useDragAndDrop = (
         }
     };
 
+    const handleBoardDragOver = (event: any) => {
+        // This provides real-time visual feedback during drag
+        // The actual logic is handled in onDragEnd
+    };
+
     const handleBoardDragEnd = (event: any) => {
         const { active, over } = event;
         state.setActiveId(null);
@@ -73,75 +78,67 @@ export const useDragAndDrop = (
 
         console.log('Board drag end:', { active: active.id, over: over.id });
 
-        // Handle task movement between lists
-        if (active.id.startsWith('task-') && over.id.startsWith('list-')) {
+        // Handle task movement
+        if (active.id.startsWith('task-')) {
             const taskId = parseInt(active.id.replace('task-', ''));
-            const newListId = parseInt(over.id.replace('list-', ''));
+            let targetListId = null;
 
-            console.log('Moving task', taskId, 'to list', newListId);
-            moveTask(taskId, { list_id: newListId });
-        }
-
-        // Handle task reordering within the same list or between tasks
-        if (active.id.startsWith('task-') && over.id.startsWith('task-')) {
-            const activeTaskId = parseInt(active.id.replace('task-', ''));
-            const overTaskId = parseInt(over.id.replace('task-', ''));
-
-            if (activeTaskId !== overTaskId) {
-                console.log('Reordering task', activeTaskId, 'relative to task', overTaskId);
-
-                // Find the tasks and their lists
-                const allLists = state.lists || [];
-                let sourceList = null;
-                let targetList = null;
-                let sourceTask = null;
-                let targetTask = null;
-
-                for (const list of allLists) {
-                    const foundSource = list.tasks?.find((t: any) => t.id === activeTaskId);
-                    const foundTarget = list.tasks?.find((t: any) => t.id === overTaskId);
-
-                    if (foundSource) {
-                        sourceList = list;
-                        sourceTask = foundSource;
-                    }
-                    if (foundTarget) {
-                        targetList = list;
-                        targetTask = foundTarget;
-                    }
-                }
-
-                if (sourceTask && targetTask && sourceList && targetList) {
-                    // If moving between different lists
-                    if (sourceList.id !== targetList.id) {
-                        console.log('Moving between lists:', sourceList.id, '->', targetList.id);
-                        moveTask(activeTaskId, { list_id: targetList.id });
-                    } else {
-                        // Reordering within the same list
-                        console.log('Reordering within same list:', sourceList.id);
-                        const tasks = [...sourceList.tasks];
-                        const sourceIndex = tasks.findIndex((t: any) => t.id === activeTaskId);
-                        const targetIndex = tasks.findIndex((t: any) => t.id === overTaskId);
-
-                        if (sourceIndex !== -1 && targetIndex !== -1) {
-                            // Remove source task
-                            const [movedTask] = tasks.splice(sourceIndex, 1);
-                            // Insert at new position
-                            tasks.splice(targetIndex, 0, movedTask);
-
-                            // Update positions
-                            const updates = tasks.map((task: any, index: number) => ({
-                                id: task.id,
-                                position: index,
-                                list_id: task.list_id,
-                            }));
-
-                            updateTaskPositions(updates);
-                        }
-                    }
+            // Determine target list ID
+            if (over.id.startsWith('list-')) {
+                targetListId = parseInt(over.id.replace('list-', ''));
+                console.log('📦 Dropping on list container:', targetListId);
+            } else if (over.id.startsWith('task-')) {
+                const overTaskId = parseInt(over.id.replace('task-', ''));
+                const overTask = state.lists.flatMap((list: any) => list.tasks || []).find((task: any) => task.id === overTaskId);
+                if (overTask) {
+                    targetListId = overTask.list_id;
+                    console.log('🔄 Dropping on task, target list:', targetListId);
                 }
             }
+
+            if (targetListId) {
+                console.log('🚀 Moving task', taskId, 'to list', targetListId);
+
+                // Create optimistic update function
+                const optimisticUpdate = () => {
+                    let taskToMove = null;
+
+                    // First pass: find and remove the task from its current list
+                    const newLists = state.lists.map((list: any) => {
+                        const tasks = (list.tasks || []).filter((task: any) => {
+                            if (task.id === taskId) {
+                                taskToMove = { ...task, list_id: targetListId };
+                                return false; // Remove from current list
+                            }
+                            return true;
+                        });
+                        return { ...list, tasks };
+                    });
+
+                    // Second pass: add the task to the target list
+                    if (taskToMove) {
+                        const finalLists = newLists.map((list: any) => {
+                            if (list.id === targetListId) {
+                                return {
+                                    ...list,
+                                    tasks: [...(list.tasks || []), taskToMove]
+                                };
+                            }
+                            return list;
+                        });
+
+                        state.setLists(finalLists);
+                        console.log('⚡ Optimistic update applied');
+                    }
+                };
+
+                moveTask(taskId, { list_id: targetListId }, optimisticUpdate);
+            } else {
+                console.log('❌ Could not determine target list');
+            }
         }
+
+        // Note: Task-to-task drops are already handled above in the main task movement logic
     };
 
     // List tab drag handlers
@@ -303,6 +300,7 @@ export const useDragAndDrop = (
         sensors,
         calendarSensors,
         handleBoardDragStart,
+        handleBoardDragOver,
         handleBoardDragEnd,
         handleListDragStart,
         handleListDragOver,

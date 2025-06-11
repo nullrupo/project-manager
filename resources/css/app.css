@@ -334,6 +334,27 @@ nav:not(:hover) {
     transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
+/* Drag and drop specific styles */
+[data-dnd-kit-dragging="true"] {
+    transition: none !important;
+}
+
+/* Fix for dnd-kit drag overlay positioning */
+.dnd-kit-drag-overlay {
+    z-index: 9999 !important;
+    pointer-events: none;
+}
+
+/* Ensure draggable items don't have conflicting transforms */
+[data-sortable-item] {
+    position: relative;
+}
+
+[data-sortable-item][data-dragging="true"] {
+    z-index: 1000;
+    transition: none !important;
+}
+
 /* Custom scrollbar styling */
 ::-webkit-scrollbar {
     width: 8px;

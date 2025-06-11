@@ -157,6 +157,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                     state={state}
                     sensors={dragAndDrop.sensors}
                     onDragStart={dragAndDrop.handleBoardDragStart}
+                    onDragOver={dragAndDrop.handleBoardDragOver}
                     onDragEnd={dragAndDrop.handleBoardDragEnd}
                     onViewTask={handleViewTask}
                     onEditTask={handleEditTask}

@@ -7,7 +7,7 @@ import { TagBadge } from '../tag/TagBadge';
 import { useTaskDisplayPreferences } from '@/hooks/use-task-display-preferences';
 import { useTaskDisplayPreferencesContext } from '@/contexts/TaskDisplayPreferencesContext';
 import { Task } from '@/types/project-manager';
-import { Calendar, FileText, User } from 'lucide-react';
+import { Calendar, FileText, User, CheckCircle2 } from 'lucide-react';
 
 interface TaskDisplayProps {
     task: Task;
@@ -71,20 +71,21 @@ export function TaskDisplay({ task, className = '', compact = false, pageKey }: 
             {/* Main task info */}
             <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                    <h3 className={`font-medium truncate ${task.status === 'done' ? 'line-through text-muted-foreground' : ''}`}>
-                        {task.title}
-                    </h3>
+                    <div className="flex items-center gap-2">
+                        <h3 className={`font-medium truncate ${task.status === 'done' ? 'line-through text-muted-foreground' : ''}`}>
+                            {task.title}
+                        </h3>
+                        {/* Completion icon next to task name */}
+                        {task.status === 'done' && (
+                            <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                        )}
+                    </div>
                     {preferences.show_notes && task.description && !compact && (
                         <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
                             {task.description}
                         </p>
                     )}
                 </div>
-                
-                {/* Urgency indicator */}
-                {preferences.show_urgency && (
-                    <UrgencyIndicator priority={task.priority} />
-                )}
             </div>
 
             {/* Task metadata */}
@@ -112,10 +113,14 @@ export function TaskDisplay({ task, className = '', compact = false, pageKey }: 
                     <ChecklistProgress checklistItems={task.checklist_items} />
                 )}
 
-                {/* Assignees */}
+                {/* Priority indicator */}
+                {preferences.show_urgency && (
+                    <UrgencyIndicator priority={task.priority} />
+                )}
+
+                {/* Assignees - back in the inline metadata */}
                 {preferences.show_assignee && task.assignees && task.assignees.length > 0 && (
                     <div className="flex items-center gap-1">
-                        <User className="h-3 w-3 text-muted-foreground" />
                         <div className="flex -space-x-1">
                             {task.assignees.slice(0, 3).map((assignee) => (
                                 <Avatar key={assignee.id} className="h-5 w-5 border border-background">

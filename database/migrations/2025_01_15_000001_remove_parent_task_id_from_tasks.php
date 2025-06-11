@@ -12,12 +12,25 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('tasks', function (Blueprint $table) {
-            // Drop foreign key constraint and index first
-            $table->dropForeign(['parent_task_id']);
-            $table->dropIndex(['parent_task_id', 'position']);
-            
-            // Drop the column
-            $table->dropColumn('parent_task_id');
+            // Check if the column exists before trying to drop it
+            if (Schema::hasColumn('tasks', 'parent_task_id')) {
+                // Drop foreign key constraint if it exists
+                try {
+                    $table->dropForeign(['parent_task_id']);
+                } catch (Exception $e) {
+                    // Foreign key might not exist, continue
+                }
+
+                // Drop index if it exists
+                try {
+                    $table->dropIndex(['parent_task_id', 'position']);
+                } catch (Exception $e) {
+                    // Index might not exist, continue
+                }
+
+                // Drop the column
+                $table->dropColumn('parent_task_id');
+            }
         });
     }
 

@@ -71,9 +71,20 @@ export const useTaskOperations = (project: Project, currentView?: string) => {
     /**
      * Move task to different list/section
      */
-    const moveTask = async (taskId: number, updates: any) => {
+    const moveTask = async (taskId: number, updates: any, optimisticUpdate?: () => void) => {
+        console.log('🚀 moveTask called with:', { taskId, updates });
+
+        // Apply optimistic update immediately if provided
+        if (optimisticUpdate) {
+            console.log('⚡ Applying optimistic update...');
+            optimisticUpdate();
+        }
+
         try {
-            const response = await fetch(route('tasks.move', { project: project.id, task: taskId }), {
+            const url = route('tasks.move', { project: project.id, task: taskId });
+            console.log('📡 Making request to:', url);
+
+            const response = await fetch(url, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -82,15 +93,32 @@ export const useTaskOperations = (project: Project, currentView?: string) => {
                 },
                 body: JSON.stringify(updates)
             });
-            
-            const data = await response.json();
-            if (data.success) {
+
+            console.log('📥 Response status:', response.status);
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('❌ HTTP error:', response.status, errorText);
+                // Revert optimistic update by reloading
                 router.reload();
+                return;
+            }
+
+            const data = await response.json();
+            console.log('📦 Response data:', data);
+
+            if (data.success) {
+                console.log('✅ Task moved successfully in database');
+                // Don't reload - the optimistic update already shows the change
             } else {
-                console.error('Failed to move task:', data);
+                console.error('❌ Move failed:', data);
+                // Revert optimistic update by reloading
+                router.reload();
             }
         } catch (error) {
-            console.error('Failed to move task:', error);
+            console.error('❌ Network error:', error);
+            // Revert optimistic update by reloading
+            router.reload();
         }
     };
 
