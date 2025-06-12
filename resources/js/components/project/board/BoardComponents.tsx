@@ -269,7 +269,7 @@ export const SortableTask = ({ task, project, onViewTask, onEditTask, onTaskClic
 
     const style = {
         transform: CSS.Transform.toString(transform),
-        transition: isDragging ? 'none' : 'transform 0ms', // Instant transform for immediate response
+        transition: isDragging ? 'none' : transition,
         opacity: isDragging ? 0.8 : 1,
         zIndex: isDragging ? 1000 : 'auto',
         cursor: isDragging ? 'grabbing' : 'grab',
@@ -290,23 +290,23 @@ export const SortableTask = ({ task, project, onViewTask, onEditTask, onTaskClic
             {/* Drop zone before task */}
             <div
                 ref={setDroppableRefBefore}
-                className={`h-3 w-full transition-all duration-75 rounded-md ${
+                className={`h-2 w-full transition-all duration-200 ${
                     isOverBefore
                         ? dragFeedback?.type === 'within-column'
-                            ? 'bg-purple-400/50 border-2 border-purple-400 shadow-lg'
+                            ? 'bg-purple-400/30 border-t-2 border-purple-400'
                             : dragFeedback?.type === 'between-columns'
-                            ? 'bg-blue-400/50 border-2 border-blue-400 shadow-lg'
-                            : 'bg-primary/40 border-2 border-primary shadow-lg'
+                            ? 'bg-blue-400/30 border-t-2 border-blue-400'
+                            : 'bg-primary/20 border-t-2 border-primary'
                         : ''
                 }`}
-                style={{ marginBottom: isOverBefore ? '12px' : '0px' }}
+                style={{ marginBottom: isOverBefore ? '8px' : '0px' }}
             />
 
             {/* Main task element */}
             <div
                 ref={setNodeRef}
                 style={style}
-                className={`mb-3 rounded-lg border bg-card p-4 shadow-sm hover:shadow-md transition-shadow duration-100 group cursor-grab relative ${
+                className={`mb-3 rounded-lg border bg-card p-4 shadow-sm hover:shadow-md transition-all duration-200 group cursor-grab relative ${
                     isDragging ? 'opacity-50 z-50' : ''
                 }`}
                 data-task-clickable
@@ -400,16 +400,16 @@ export const SortableTask = ({ task, project, onViewTask, onEditTask, onTaskClic
             {/* Drop zone after task */}
             <div
                 ref={setDroppableRefAfter}
-                className={`h-3 w-full transition-all duration-75 rounded-md ${
+                className={`h-2 w-full transition-all duration-200 ${
                     isOverAfter
                         ? dragFeedback?.type === 'within-column'
-                            ? 'bg-purple-400/50 border-2 border-purple-400 shadow-lg'
+                            ? 'bg-purple-400/30 border-b-2 border-purple-400'
                             : dragFeedback?.type === 'between-columns'
-                            ? 'bg-blue-400/50 border-2 border-blue-400 shadow-lg'
-                            : 'bg-primary/40 border-2 border-primary shadow-lg'
+                            ? 'bg-blue-400/30 border-b-2 border-blue-400'
+                            : 'bg-primary/20 border-b-2 border-primary'
                         : ''
                 }`}
-                style={{ marginTop: isOverAfter ? '12px' : '0px' }}
+                style={{ marginTop: isOverAfter ? '8px' : '0px' }}
             />
         </div>
     );

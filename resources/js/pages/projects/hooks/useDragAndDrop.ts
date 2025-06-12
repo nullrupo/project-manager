@@ -30,13 +30,13 @@ export const useDragAndDrop = (
 ) => {
     const { moveTask, updateTaskPositions } = useTaskOperations(project, state.activeView, state.currentBoardId);
 
-    // Drag and drop sensors - optimized for immediate response
+    // Drag and drop sensors
     const sensors = useSensors(
         useSensor(PointerSensor, {
             activationConstraint: {
-                distance: 1, // Minimal distance for instant activation
-                tolerance: 2,
-                delay: 0, // No delay for immediate response
+                distance: 3, // Reduced distance for more responsive dragging
+                tolerance: 5,
+                delay: 50, // Reduced delay
             },
         }),
         useSensor(KeyboardSensor, {
@@ -75,9 +75,6 @@ export const useDragAndDrop = (
             // Store the source list ID for constraint checking
             if (task) {
                 state.setDragSourceListId(task.list_id);
-
-                // Store original state for potential revert on drag cancel
-                state.setOriginalLists?.(JSON.parse(JSON.stringify(state.lists)));
             }
         }
     };
@@ -96,67 +93,21 @@ export const useDragAndDrop = (
         let targetListId = null;
         let targetTaskId = null;
 
-        // Real-time reordering during drag
-        const taskId = parseInt(active.id.replace('task-', ''));
-
-        // Parse the over target
-        if (over.id.startsWith('task-') && over.id.includes('-before')) {
+        if (over.id.startsWith('list-')) {
+            targetListId = parseInt(over.id.replace('list-', ''));
+        } else if (over.id.startsWith('task-') && over.id.includes('-before')) {
             targetTaskId = parseInt(over.id.replace('task-', '').replace('-before', ''));
+            const overTask = state.lists.flatMap((list: any) => list.tasks || []).find((task: any) => task.id === targetTaskId);
+            if (overTask) {
+                targetListId = overTask.list_id;
+            }
         } else if (over.id.startsWith('task-') && over.id.includes('-after')) {
             targetTaskId = parseInt(over.id.replace('task-', '').replace('-after', ''));
-        } else if (over.id.startsWith('list-')) {
-            targetListId = parseInt(over.id.replace('list-', ''));
-        }
-
-        // Find target list ID from task if needed
-        if (targetTaskId && !targetListId) {
-            const targetTask = state.lists.flatMap((list: any) => list.tasks || []).find((task: any) => task.id === targetTaskId);
-            if (targetTask) {
-                targetListId = targetTask.list_id;
+            const overTask = state.lists.flatMap((list: any) => list.tasks || []).find((task: any) => task.id === targetTaskId);
+            if (overTask) {
+                targetListId = overTask.list_id;
             }
         }
-
-        // Apply real-time visual reordering for within-column moves
-        if (targetListId && targetTaskId) {
-            const sourceListId = state.dragSourceListId;
-            const isWithinSameColumn = sourceListId === targetListId;
-
-            if (isWithinSameColumn) {
-                // Apply live reordering
-                state.setLists((prevLists: any[]) => {
-                    const newLists = prevLists.map((list: any) => ({ ...list, tasks: [...(list.tasks || [])] }));
-                    const targetList = newLists.find((list: any) => list.id === targetListId);
-
-                    if (!targetList) return prevLists;
-
-                    const sourceTaskIndex = targetList.tasks.findIndex((task: any) => task.id === taskId);
-                    const targetTaskIndex = targetList.tasks.findIndex((task: any) => task.id === targetTaskId);
-
-                    if (sourceTaskIndex !== -1 && targetTaskIndex !== -1 && sourceTaskIndex !== targetTaskIndex) {
-                        // Remove source task
-                        const [task] = targetList.tasks.splice(sourceTaskIndex, 1);
-
-                        // Calculate insertion position
-                        let insertionIndex = targetTaskIndex;
-                        if (over.id.includes('-after')) {
-                            insertionIndex = targetTaskIndex + 1;
-                        }
-
-                        // Adjust for removal
-                        if (sourceTaskIndex < insertionIndex) {
-                            insertionIndex = insertionIndex - 1;
-                        }
-
-                        // Insert at new position
-                        targetList.tasks.splice(insertionIndex, 0, task);
-                    }
-
-                    return newLists;
-                });
-            }
-        }
-
-
 
         if (targetListId) {
             const sourceListId = state.dragSourceListId;
@@ -196,14 +147,7 @@ export const useDragAndDrop = (
         state.setDragSourceListId(null); // Clear the source list ID
         state.setDragFeedback({ type: null, targetListId: null }); // Clear visual feedback
 
-        if (!over) {
-            // Drag was cancelled - revert to original state
-            if (state.originalLists) {
-                state.setLists(state.originalLists);
-                state.setOriginalLists?.(null);
-            }
-            return;
-        }
+        if (!over) return;
 
         console.log('Board drag end:', { active: active.id, over: over.id });
 
@@ -342,31 +286,75 @@ export const useDragAndDrop = (
                 const targetList = state.lists.find((list: any) => list.id === targetListId);
                 const newStatus = targetList ? getStatusFromListName(targetList.name) : null;
 
-                // For cross-column moves, apply final status update
-                const finalUpdate = () => {
-                    if (sourceListId !== targetListId) {
-                        // Only update status for cross-column moves since within-column was already handled in dragOver
-                        state.setLists((prevLists: any[]) => {
-                            const newLists = prevLists.map((list: any) => ({ ...list, tasks: [...(list.tasks || [])] }));
-                            const targetList = newLists.find((list: any) => list.id === targetListId);
+                // Create optimistic update function with proper insertion logic
+                const optimisticUpdate = () => {
+                    const newLists = state.lists.map((list: any) => ({ ...list, tasks: [...(list.tasks || [])] }));
 
-                            if (targetList) {
-                                const task = targetList.tasks.find((task: any) => task.id === taskId);
-                                if (task && newStatus && newStatus !== task.status) {
-                                    task.status = newStatus;
-                                    task.list_id = targetListId;
-                                    // Handle completed_at timestamp
-                                    if (newStatus === 'done' && task.status !== 'done') {
-                                        task.completed_at = new Date().toISOString();
-                                    } else if (newStatus !== 'done' && task.status === 'done') {
-                                        task.completed_at = null;
-                                    }
-                                }
-                            }
+                    // Find source and target lists
+                    const sourceList = newLists.find((list: any) => list.tasks.some((task: any) => task.id === taskId));
+                    const targetList = newLists.find((list: any) => list.id === targetListId);
 
-                            return newLists;
-                        });
+                    if (!sourceList || !targetList) {
+                        console.log('❌ Could not find source or target list');
+                        return;
                     }
+
+                    // Find and remove the task from source list
+                    const sourceTaskIndex = sourceList.tasks.findIndex((task: any) => task.id === taskId);
+                    if (sourceTaskIndex === -1) {
+                        console.log('❌ Could not find source task');
+                        return;
+                    }
+
+                    const [taskToMove] = sourceList.tasks.splice(sourceTaskIndex, 1);
+
+                    // Update task properties
+                    const updatedTask = {
+                        ...taskToMove,
+                        list_id: targetListId,
+                        // Update status if it should change based on the list
+                        ...(newStatus && newStatus !== taskToMove.status && { status: newStatus }),
+                        // Handle completed_at timestamp
+                        ...(newStatus === 'done' && taskToMove.status !== 'done' && { completed_at: new Date().toISOString() }),
+                        ...(newStatus !== 'done' && taskToMove.status === 'done' && { completed_at: null })
+                    };
+
+                    // Calculate insertion index based on drop zone
+                    let insertionIndex = targetList.tasks.length; // Default to end
+
+                    if (targetTaskId) {
+                        const targetTaskIndex = targetList.tasks.findIndex((task: any) => task.id === targetTaskId);
+                        if (targetTaskIndex !== -1) {
+                            if (over.id.includes('-after')) {
+                                // Insert after the target task
+                                insertionIndex = targetTaskIndex + 1;
+                            } else {
+                                // Insert before the target task (default)
+                                insertionIndex = targetTaskIndex;
+                            }
+                        }
+                    }
+
+                    // Insert the task at the calculated position
+                    targetList.tasks.splice(insertionIndex, 0, updatedTask);
+
+                    // Update positions for all tasks in both lists
+                    sourceList.tasks.forEach((task: any, index: number) => {
+                        task.position = index;
+                    });
+
+                    targetList.tasks.forEach((task: any, index: number) => {
+                        task.position = index;
+                    });
+
+                    state.setLists(newLists);
+                    console.log('⚡ Insertion-based optimistic update applied:', {
+                        taskId,
+                        sourceListId: sourceList.id,
+                        targetListId,
+                        insertionIndex,
+                        newStatus
+                    });
                 };
 
                 // Prepare update data with insertion-based positioning
@@ -377,35 +365,19 @@ export const useDragAndDrop = (
                     const targetList = state.lists.find((list: any) => list.id === targetListId);
                     if (targetList) {
                         const targetTaskIndex = targetList.tasks.findIndex((task: any) => task.id === targetTaskId);
-                        const sourceTaskIndex = targetList.tasks.findIndex((task: any) => task.id === taskId);
-
                         if (targetTaskIndex !== -1) {
-                            let insertionPosition;
-
                             if (over.id.includes('-after')) {
                                 // Insert after the target task
-                                insertionPosition = targetTaskIndex + 1;
+                                updateData.insertion_position = targetTaskIndex + 1;
                             } else {
                                 // Insert before the target task (default)
-                                insertionPosition = targetTaskIndex;
+                                updateData.insertion_position = targetTaskIndex;
                             }
-
-                            // Adjust for within-column moves: if source is before target,
-                            // we need to account for the fact that removing the source will shift indices
-                            if (sourceTaskIndex !== -1 && sourceTaskIndex < insertionPosition) {
-                                insertionPosition = insertionPosition - 1;
-                            }
-
-                            updateData.insertion_position = insertionPosition;
                         }
                     }
                 }
 
-                finalUpdate();
-                moveTask(taskId, updateData);
-
-                // Clear original state since drop was successful
-                state.setOriginalLists?.(null);
+                moveTask(taskId, updateData, optimisticUpdate);
             } else {
                 console.log('❌ Could not determine target list');
             }

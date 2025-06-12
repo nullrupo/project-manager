@@ -61,7 +61,6 @@ export const useProjectState = (project: Project) => {
         type: 'within-column' | 'between-columns' | 'invalid' | null;
         targetListId: number | null;
     }>({ type: null, targetListId: null });
-    const [originalLists, setOriginalLists] = useState<any[] | null>(null);
     
     // Calendar drag state
     const [activeTask, setActiveTask] = useState<any>(null);
@@ -183,8 +182,6 @@ export const useProjectState = (project: Project) => {
         setDragSourceListId,
         dragFeedback,
         setDragFeedback,
-        originalLists,
-        setOriginalLists,
         
         // Calendar drag state
         activeTask,
