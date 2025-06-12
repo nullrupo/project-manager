@@ -244,6 +244,7 @@ class ProjectController extends Controller
             'completion_behavior' => 'required|string|in:simple,review,custom',
             'requires_review' => 'boolean',
             'default_reviewer_id' => 'nullable|string',
+            'enable_multiple_boards' => 'boolean',
         ]);
 
         // Handle the "none" value for default_reviewer_id

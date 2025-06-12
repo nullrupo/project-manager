@@ -423,6 +423,9 @@ class TaskController extends Controller
         $validated = $request->validate([
             'list_id' => 'required|exists:lists,id',
             'section_id' => 'nullable|exists:sections,id',
+            'target_task_id' => 'nullable|integer|exists:tasks,id',
+            'position_relative_to_target' => 'nullable|string|in:before,after',
+            'insertion_position' => 'nullable|integer|min:0',
         ]);
 
         // Get the new list to determine the appropriate status
@@ -444,6 +447,32 @@ class TaskController extends Controller
             } elseif ($newStatus !== 'done' && $task->status === 'done') {
                 $updateData['completed_at'] = null;
             }
+        }
+
+        // Handle insertion-based positioning
+        if (isset($validated['insertion_position']) && is_numeric($validated['insertion_position'])) {
+            $insertionPosition = (int) $validated['insertion_position'];
+
+            // Get all tasks in the target list, ordered by position, excluding the task being moved
+            $listTasks = Task::where('list_id', $validated['list_id'])
+                ->where('id', '!=', $task->id)
+                ->orderBy('position')
+                ->get();
+
+            // Shift positions to make room for insertion
+            Task::where('list_id', $validated['list_id'])
+                ->where('position', '>=', $insertionPosition)
+                ->where('id', '!=', $task->id)
+                ->increment('position');
+
+            // Set the exact insertion position
+            $updateData['position'] = $insertionPosition;
+        } else {
+            // If no specific position, add to the end of the list
+            $maxPosition = Task::where('list_id', $validated['list_id'])
+                ->where('id', '!=', $task->id)
+                ->max('position') ?? -1;
+            $updateData['position'] = $maxPosition + 1;
         }
 
         $task->update($updateData);
@@ -490,8 +519,8 @@ class TaskController extends Controller
                     $newStatus = $this->getStatusFromListName($newList->name);
                 }
 
-                // Update status if it should change
-                if ($newStatus !== $task->status) {
+                // Update status if it should change and newStatus is not null
+                if ($newStatus !== null && $newStatus !== $task->status) {
                     $updateData['status'] = $newStatus;
                 }
 
@@ -516,19 +545,101 @@ class TaskController extends Controller
     /**
      * Map list name to appropriate task status
      */
-    private function getStatusFromListName(string $listName): string
+    private function getStatusFromListName(string $listName): ?string
     {
         // Convert to lowercase for case-insensitive matching
         $name = strtolower(trim($listName));
 
-        // Map common list names to standard statuses
-        return match($name) {
-            'to do', 'todo', 'backlog', 'new', 'open' => 'to_do',
-            'doing', 'in progress', 'in-progress', 'inprogress', 'active', 'working' => 'in_progress',
-            'review', 'testing', 'qa', 'pending review' => 'review',
-            'done', 'completed', 'finished', 'closed', 'complete' => 'done',
-            default => null, // Don't change status for unrecognized list names
-        };
+        // Comprehensive mapping of common list names to standard statuses
+        $statusMappings = [
+            // Common "To Do" variations
+            'to do' => 'to_do',
+            'todo' => 'to_do',
+            'backlog' => 'to_do',
+            'planned' => 'to_do',
+            'new' => 'to_do',
+            'open' => 'to_do',
+            'pending' => 'to_do',
+            'not started' => 'to_do',
+
+            // Common "In Progress" variations
+            'in progress' => 'in_progress',
+            'in-progress' => 'in_progress',
+            'inprogress' => 'in_progress',
+            'doing' => 'in_progress',
+            'active' => 'in_progress',
+            'working' => 'in_progress',
+            'started' => 'in_progress',
+            'development' => 'in_progress',
+            'dev' => 'in_progress',
+
+            // Common "Done" variations
+            'done' => 'done',
+            'completed' => 'done',
+            'complete' => 'done',
+            'finished' => 'done',
+            'closed' => 'done',
+            'resolved' => 'done',
+            'deployed' => 'done',
+            'live' => 'done',
+
+            // Common "Review" variations
+            'review' => 'in_review',
+            'in review' => 'in_review',
+            'in-review' => 'in_review',
+            'testing' => 'in_review',
+            'qa' => 'in_review',
+            'quality assurance' => 'in_review',
+            'code review' => 'in_review',
+            'peer review' => 'in_review',
+
+            // Common "Blocked" variations
+            'blocked' => 'blocked',
+            'on hold' => 'blocked',
+            'waiting' => 'blocked',
+            'paused' => 'blocked',
+            'stuck' => 'blocked',
+            'impediment' => 'blocked',
+            'error' => 'blocked',
+            'failed' => 'blocked',
+            'issue' => 'blocked',
+        ];
+
+        // Check direct mappings first
+        if (isset($statusMappings[$name])) {
+            return $statusMappings[$name];
+        }
+
+        // Check if the column name contains any of the keywords
+        foreach ($statusMappings as $keyword => $status) {
+            if (str_contains($name, $keyword)) {
+                return $status;
+            }
+        }
+
+        // Default fallback based on common patterns
+        if (str_contains($name, 'do') || str_contains($name, 'start') || str_contains($name, 'plan')) {
+            return 'to_do';
+        }
+
+        if (str_contains($name, 'progress') || str_contains($name, 'work') || str_contains($name, 'dev')) {
+            return 'in_progress';
+        }
+
+        if (str_contains($name, 'done') || str_contains($name, 'complete') || str_contains($name, 'finish')) {
+            return 'done';
+        }
+
+        if (str_contains($name, 'review') || str_contains($name, 'test') || str_contains($name, 'qa')) {
+            return 'in_review';
+        }
+
+        if (str_contains($name, 'block') || str_contains($name, 'hold') || str_contains($name, 'wait')) {
+            return 'blocked';
+        }
+
+        // Don't change status for unrecognized list names
+        return null;
     }
 
     /**

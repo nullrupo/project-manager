@@ -48,6 +48,7 @@ export default function ProjectDetailsModal({ project, open, onOpenChange }: Pro
         completion_behavior: project.completion_behavior || 'simple',
         requires_review: project.requires_review || false,
         default_reviewer_id: project.default_reviewer_id?.toString() || 'none',
+        enable_multiple_boards: project.enable_multiple_boards || false,
     });
 
     // Get project members for reviewer selection
@@ -294,6 +295,27 @@ export default function ProjectDetailsModal({ project, open, onOpenChange }: Pro
                                         </div>
                                     </>
                                 )}
+
+                                <Separator />
+
+                                {/* Multiple Boards Feature */}
+                                <div className="space-y-2">
+                                    <div className="flex items-center space-x-2">
+                                        <Checkbox
+                                            id="enable_multiple_boards"
+                                            checked={data.enable_multiple_boards}
+                                            onCheckedChange={(checked) => setData('enable_multiple_boards', !!checked)}
+                                        />
+                                        <Label htmlFor="enable_multiple_boards" className="text-sm font-medium">
+                                            Enable Multiple Boards
+                                        </Label>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        Allow this project to have multiple boards for different workflows or team organization.
+                                        When enabled, you can create additional boards and switch between them.
+                                    </p>
+                                    <InputError message={errors.enable_multiple_boards} />
+                                </div>
                             </CardContent>
                         </Card>
                     )}

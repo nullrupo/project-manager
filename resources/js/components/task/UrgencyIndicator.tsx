@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Flag, Circle } from 'lucide-react';
 
 interface UrgencyIndicatorProps {
     priority: 'low' | 'medium' | 'high';
@@ -7,30 +7,52 @@ interface UrgencyIndicatorProps {
 }
 
 export function UrgencyIndicator({ priority, className = '' }: UrgencyIndicatorProps) {
-    const getUrgencyColor = (priority: string) => {
+    const getUrgencyConfig = (priority: string) => {
         switch (priority) {
-            case 'low': return 'text-green-500';
-            case 'medium': return 'text-yellow-500';
-            case 'high': return 'text-red-500';
-            default: return 'text-gray-500';
+            case 'low':
+                return {
+                    icon: Circle,
+                    color: 'text-green-600',
+                    bgColor: 'bg-green-100 dark:bg-green-900/20',
+                    borderColor: 'border-green-200 dark:border-green-800',
+                    label: 'Low priority'
+                };
+            case 'medium':
+                return {
+                    icon: AlertCircle,
+                    color: 'text-yellow-600',
+                    bgColor: 'bg-yellow-100 dark:bg-yellow-900/20',
+                    borderColor: 'border-yellow-200 dark:border-yellow-800',
+                    label: 'Medium priority'
+                };
+            case 'high':
+                return {
+                    icon: Flag,
+                    color: 'text-red-600',
+                    bgColor: 'bg-red-100 dark:bg-red-900/20',
+                    borderColor: 'border-red-200 dark:border-red-800',
+                    label: 'High priority'
+                };
+            default:
+                return {
+                    icon: Circle,
+                    color: 'text-gray-500',
+                    bgColor: 'bg-gray-100 dark:bg-gray-900/20',
+                    borderColor: 'border-gray-200 dark:border-gray-800',
+                    label: 'Unknown priority'
+                };
         }
     };
 
-    const getUrgencyLabel = (priority: string) => {
-        switch (priority) {
-            case 'low': return 'Low priority';
-            case 'medium': return 'Medium priority';
-            case 'high': return 'High priority';
-            default: return 'Unknown priority';
-        }
-    };
+    const config = getUrgencyConfig(priority);
+    const IconComponent = config.icon;
 
     return (
-        <div 
-            className={`inline-flex items-center ${className}`}
-            title={getUrgencyLabel(priority)}
+        <div
+            className={`inline-flex items-center justify-center w-5 h-5 rounded-full border ${config.bgColor} ${config.borderColor} ${className}`}
+            title={config.label}
         >
-            <AlertCircle className={`h-4 w-4 ${getUrgencyColor(priority)}`} />
+            <IconComponent className={`h-2.5 w-2.5 ${config.color}`} />
         </div>
     );
 }

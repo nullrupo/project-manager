@@ -18,6 +18,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import { useShortName } from '@/hooks/use-initials';
+import { getStatusFromColumnName } from '@/utils/statusMapping';
 import { TaskDisplay } from '@/components/task/TaskDisplay';
 
 
@@ -197,12 +198,14 @@ function SortableTask({
     task,
     canEdit,
     onEdit,
-    onView
+    onView,
+    columnName
 }: {
     task: Task;
     canEdit: boolean;
     onEdit: (task: Task) => void;
     onView: (task: Task) => void;
+    columnName?: string;
 }) {
     const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
         id: `task-${task.id}`,
@@ -235,34 +238,7 @@ function SortableTask({
         }
     };
 
-    const getStatusBadge = (status: string) => {
-        switch (status) {
-            case 'to_do':
-                return (
-                    <Badge variant="outline" className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 border-blue-200">
-                        To Do
-                    </Badge>
-                );
-            case 'in_progress':
-                return (
-                    <Badge variant="outline" className="text-xs px-2 py-0.5 bg-yellow-50 text-yellow-700 border-yellow-200">
-                        In Progress
-                    </Badge>
-                );
-            case 'done':
-                return (
-                    <Badge variant="outline" className="text-xs px-2 py-0.5 bg-green-50 text-green-700 border-green-200">
-                        Done
-                    </Badge>
-                );
-            default:
-                return (
-                    <Badge variant="outline" className="text-xs px-2 py-0.5">
-                        {status.replace('_', ' ')}
-                    </Badge>
-                );
-        }
-    };
+
 
     const isOverdue = task.due_date && new Date(task.due_date) < new Date();
     const isDueSoon = task.due_date && new Date(task.due_date) <= new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -289,25 +265,6 @@ function SortableTask({
                 >
                     <Eye className="h-3 w-3" />
                 </Button>
-
-                {/* Edit button - only if user can edit */}
-                {canEdit ? (
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 bg-background/80 hover:bg-background"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onEdit(task);
-                        }}
-                    >
-                        <Edit className="h-3 w-3" />
-                    </Button>
-                ) : (
-                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 bg-background/80" disabled>
-                        <Lock className="h-3 w-3" />
-                    </Button>
-                )}
             </div>
 
             <div
@@ -319,7 +276,7 @@ function SortableTask({
                     }
                 }}
             >
-                <TaskDisplay task={task} compact />
+                <TaskDisplay task={task} compact columnName={columnName} />
 
                 {/* Task Labels */}
                 {task.labels && task.labels.length > 0 && (
@@ -634,39 +591,7 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
         setActiveItem(null);
     };
 
-    // Helper function to map list name to task status
-    const getStatusFromListName = (listName: string): string | null => {
-        const name = listName.toLowerCase().trim();
 
-        switch (name) {
-            case 'to do':
-            case 'todo':
-            case 'backlog':
-            case 'new':
-            case 'open':
-                return 'to_do';
-            case 'doing':
-            case 'in progress':
-            case 'in-progress':
-            case 'inprogress':
-            case 'active':
-            case 'working':
-                return 'in_progress';
-            case 'review':
-            case 'testing':
-            case 'qa':
-            case 'pending review':
-                return 'review';
-            case 'done':
-            case 'completed':
-            case 'finished':
-            case 'closed':
-            case 'complete':
-                return 'done';
-            default:
-                return null;
-        }
-    };
 
     // Helper function to handle task movement
     const handleTaskMove = (sourceList: TaskList, destinationList: TaskList, taskId: number, targetTaskId?: number) => {
@@ -699,7 +624,7 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
         }
 
         // Update task status based on destination list name
-        const newStatus = getStatusFromListName(destinationList.name);
+        const newStatus = getStatusFromColumnName(destinationList.name);
         const updatedTask = {
             ...movedTask,
             list_id: destinationList.id,
@@ -901,6 +826,7 @@ export default function BoardShow({ project, board, members, labels }: BoardShow
                                                     canEdit={board.can_manage_tasks || false}
                                                     onEdit={handleEditTask}
                                                     onView={handleViewTask}
+                                                    columnName={list.name}
                                                 />
                                             ))
                                         ) : (

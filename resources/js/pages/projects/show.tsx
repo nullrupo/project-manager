@@ -36,7 +36,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
 
     // Use custom hooks
     const state = useProjectState(project);
-    const taskOperations = useTaskOperations(project, state.activeView);
+    const taskOperations = useTaskOperations(project, state.activeView, state.currentBoardId);
     const dragAndDrop = useDragAndDrop(project, state, state.listViewMode);
     const { openInspector: openGlobalInspector } = useGlobalTaskInspector();
 

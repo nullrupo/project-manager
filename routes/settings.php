@@ -43,6 +43,11 @@ Route::middleware('auth')->group(function () {
     Route::get('settings/task-display', function () {
         return Inertia::render('settings/task-display');
     })->name('task-display.settings');
+
+    // Alternative route name for task-display
+    Route::get('task-display', function () {
+        return redirect()->route('task-display.settings');
+    })->name('task-display');
     Route::get('settings/task-display-preferences', [TaskDisplayPreferencesController::class, 'show'])->name('task-display-preferences.show');
     Route::patch('settings/task-display-preferences', [TaskDisplayPreferencesController::class, 'update'])->name('task-display-preferences.update');
 

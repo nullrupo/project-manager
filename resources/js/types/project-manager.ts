@@ -12,6 +12,7 @@ export interface Project {
     completion_behavior: 'simple' | 'review' | 'custom';
     requires_review: boolean;
     default_reviewer_id: number | null;
+    enable_multiple_boards: boolean;
     created_at: string;
     updated_at: string;
     owner?: User;

@@ -5,7 +5,7 @@ import { useUndoNotification } from '@/contexts/UndoNotificationContext';
 /**
  * Custom hook for task operations
  */
-export const useTaskOperations = (project: Project, currentView?: string) => {
+export const useTaskOperations = (project: Project, currentView?: string, currentBoardId?: number) => {
     const { showUndoNotification } = useUndoNotification();
     
     /**
@@ -168,7 +168,8 @@ export const useTaskOperations = (project: Project, currentView?: string) => {
             : [...currentAssignees, memberId]; // Add if not assigned
 
         // Find the task to get its current data
-        const allTasks = project.boards?.[0]?.lists?.flatMap(list => list.tasks || []) || [];
+        const currentBoard = project.boards?.find(board => board.id === currentBoardId) || project.boards?.[0];
+        const allTasks = currentBoard?.lists?.flatMap(list => list.tasks || []) || [];
         const task = allTasks.find(t => t.id === taskId);
         
         if (!task) {

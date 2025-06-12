@@ -37,6 +37,7 @@ class Project extends Model
         'completion_behavior',
         'requires_review',
         'default_reviewer_id',
+        'enable_multiple_boards',
     ];
 
     /**
@@ -47,6 +48,7 @@ class Project extends Model
     protected $casts = [
         'is_archived' => 'boolean',
         'requires_review' => 'boolean',
+        'enable_multiple_boards' => 'boolean',
     ];
 
     /**

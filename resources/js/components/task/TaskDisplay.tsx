@@ -6,6 +6,7 @@ import { ChecklistProgress } from './ChecklistProgress';
 import { TagBadge } from '../tag/TagBadge';
 import { useTaskDisplayPreferences } from '@/hooks/use-task-display-preferences';
 import { useTaskDisplayPreferencesContext } from '@/contexts/TaskDisplayPreferencesContext';
+import { getStatusFromColumnName } from '@/utils/statusMapping';
 import { Task } from '@/types/project-manager';
 import { Calendar, FileText, User, CheckCircle2 } from 'lucide-react';
 
@@ -14,9 +15,10 @@ interface TaskDisplayProps {
     className?: string;
     compact?: boolean;
     pageKey?: string; // Optional page key for page-specific preferences
+    columnName?: string; // Optional column name to derive status from
 }
 
-export function TaskDisplay({ task, className = '', compact = false, pageKey }: TaskDisplayProps) {
+export function TaskDisplay({ task, className = '', compact = false, pageKey, columnName }: TaskDisplayProps) {
     const globalPrefs = useTaskDisplayPreferences();
     const preferencesContext = useTaskDisplayPreferencesContext();
 
@@ -44,27 +46,38 @@ export function TaskDisplay({ task, className = '', compact = false, pageKey }: 
         });
     };
 
+    // Determine the display status - use column-derived status if available, otherwise task status
+    const displayStatus = columnName ? getStatusFromColumnName(columnName) : task.status;
+
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'to_do': return 'bg-gray-100 text-gray-800';
             case 'in_progress': return 'bg-blue-100 text-blue-800';
-            case 'review': return 'bg-purple-100 text-purple-800';
+            case 'in_review': return 'bg-purple-100 text-purple-800';
+            case 'blocked': return 'bg-red-100 text-red-800';
             case 'done': return 'bg-green-100 text-green-800';
             default: return 'bg-gray-100 text-gray-800';
         }
     };
 
     const getStatusLabel = (status: string) => {
+        // If we have a column name, use it directly as the label
+        if (columnName) {
+            return columnName;
+        }
+
+        // Otherwise use the default status labels
         switch (status) {
             case 'to_do': return 'To Do';
-            case 'in_progress': return 'Doing';
-            case 'review': return 'Review';
+            case 'in_progress': return 'In Progress';
+            case 'in_review': return 'In Review';
+            case 'blocked': return 'Blocked';
             case 'done': return 'Done';
-            default: return status;
+            default: return status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
         }
     };
 
-    const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'done';
+    const isOverdue = task.due_date && new Date(task.due_date) < new Date() && displayStatus !== 'done';
 
     return (
         <div className={`space-y-2 ${className}`}>
@@ -72,11 +85,11 @@ export function TaskDisplay({ task, className = '', compact = false, pageKey }: 
             <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                        <h3 className={`font-medium truncate ${task.status === 'done' ? 'line-through text-muted-foreground' : ''}`}>
+                        <h3 className={`font-medium truncate ${displayStatus === 'done' ? 'line-through text-muted-foreground' : ''}`}>
                             {task.title}
                         </h3>
                         {/* Completion icon next to task name */}
-                        {task.status === 'done' && (
+                        {displayStatus === 'done' && (
                             <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
                         )}
                     </div>
@@ -89,21 +102,20 @@ export function TaskDisplay({ task, className = '', compact = false, pageKey }: 
             </div>
 
             {/* Task metadata */}
-            <div className="flex items-center gap-3 text-sm">
+            <div className="flex items-center gap-2 text-sm flex-wrap">
                 {/* Status */}
                 {preferences.show_status && (
-                    <Badge variant="outline" className={getStatusColor(task.status)}>
-                        {getStatusLabel(task.status)}
+                    <Badge variant="outline" className={getStatusColor(displayStatus)}>
+                        {getStatusLabel(displayStatus)}
                     </Badge>
                 )}
 
                 {/* Due date */}
                 {preferences.show_deadline && task.due_date && (
-                    <div className={`flex items-center gap-1 ${isOverdue ? 'text-red-600' : 'text-muted-foreground'}`}>
-                        <Calendar className="h-3 w-3" />
-                        <span className={isOverdue ? 'font-medium' : ''}>
+                    <div className={`flex items-center gap-1 whitespace-nowrap ${isOverdue ? 'text-red-600' : 'text-muted-foreground'}`}>
+                        <Calendar className="h-3 w-3 flex-shrink-0" />
+                        <span className={`${isOverdue ? 'font-medium' : ''}`}>
                             {formatDate(task.due_date)}
-                            {isOverdue && ' (Overdue)'}
                         </span>
                     </div>
                 )}
@@ -113,32 +125,6 @@ export function TaskDisplay({ task, className = '', compact = false, pageKey }: 
                     <ChecklistProgress checklistItems={task.checklist_items} />
                 )}
 
-                {/* Priority indicator */}
-                {preferences.show_urgency && (
-                    <UrgencyIndicator priority={task.priority} />
-                )}
-
-                {/* Assignees - back in the inline metadata */}
-                {preferences.show_assignee && task.assignees && task.assignees.length > 0 && (
-                    <div className="flex items-center gap-1">
-                        <div className="flex -space-x-1">
-                            {task.assignees.slice(0, 3).map((assignee) => (
-                                <Avatar key={assignee.id} className="h-5 w-5 border border-background">
-                                    <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${assignee.name}`} />
-                                    <AvatarFallback className="text-xs">
-                                        {assignee.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                                    </AvatarFallback>
-                                </Avatar>
-                            ))}
-                            {task.assignees.length > 3 && (
-                                <div className="h-5 w-5 rounded-full bg-muted border border-background flex items-center justify-center text-xs text-muted-foreground">
-                                    +{task.assignees.length - 3}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-
                 {/* Notes indicator */}
                 {preferences.show_notes && task.description && compact && (
                     <div className="flex items-center gap-1 text-muted-foreground">
@@ -146,6 +132,8 @@ export function TaskDisplay({ task, className = '', compact = false, pageKey }: 
                     </div>
                 )}
             </div>
+
+
 
             {/* Labels and Tags */}
             {(preferences.show_labels || preferences.show_tags) && (

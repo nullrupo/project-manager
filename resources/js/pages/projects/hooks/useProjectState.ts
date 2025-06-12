@@ -18,6 +18,7 @@ export const useProjectState = (project: Project) => {
     const [detailsModalOpen, setDetailsModalOpen] = useState(false);
     
     // Board state
+    const [currentBoardId, setCurrentBoardId] = useState<number | undefined>(project.boards?.[0]?.id);
     const [lists, setLists] = useState(project.boards?.[0]?.lists || []);
     const [boardSearchQuery, setBoardSearchQuery] = useState('');
     const [boardTypeFilter, setBoardTypeFilter] = useState('all');
@@ -55,6 +56,12 @@ export const useProjectState = (project: Project) => {
     const [listActiveId, setListActiveId] = useState<string | null>(null);
     const [listActiveItem, setListActiveItem] = useState<any | null>(null);
     const [listOverId, setListOverId] = useState<string | null>(null);
+    const [dragSourceListId, setDragSourceListId] = useState<number | null>(null);
+    const [dragFeedback, setDragFeedback] = useState<{
+        type: 'within-column' | 'between-columns' | 'invalid' | null;
+        targetListId: number | null;
+    }>({ type: null, targetListId: null });
+    const [originalLists, setOriginalLists] = useState<any[] | null>(null);
     
     // Calendar drag state
     const [activeTask, setActiveTask] = useState<any>(null);
@@ -80,6 +87,14 @@ export const useProjectState = (project: Project) => {
         return () => window.removeEventListener('popstate', handlePopState);
     }, []);
 
+    // Update lists when board changes
+    useEffect(() => {
+        const currentBoard = project.boards?.find(board => board.id === currentBoardId);
+        if (currentBoard) {
+            setLists(currentBoard.lists || []);
+        }
+    }, [currentBoardId, project.boards]);
+
     return {
         // View state
         activeView,
@@ -100,6 +115,8 @@ export const useProjectState = (project: Project) => {
         setDetailsModalOpen,
         
         // Board state
+        currentBoardId,
+        setCurrentBoardId,
         lists,
         setLists,
         boardSearchQuery,
@@ -162,6 +179,12 @@ export const useProjectState = (project: Project) => {
         setListActiveItem,
         listOverId,
         setListOverId,
+        dragSourceListId,
+        setDragSourceListId,
+        dragFeedback,
+        setDragFeedback,
+        originalLists,
+        setOriginalLists,
         
         // Calendar drag state
         activeTask,

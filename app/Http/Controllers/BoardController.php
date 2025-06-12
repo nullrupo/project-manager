@@ -41,8 +41,14 @@ class BoardController extends Controller
      */
     public function create(Project $project): Response
     {
-        // Prevent creation of additional boards - each project should have only one board
-        abort(403, 'Creating additional boards is not allowed. Each project is limited to one board.');
+        // Check if user has permission to create boards
+        if (!ProjectPermissionService::can($project, 'can_manage_boards')) {
+            abort(403, 'You do not have permission to create boards.');
+        }
+
+        return Inertia::render('boards/create', [
+            'project' => $project,
+        ]);
     }
 
     /**
@@ -50,8 +56,29 @@ class BoardController extends Controller
      */
     public function store(Request $request, Project $project): RedirectResponse
     {
-        // Prevent creation of additional boards - each project should have only one board
-        abort(403, 'Creating additional boards is not allowed. Each project is limited to one board.');
+        // Check if user has permission to create boards
+        if (!ProjectPermissionService::can($project, 'can_manage_boards')) {
+            abort(403, 'You do not have permission to create boards.');
+        }
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'type' => 'required|string|in:kanban,scrum,custom',
+            'background_color' => 'nullable|string|max:50',
+            'background_image' => 'nullable|string|max:255',
+        ]);
+
+        // Get the next position
+        $nextPosition = $project->boards()->max('position') + 1;
+
+        $board = $project->boards()->create([
+            ...$validated,
+            'position' => $nextPosition,
+        ]);
+
+        return redirect()->route('boards.show', [$project, $board])
+            ->with('success', 'Board created successfully.');
     }
 
     /**

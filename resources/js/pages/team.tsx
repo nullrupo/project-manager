@@ -64,13 +64,13 @@ export default function Team({ team = [], ownedProjects = [] }: TeamProps) {
                     <h1 className="text-2xl font-semibold">Team</h1>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3">
                     {team.length > 0 ? (
                         team.map(member => (
-                            <Card key={member.id} className="flex flex-col h-full">
-                                <CardHeader className="pb-0 pt-2">
+                            <Card key={member.id} className="flex flex-col h-full gap-2 py-3">
+                                <CardHeader className="pb-0 pt-0 px-3">
                                     <div className="flex flex-col items-center text-center space-y-1">
-                                        <Avatar className="h-10 w-10">
+                                        <Avatar className="h-8 w-8">
                                             <AvatarImage src={member.avatar} alt={member.name} />
                                             <AvatarFallback className="text-xs font-semibold">
                                                 {getShortName(member.name)}
@@ -86,7 +86,7 @@ export default function Team({ team = [], ownedProjects = [] }: TeamProps) {
                                         </div>
                                     </div>
                                 </CardHeader>
-                                <CardContent className="flex-grow space-y-1 py-1 px-3">
+                                <CardContent className="flex-grow space-y-1 py-0 px-3">
                                     {/* Email with button */}
                                     <div className="flex items-center justify-between">
                                         <span className="text-xs text-muted-foreground truncate flex-1 mr-1">
@@ -96,14 +96,14 @@ export default function Team({ team = [], ownedProjects = [] }: TeamProps) {
                                             variant="outline"
                                             size="sm"
                                             onClick={() => handleEmailClick(member.email)}
-                                            className="shrink-0 h-5 w-5 p-0"
+                                            className="shrink-0 h-4 w-4 p-0"
                                         >
-                                            <Mail className="h-3 w-3" />
+                                            <Mail className="h-2.5 w-2.5" />
                                         </Button>
                                     </div>
 
                                     {/* Phone with button */}
-                                    <div className="flex items-center justify-between min-h-[1.25rem]">
+                                    <div className="flex items-center justify-between min-h-[1rem]">
                                         {member.phone ? (
                                             <>
                                                 <span className="text-xs text-muted-foreground truncate flex-1 mr-1">
@@ -113,11 +113,11 @@ export default function Team({ team = [], ownedProjects = [] }: TeamProps) {
                                                     variant="outline"
                                                     size="sm"
                                                     onClick={() => handlePhoneClick(member.phone)}
-                                                    className="shrink-0 h-5 w-5 p-0"
+                                                    className="shrink-0 h-4 w-4 p-0"
                                                     disabled={!isMobile}
                                                     title={isMobile ? 'Call' : 'Calling only available on mobile devices'}
                                                 >
-                                                    <Phone className="h-3 w-3" />
+                                                    <Phone className="h-2.5 w-2.5" />
                                                 </Button>
                                             </>
                                         ) : (
@@ -125,20 +125,20 @@ export default function Team({ team = [], ownedProjects = [] }: TeamProps) {
                                         )}
                                     </div>
                                 </CardContent>
-                                <CardFooter className="mt-auto pt-0 pb-2 px-3">
+                                <CardFooter className="mt-auto pt-0 pb-0 px-3">
                                     {/* Invite to project button (only show if user has owned projects) */}
                                     {ownedProjects.length > 0 ? (
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            className="w-full h-6 text-xs"
+                                            className="w-full h-5 text-xs"
                                             onClick={() => handleInviteToProjects(member)}
                                         >
-                                            <UserPlus className="h-3 w-3 mr-1" />
+                                            <UserPlus className="h-2.5 w-2.5 mr-1" />
                                             Invite
                                         </Button>
                                     ) : (
-                                        <div className="w-full min-h-[1.5rem]"></div>
+                                        <div className="w-full min-h-[1.25rem]"></div>
                                     )}
                                 </CardFooter>
                             </Card>

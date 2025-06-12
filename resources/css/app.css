@@ -404,3 +404,28 @@ nav:not(:hover) {
 .scrollbar-hide::-webkit-scrollbar {
     display: none;  /* Safari and Chrome */
 }
+
+/* Drag and Drop Visual Feedback */
+.drag-within-column {
+    @apply ring-2 ring-purple-400 ring-opacity-60 shadow-lg shadow-purple-200/50;
+}
+
+.dark .drag-within-column {
+    @apply shadow-purple-900/50;
+}
+
+.drag-between-columns {
+    @apply ring-2 ring-blue-400 ring-opacity-60 shadow-lg shadow-blue-200/50;
+}
+
+.dark .drag-between-columns {
+    @apply shadow-blue-900/50;
+}
+
+.drag-invalid {
+    @apply ring-2 ring-red-400 ring-opacity-60 shadow-lg shadow-red-200/50;
+}
+
+.dark .drag-invalid {
+    @apply shadow-red-900/50;
+}

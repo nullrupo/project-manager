@@ -10,7 +10,7 @@ import {
     DropdownMenuTrigger, 
     DropdownMenuSeparator 
 } from '@/components/ui/dropdown-menu';
-import { GripVertical, MoreHorizontal, Edit, Trash2 } from 'lucide-react';
+import { GripVertical, MoreHorizontal, Eye, Trash2 } from 'lucide-react';
 import { Project } from '@/types/project-manager';
 
 import { useTaskOperations } from '../hooks/useTaskOperations';
@@ -25,6 +25,7 @@ interface ListTaskItemProps {
     currentView?: string;
     isSelected?: boolean;
     onToggleSelection?: (taskId: number, event?: React.MouseEvent) => void;
+    currentBoardId?: number;
 }
 
 export default function ListTaskItem({
@@ -35,10 +36,11 @@ export default function ListTaskItem({
     onEditTask,
     currentView,
     isSelected = false,
-    onToggleSelection
+    onToggleSelection,
+    currentBoardId
 }: ListTaskItemProps) {
 
-    const { toggleTaskCompletion, deleteTask } = useTaskOperations(project, currentView);
+    const { toggleTaskCompletion, deleteTask } = useTaskOperations(project, currentView, currentBoardId);
 
     // Drag and drop functionality
     const {
@@ -65,8 +67,12 @@ export default function ListTaskItem({
     };
 
     const handleTaskClick = (event: React.MouseEvent) => {
+        // Task click no longer opens inspector - only view button does
         if (!isDragging) {
-            onTaskClick(task, event);
+            // Allow selection behavior but don't open inspector
+            if (event.ctrlKey || event.metaKey || event.shiftKey) {
+                onTaskClick(task, event);
+            }
         }
     };
 
@@ -119,6 +125,19 @@ export default function ListTaskItem({
 
                         {/* Actions */}
                         <div className="flex items-center gap-1 ml-2">
+                            {/* View button - always available */}
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onTaskClick(task, e);
+                                }}
+                            >
+                                <Eye className="h-3 w-3" />
+                            </Button>
+
                             {project.can_manage_tasks && (
                                 <>
                                     <DropdownMenu>
@@ -128,14 +147,6 @@ export default function ListTaskItem({
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
-                                            <DropdownMenuItem onClick={(e) => {
-                                                e.stopPropagation();
-                                                onEditTask(task);
-                                            }}>
-                                                <Edit className="h-4 w-4 mr-2" />
-                                                Edit
-                                            </DropdownMenuItem>
-                                            <DropdownMenuSeparator />
                                             <DropdownMenuItem
                                                 onClick={handleDeleteTask}
                                                 className="text-destructive"

@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Project, Task } from '@/types/project-manager';
+import { getStatusFromColumnName } from '@/utils/statusMapping';
 import { router } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import { route } from 'ziggy-js';
@@ -176,7 +177,7 @@ export default function TaskDetailModal({ task, project, open, onOpenChange, ava
 
     // Get status color and icon based on list
     const getListStatusInfo = (listName: string, listColor?: string) => {
-        const status = getStatusFromListName(listName);
+        const status = getStatusFromColumnName(listName);
         const baseColor = listColor || '#3498db';
 
         switch (status) {

@@ -588,6 +588,7 @@ export default function ProjectListView({
                                                                     currentView={state.activeView}
                                                                     isSelected={state.selectedTasks.has(task.id)}
                                                                     onToggleSelection={toggleTaskSelection}
+                                                                    currentBoardId={state.currentBoardId}
                                                                 />
                                                             ))}
                                                             {/* Quick Add for this section */}

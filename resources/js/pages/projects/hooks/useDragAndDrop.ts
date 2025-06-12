@@ -8,7 +8,17 @@ import {
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useTaskOperations } from './useTaskOperations';
 import { getOrganizedTasks } from '../utils/projectUtils';
+import { getStatusFromColumnName } from '@/utils/statusMapping';
+import { route } from 'ziggy-js';
 import { Project } from '@/types/project-manager';
+
+/**
+ * Helper function to determine task status based on list name
+ * Uses the centralized status mapping utility
+ */
+const getStatusFromListName = (listName: string): string | null => {
+    return getStatusFromColumnName(listName);
+};
 
 /**
  * Custom hook for drag and drop functionality
@@ -18,15 +28,15 @@ export const useDragAndDrop = (
     state: any,
     listViewMode: 'status' | 'sections'
 ) => {
-    const { moveTask, updateTaskPositions } = useTaskOperations(project, state.activeView);
+    const { moveTask, updateTaskPositions } = useTaskOperations(project, state.activeView, state.currentBoardId);
 
-    // Drag and drop sensors
+    // Drag and drop sensors - optimized for immediate response
     const sensors = useSensors(
         useSensor(PointerSensor, {
             activationConstraint: {
-                distance: 3, // Reduced distance for more responsive dragging
-                tolerance: 5,
-                delay: 50, // Reduced delay
+                distance: 1, // Minimal distance for instant activation
+                tolerance: 2,
+                delay: 0, // No delay for immediate response
             },
         }),
         useSensor(KeyboardSensor, {
@@ -61,78 +71,341 @@ export const useDragAndDrop = (
             const taskId = parseInt(active.id.replace('task-', ''));
             const task = state.lists.flatMap((l: any) => l.tasks || []).find((t: any) => t.id === taskId);
             state.setActiveItem({ type: 'task', task });
+
+            // Store the source list ID for constraint checking
+            if (task) {
+                state.setDragSourceListId(task.list_id);
+
+                // Store original state for potential revert on drag cancel
+                state.setOriginalLists?.(JSON.parse(JSON.stringify(state.lists)));
+            }
         }
     };
 
     const handleBoardDragOver = (event: any) => {
-        // This provides real-time visual feedback during drag
-        // The actual logic is handled in onDragEnd
+        // Provide real-time visual feedback for valid/invalid drop zones
+        const { active, over } = event;
+
+        if (!over || !active.id.startsWith('task-') || !state.dragSourceListId) {
+            // Clear feedback when not over a valid target
+            state.setDragFeedback({ type: null, targetListId: null });
+            return;
+        }
+
+        // Determine if this would be a valid drop
+        let targetListId = null;
+        let targetTaskId = null;
+
+        // Real-time reordering during drag
+        const taskId = parseInt(active.id.replace('task-', ''));
+
+        // Parse the over target
+        if (over.id.startsWith('task-') && over.id.includes('-before')) {
+            targetTaskId = parseInt(over.id.replace('task-', '').replace('-before', ''));
+        } else if (over.id.startsWith('task-') && over.id.includes('-after')) {
+            targetTaskId = parseInt(over.id.replace('task-', '').replace('-after', ''));
+        } else if (over.id.startsWith('list-')) {
+            targetListId = parseInt(over.id.replace('list-', ''));
+        }
+
+        // Find target list ID from task if needed
+        if (targetTaskId && !targetListId) {
+            const targetTask = state.lists.flatMap((list: any) => list.tasks || []).find((task: any) => task.id === targetTaskId);
+            if (targetTask) {
+                targetListId = targetTask.list_id;
+            }
+        }
+
+        // Apply real-time visual reordering for within-column moves
+        if (targetListId && targetTaskId) {
+            const sourceListId = state.dragSourceListId;
+            const isWithinSameColumn = sourceListId === targetListId;
+
+            if (isWithinSameColumn) {
+                // Apply live reordering
+                state.setLists((prevLists: any[]) => {
+                    const newLists = prevLists.map((list: any) => ({ ...list, tasks: [...(list.tasks || [])] }));
+                    const targetList = newLists.find((list: any) => list.id === targetListId);
+
+                    if (!targetList) return prevLists;
+
+                    const sourceTaskIndex = targetList.tasks.findIndex((task: any) => task.id === taskId);
+                    const targetTaskIndex = targetList.tasks.findIndex((task: any) => task.id === targetTaskId);
+
+                    if (sourceTaskIndex !== -1 && targetTaskIndex !== -1 && sourceTaskIndex !== targetTaskIndex) {
+                        // Remove source task
+                        const [task] = targetList.tasks.splice(sourceTaskIndex, 1);
+
+                        // Calculate insertion position
+                        let insertionIndex = targetTaskIndex;
+                        if (over.id.includes('-after')) {
+                            insertionIndex = targetTaskIndex + 1;
+                        }
+
+                        // Adjust for removal
+                        if (sourceTaskIndex < insertionIndex) {
+                            insertionIndex = insertionIndex - 1;
+                        }
+
+                        // Insert at new position
+                        targetList.tasks.splice(insertionIndex, 0, task);
+                    }
+
+                    return newLists;
+                });
+            }
+        }
+
+
+
+        if (targetListId) {
+            const sourceListId = state.dragSourceListId;
+            const isWithinSameColumn = sourceListId === targetListId;
+            const isCrossColumn = sourceListId !== targetListId;
+
+            // Apply the same constraint logic as in handleBoardDragEnd
+            let isValidDrop = false;
+            let feedbackType: 'within-column' | 'between-columns' | 'invalid' = 'invalid';
+
+            if (isWithinSameColumn && targetTaskId) {
+                isValidDrop = true; // Within-column reordering
+                feedbackType = 'within-column';
+            } else if (isCrossColumn && targetTaskId) {
+                isValidDrop = true; // Cross-column movement with insertion
+                feedbackType = 'between-columns';
+            } else if (isCrossColumn && !targetTaskId) {
+                isValidDrop = true; // Cross-column movement to list container
+                feedbackType = 'between-columns';
+            } else if (isWithinSameColumn && !targetTaskId) {
+                isValidDrop = true; // Within-column to end of list
+                feedbackType = 'within-column';
+            }
+
+            // Set visual feedback
+            state.setDragFeedback({
+                type: feedbackType,
+                targetListId: targetListId
+            });
+        }
     };
 
     const handleBoardDragEnd = (event: any) => {
         const { active, over } = event;
         state.setActiveId(null);
         state.setActiveItem(null);
+        state.setDragSourceListId(null); // Clear the source list ID
+        state.setDragFeedback({ type: null, targetListId: null }); // Clear visual feedback
 
-        if (!over) return;
+        if (!over) {
+            // Drag was cancelled - revert to original state
+            if (state.originalLists) {
+                state.setLists(state.originalLists);
+                state.setOriginalLists?.(null);
+            }
+            return;
+        }
 
         console.log('Board drag end:', { active: active.id, over: over.id });
+
+        // Handle list reordering
+        if (active.id.startsWith('list-') && over.id.startsWith('list-')) {
+            const activeIndex = state.lists.findIndex((list: any) => `list-${list.id}` === active.id);
+            const overIndex = state.lists.findIndex((list: any) => `list-${list.id}` === over.id);
+
+            if (activeIndex !== -1 && overIndex !== -1 && activeIndex !== overIndex) {
+                console.log('🔄 Reordering lists:', { activeIndex, overIndex });
+
+                // Reorder lists using array move
+                const newLists = [...state.lists];
+                const [movedList] = newLists.splice(activeIndex, 1);
+                newLists.splice(overIndex, 0, movedList);
+
+                // Update positions
+                const updatedLists = newLists.map((list: any, index: number) => ({
+                    ...list,
+                    position: index,
+                }));
+
+                state.setLists(updatedLists);
+
+                // Send the updated positions to the server
+                const boardId = state.currentBoardId || project.boards?.[0]?.id;
+                if (boardId) {
+                    fetch(route('lists.positions', { project: project.id, board: boardId }), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                        },
+                        body: JSON.stringify({
+                            lists: updatedLists.map((list: any) => ({
+                                id: list.id,
+                                position: list.position,
+                            })),
+                        }),
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .catch(() => {
+                        // Revert the changes on error
+                        state.setLists(state.lists);
+                        alert('Failed to save list order. Please try again.');
+                    });
+                }
+            }
+            return;
+        }
 
         // Handle task movement
         if (active.id.startsWith('task-')) {
             const taskId = parseInt(active.id.replace('task-', ''));
-            let targetListId = null;
+            const sourceTask = state.lists.flatMap((list: any) => list.tasks || []).find((task: any) => task.id === taskId);
 
-            // Determine target list ID
+            if (!sourceTask) {
+                console.log('❌ Source task not found');
+                return;
+            }
+
+            let targetListId = null;
+            let targetTaskId = null;
+
+            // Determine target list ID and position based on drop zone
             if (over.id.startsWith('list-')) {
                 targetListId = parseInt(over.id.replace('list-', ''));
                 console.log('📦 Dropping on list container:', targetListId);
-            } else if (over.id.startsWith('task-')) {
-                const overTaskId = parseInt(over.id.replace('task-', ''));
-                const overTask = state.lists.flatMap((list: any) => list.tasks || []).find((task: any) => task.id === overTaskId);
+            } else if (over.id.startsWith('task-') && over.id.includes('-before')) {
+                // Dropping before a specific task
+                targetTaskId = parseInt(over.id.replace('task-', '').replace('-before', ''));
+                const overTask = state.lists.flatMap((list: any) => list.tasks || []).find((task: any) => task.id === targetTaskId);
                 if (overTask) {
                     targetListId = overTask.list_id;
-                    console.log('🔄 Dropping on task, target list:', targetListId);
+                    console.log('⬆️ Dropping BEFORE task:', targetTaskId, 'in list:', targetListId);
+                }
+            } else if (over.id.startsWith('task-') && over.id.includes('-after')) {
+                // Dropping after a specific task
+                targetTaskId = parseInt(over.id.replace('task-', '').replace('-after', ''));
+                const overTask = state.lists.flatMap((list: any) => list.tasks || []).find((task: any) => task.id === targetTaskId);
+                if (overTask) {
+                    targetListId = overTask.list_id;
+                    // For "after" positioning, we need to adjust the insertion logic
+                    console.log('⬇️ Dropping AFTER task:', targetTaskId, 'in list:', targetListId);
+                }
+            } else if (over.id.startsWith('task-')) {
+                // Fallback for old task drops (shouldn't happen with new zones)
+                targetTaskId = parseInt(over.id.replace('task-', ''));
+                const overTask = state.lists.flatMap((list: any) => list.tasks || []).find((task: any) => task.id === targetTaskId);
+                if (overTask) {
+                    targetListId = overTask.list_id;
+                    console.log('🔄 Dropping on task (fallback), target list:', targetListId, 'target task:', targetTaskId);
                 }
             }
 
             if (targetListId) {
+                // Apply drag constraints: lock to either column-to-column OR within-column movement
+                const sourceListId = state.dragSourceListId || sourceTask.list_id;
+                const isWithinSameColumn = sourceListId === targetListId;
+                const isCrossColumn = sourceListId !== targetListId;
+
+                // Determine if this is a valid drop based on constraints
+                let isValidDrop = false;
+
+                if (isWithinSameColumn && targetTaskId) {
+                    // Within-column reordering: only allow if dropping on task insertion zones
+                    isValidDrop = true;
+                    console.log('✅ Within-column reordering allowed');
+                } else if (isCrossColumn && targetTaskId) {
+                    // Cross-column movement with insertion: now allowed!
+                    isValidDrop = true;
+                    console.log('✅ Cross-column insertion allowed');
+                } else if (isCrossColumn && !targetTaskId) {
+                    // Cross-column movement: only allow if dropping on list container (not on specific tasks)
+                    isValidDrop = true;
+                    console.log('✅ Cross-column movement allowed');
+                } else if (isWithinSameColumn && !targetTaskId) {
+                    // Within-column to end of list: allowed
+                    isValidDrop = true;
+                    console.log('✅ Within-column to end allowed');
+                }
+
+                if (!isValidDrop) {
+                    console.log('🚫 Drop not allowed due to constraints');
+                    return;
+                }
+
                 console.log('🚀 Moving task', taskId, 'to list', targetListId);
 
-                // Create optimistic update function
-                const optimisticUpdate = () => {
-                    let taskToMove = null;
+                // Find the target list to determine the new status
+                const targetList = state.lists.find((list: any) => list.id === targetListId);
+                const newStatus = targetList ? getStatusFromListName(targetList.name) : null;
 
-                    // First pass: find and remove the task from its current list
-                    const newLists = state.lists.map((list: any) => {
-                        const tasks = (list.tasks || []).filter((task: any) => {
-                            if (task.id === taskId) {
-                                taskToMove = { ...task, list_id: targetListId };
-                                return false; // Remove from current list
+                // For cross-column moves, apply final status update
+                const finalUpdate = () => {
+                    if (sourceListId !== targetListId) {
+                        // Only update status for cross-column moves since within-column was already handled in dragOver
+                        state.setLists((prevLists: any[]) => {
+                            const newLists = prevLists.map((list: any) => ({ ...list, tasks: [...(list.tasks || [])] }));
+                            const targetList = newLists.find((list: any) => list.id === targetListId);
+
+                            if (targetList) {
+                                const task = targetList.tasks.find((task: any) => task.id === taskId);
+                                if (task && newStatus && newStatus !== task.status) {
+                                    task.status = newStatus;
+                                    task.list_id = targetListId;
+                                    // Handle completed_at timestamp
+                                    if (newStatus === 'done' && task.status !== 'done') {
+                                        task.completed_at = new Date().toISOString();
+                                    } else if (newStatus !== 'done' && task.status === 'done') {
+                                        task.completed_at = null;
+                                    }
+                                }
                             }
-                            return true;
-                        });
-                        return { ...list, tasks };
-                    });
 
-                    // Second pass: add the task to the target list
-                    if (taskToMove) {
-                        const finalLists = newLists.map((list: any) => {
-                            if (list.id === targetListId) {
-                                return {
-                                    ...list,
-                                    tasks: [...(list.tasks || []), taskToMove]
-                                };
-                            }
-                            return list;
+                            return newLists;
                         });
-
-                        state.setLists(finalLists);
-                        console.log('⚡ Optimistic update applied');
                     }
                 };
 
-                moveTask(taskId, { list_id: targetListId }, optimisticUpdate);
+                // Prepare update data with insertion-based positioning
+                const updateData: any = { list_id: targetListId };
+
+                // Calculate the exact insertion position
+                if (targetTaskId) {
+                    const targetList = state.lists.find((list: any) => list.id === targetListId);
+                    if (targetList) {
+                        const targetTaskIndex = targetList.tasks.findIndex((task: any) => task.id === targetTaskId);
+                        const sourceTaskIndex = targetList.tasks.findIndex((task: any) => task.id === taskId);
+
+                        if (targetTaskIndex !== -1) {
+                            let insertionPosition;
+
+                            if (over.id.includes('-after')) {
+                                // Insert after the target task
+                                insertionPosition = targetTaskIndex + 1;
+                            } else {
+                                // Insert before the target task (default)
+                                insertionPosition = targetTaskIndex;
+                            }
+
+                            // Adjust for within-column moves: if source is before target,
+                            // we need to account for the fact that removing the source will shift indices
+                            if (sourceTaskIndex !== -1 && sourceTaskIndex < insertionPosition) {
+                                insertionPosition = insertionPosition - 1;
+                            }
+
+                            updateData.insertion_position = insertionPosition;
+                        }
+                    }
+                }
+
+                finalUpdate();
+                moveTask(taskId, updateData);
+
+                // Clear original state since drop was successful
+                state.setOriginalLists?.(null);
             } else {
                 console.log('❌ Could not determine target list');
             }
@@ -148,7 +421,8 @@ export const useDragAndDrop = (
 
         if (active.id.startsWith('list-task-')) {
             const taskId = parseInt(active.id.replace('list-task-', ''));
-            const allTasks = project.boards?.[0]?.lists?.flatMap(list => list.tasks || []) || [];
+            const currentBoard = project.boards?.find(board => board.id === state.currentBoardId) || project.boards?.[0];
+            const allTasks = currentBoard?.lists?.flatMap(list => list.tasks || []) || [];
             const task = allTasks.find(t => t.id === taskId);
             state.setListActiveItem({ type: 'task', task });
         }
@@ -186,7 +460,8 @@ export const useDragAndDrop = (
                     // Handle special "no-section" case
                     if (sectionId === 'no-section') {
                         // Moving to no section - use the first available list but no section_id
-                        const firstList = project.boards?.[0]?.lists?.[0];
+                        const currentBoard = project.boards?.find(board => board.id === state.currentBoardId) || project.boards?.[0];
+                        const firstList = currentBoard?.lists?.[0];
                         if (firstList) {
                             targetListId = firstList.id;
                             targetSectionId = null; // Explicitly set to null for no section
@@ -198,7 +473,8 @@ export const useDragAndDrop = (
                     }
                 } else {
                     // Moving to a status group - use the first available list
-                    const firstList = project.boards?.[0]?.lists?.[0];
+                    const currentBoard = project.boards?.find(board => board.id === state.currentBoardId) || project.boards?.[0];
+                    const firstList = currentBoard?.lists?.[0];
                     if (firstList) {
                         targetListId = firstList.id;
                     }
@@ -271,7 +547,8 @@ export const useDragAndDrop = (
                                 if (targetSection.type === 'section') {
                                     if (targetSection.id === 'no-section') {
                                         // Moving to no section
-                                        update.list_id = project.boards?.[0]?.lists?.[0]?.id || task.list_id;
+                                        const currentBoard = project.boards?.find(board => board.id === state.currentBoardId) || project.boards?.[0];
+                                        update.list_id = currentBoard?.lists?.[0]?.id || task.list_id;
                                         update.section_id = null;
                                     } else {
                                         // Moving to a specific section
