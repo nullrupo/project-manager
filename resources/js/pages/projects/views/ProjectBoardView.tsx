@@ -1,22 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { SortableContext, horizontalListSortingStrategy, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import { DndContext, closestCenter, DragOverlay, CollisionDetection } from '@dnd-kit/core';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ListTodo, CheckCircle2, Plus, Settings, Users } from 'lucide-react';
+import { ListTodo, CheckCircle2, Plus, Settings, Users, ZoomIn, ZoomOut, RotateCcw, Move, Save, Edit } from 'lucide-react';
 import { router } from '@inertiajs/react';
 import { route } from 'ziggy-js';
 import { Project } from '@/types/project-manager';
-import { SortableList, SortableTask } from '@/components/project/board/BoardComponents';
+import { SortableList, SortableTask, InsertionDropZone } from '@/components/project/board/BoardComponents';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { TaskDisplayCustomizer } from '@/components/task/TaskDisplayCustomizer';
 import { TaskDisplay } from '@/components/task/TaskDisplay';
 import CreateBoardModal from '@/components/project/board/CreateBoardModal';
 import CreateColumnModal from '@/components/project/board/CreateColumnModal';
 import EditColumnModal from '@/components/project/board/EditColumnModal';
+import DeleteColumnModal from '@/components/project/board/DeleteColumnModal';
 import BoardSwitcher from '@/components/project/board/BoardSwitcher';
 import ManageBoardsModal from '@/components/project/board/ManageBoardsModal';
+import TaskCreateModal from '@/components/project/TaskCreateModal';
+import BoardTaskCreateModal from '@/components/project/board/BoardTaskCreateModal';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { cleanupAllModalOverlays } from '@/utils/modalCleanup';
 
 interface ProjectBoardViewProps {
     project: Project;
@@ -44,17 +49,172 @@ export default function ProjectBoardView({
     const [createBoardModalOpen, setCreateBoardModalOpen] = useState(false);
     const [createColumnModalOpen, setCreateColumnModalOpen] = useState(false);
     const [editColumnModalOpen, setEditColumnModalOpen] = useState(false);
+    const [deleteColumnModalOpen, setDeleteColumnModalOpen] = useState(false);
     const [selectedColumn, setSelectedColumn] = useState<any>(null);
     const [manageBoardsModalOpen, setManageBoardsModalOpen] = useState(false);
+
+    // Task creation modal state
+    const [taskCreateModalOpen, setTaskCreateModalOpen] = useState(false);
+    const [selectedListForTask, setSelectedListForTask] = useState<any>(null);
 
     // Task assignment modal state
     const [assignTaskModalOpen, setAssignTaskModalOpen] = useState(false);
     const [taskToAssign, setTaskToAssign] = useState<any>(null);
 
+    // Zoom state
+    const [zoomLevel, setZoomLevel] = useState(1);
+    const minZoom = 0.5;
+    const maxZoom = 1.5;
+    const zoomStep = 0.1;
+
+    // Column resizing state
+    const [isResizingEnabled, setIsResizingEnabled] = useState(false);
+    const [columnWidths, setColumnWidths] = useState<Record<number, number>>(() => {
+        // Load saved layout from localStorage
+        const saved = localStorage.getItem(`project-${project.id}-column-widths`);
+        return saved ? JSON.parse(saved) : {};
+    });
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [showUnsavedChangesDialog, setShowUnsavedChangesDialog] = useState(false);
+    const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
+    const defaultColumnWidth = 240;
+
+
+
     // Handle task assignment
     const handleAssignTask = (task: any) => {
         setTaskToAssign(task);
         setAssignTaskModalOpen(true);
+    };
+
+    // Handle create task
+    const handleCreateTask = (list: any) => {
+        setSelectedListForTask(list);
+        setTaskCreateModalOpen(true);
+    };
+
+    // Zoom control functions
+    const handleZoomIn = () => {
+        setZoomLevel(prev => Math.min(prev + zoomStep, maxZoom));
+    };
+
+    const handleZoomOut = () => {
+        setZoomLevel(prev => Math.max(prev - zoomStep, minZoom));
+    };
+
+    const handleZoomReset = () => {
+        setZoomLevel(1);
+    };
+
+    // Auto-save timer ref
+    const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Column resizing functions
+    const handleColumnWidthChange = (listId: number, width: number) => {
+        setColumnWidths(prev => ({
+            ...prev,
+            [listId]: width
+        }));
+        setHasUnsavedChanges(true);
+
+        // Clear any existing auto-save timer since we now have unsaved changes
+        if (autoSaveTimerRef.current) {
+            clearTimeout(autoSaveTimerRef.current);
+            autoSaveTimerRef.current = null;
+        }
+    };
+
+    const handleResetColumnWidths = () => {
+        // Reset all columns to default width (240px)
+        setColumnWidths({});
+        setHasUnsavedChanges(false);
+
+        // Clear auto-save timer
+        if (autoSaveTimerRef.current) {
+            clearTimeout(autoSaveTimerRef.current);
+            autoSaveTimerRef.current = null;
+        }
+
+        // Also remove from localStorage to truly reset
+        localStorage.removeItem(`project-${project.id}-column-widths`);
+    };
+
+    // Handle unsaved changes confirmation
+    const handleUnsavedChangesConfirm = () => {
+        // Revert to saved state
+        const saved = localStorage.getItem(`project-${project.id}-column-widths`);
+        const savedWidths = saved ? JSON.parse(saved) : {};
+        setColumnWidths(savedWidths);
+        setHasUnsavedChanges(false);
+        setIsResizingEnabled(false);
+
+        // Execute pending navigation
+        if (pendingNavigation) {
+            pendingNavigation();
+            setPendingNavigation(null);
+        }
+
+        setShowUnsavedChangesDialog(false);
+    };
+
+    const handleUnsavedChangesCancel = () => {
+        setShowUnsavedChangesDialog(false);
+        setPendingNavigation(null);
+    };
+
+    // Handle page refresh/tab change when there are unsaved changes
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            if (hasUnsavedChanges) {
+                e.preventDefault();
+                e.returnValue = 'You have unsaved column layout changes. Are you sure you want to leave?';
+                return 'You have unsaved column layout changes. Are you sure you want to leave?';
+            }
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            if (autoSaveTimerRef.current) {
+                clearTimeout(autoSaveTimerRef.current);
+            }
+
+            // Clean up any stale overlays when component unmounts
+            cleanupAllModalOverlays();
+        };
+    }, [hasUnsavedChanges, project.id]);
+
+    const handleSaveLayout = () => {
+        // Clear any pending auto-save
+        if (autoSaveTimerRef.current) {
+            clearTimeout(autoSaveTimerRef.current);
+        }
+
+        // Save layout to localStorage immediately
+        localStorage.setItem(`project-${project.id}-column-widths`, JSON.stringify(columnWidths));
+        console.log('Manually saving column layout:', columnWidths);
+
+        // You could also make an API call here to save the layout to backend
+        // router.post(route('projects.save-layout', project.id), { columnWidths });
+
+        // Disable resizing mode after saving
+        setIsResizingEnabled(false);
+        setHasUnsavedChanges(false);
+
+        // Optional: Show success message
+        // You could add a toast notification here
+    };
+
+    const toggleResizing = () => {
+        if (isResizingEnabled) {
+            // If currently resizing, save the layout
+            handleSaveLayout();
+        } else {
+            // If not resizing, enable resizing mode
+            setIsResizingEnabled(true);
+            setHasUnsavedChanges(false);
+        }
     };
 
     // Get current board from state
@@ -71,12 +231,31 @@ export default function ProjectBoardView({
 
     // Handle delete column
     const handleDeleteColumn = (column: any) => {
-        if (confirm(`Are you sure you want to delete the "${column.name}" column? This action cannot be undone.`)) {
-            router.delete(route('lists.destroy', {
-                project: project.id,
-                board: column.board_id,
-                list: column.id
-            }));
+        setSelectedColumn(column);
+        setDeleteColumnModalOpen(true);
+    };
+
+    // Handle edit column modal close
+    const handleEditColumnModalClose = (open: boolean) => {
+        setEditColumnModalOpen(open);
+        if (!open) {
+            // Clear selected column when modal closes
+            setSelectedColumn(null);
+
+            // Clean up any stale overlays
+            setTimeout(cleanupAllModalOverlays, 100);
+        }
+    };
+
+    // Handle delete column modal close
+    const handleDeleteColumnModalClose = (open: boolean) => {
+        setDeleteColumnModalOpen(open);
+        if (!open) {
+            // Clear selected column when modal closes
+            setSelectedColumn(null);
+
+            // Clean up any stale overlays
+            setTimeout(cleanupAllModalOverlays, 100);
         }
     };
 
@@ -113,11 +292,95 @@ export default function ProjectBoardView({
                                     </CardDescription>
                                 </div>
                             </div>
+
+                            {/* Controls */}
+                            <div className="flex items-center gap-2">
+                                {/* Column Edit/Save Controls */}
+                                <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+                                    <Button
+                                        variant={isResizingEnabled ? (hasUnsavedChanges ? "default" : "secondary") : "ghost"}
+                                        size="sm"
+                                        onClick={toggleResizing}
+                                        className={`h-8 w-8 p-0 transition-all duration-1000`}
+                                        style={{
+                                            animation: hasUnsavedChanges && isResizingEnabled
+                                                ? 'subtle-pulse 3s ease-in-out infinite'
+                                                : 'none'
+                                        }}
+                                        title={isResizingEnabled ? "Save Column Layout" : "Edit Board Layout"}
+                                    >
+                                        {isResizingEnabled ? (
+                                            <Save className="h-4 w-4" />
+                                        ) : (
+                                            <Edit className="h-4 w-4" />
+                                        )}
+                                    </Button>
+                                    {isResizingEnabled && (
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={handleResetColumnWidths}
+                                            className="h-8 w-8 p-0"
+                                            title="Reset Column Widths"
+                                        >
+                                            <RotateCcw className="h-4 w-4" />
+                                        </Button>
+                                    )}
+                                </div>
+
+                                {/* Zoom Controls */}
+                                <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={handleZoomOut}
+                                        disabled={zoomLevel <= minZoom}
+                                        className="h-8 w-8 p-0"
+                                        title="Zoom Out"
+                                    >
+                                        <ZoomOut className="h-4 w-4" />
+                                    </Button>
+                                    <span className="text-sm font-medium min-w-[3rem] text-center">
+                                        {Math.round(zoomLevel * 100)}%
+                                    </span>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={handleZoomIn}
+                                        disabled={zoomLevel >= maxZoom}
+                                        className="h-8 w-8 p-0"
+                                        title="Zoom In"
+                                    >
+                                        <ZoomIn className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={handleZoomReset}
+                                        className="h-8 w-8 p-0"
+                                        title="Reset Zoom"
+                                    >
+                                        <RotateCcw className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
                         </div>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent
+                        style={{
+                            backgroundColor: currentBoard?.background_color ? `${currentBoard.background_color}15` : undefined
+                        }}
+                    >
                         {project.boards && project.boards.length > 0 ? (
-                            <div className="flex gap-4 overflow-x-auto pb-4 w-full pr-4">
+                            <div
+                                className="flex gap-3 overflow-x-auto pb-4 pr-4 transition-transform duration-200 origin-top-left"
+                                style={{
+                                    transform: `scale(${zoomLevel})`,
+                                    transformOrigin: 'top left',
+                                    width: `${100 / zoomLevel}%`,
+                                    minWidth: '100%'
+                                }}
+                            >
                                 <SortableContext
                                     items={state.lists.map((list: any) => `list-${list.id}`)}
                                     strategy={horizontalListSortingStrategy}
@@ -129,30 +392,62 @@ export default function ProjectBoardView({
                                             project={project}
                                             onEditList={handleEditColumn}
                                             onDeleteList={handleDeleteColumn}
+                                            onCreateTask={handleCreateTask}
                                             dragFeedback={state.dragFeedback}
+                                            isResizable={isResizingEnabled}
+                                            width={columnWidths[list.id] || defaultColumnWidth}
+                                            onWidthChange={handleColumnWidthChange}
+                                            boardStyle={{
+                                                column_outline_style: currentBoard?.column_outline_style,
+                                                column_spacing: currentBoard?.column_spacing,
+                                                background_color: currentBoard?.background_color
+                                            }}
                                         >
                                             <SortableContext
                                                 items={(list.tasks || []).map((task: any) => `task-${task.id}`)}
                                                 strategy={verticalListSortingStrategy}
                                             >
                                                 {list.tasks && list.tasks.length > 0 ? (
-                                                    list.tasks.map((task: any) => (
-                                                        <SortableTask
-                                                            key={task.id}
-                                                            task={task}
-                                                            project={project}
-                                                            onViewTask={onViewTask}
-                                                            onEditTask={onEditTask}
-                                                            onTaskClick={onTaskClick}
-                                                            onAssignTask={handleAssignTask}
-                                                            columnName={list.name}
-                                                            dragFeedback={state.dragFeedback}
+                                                    <>
+                                                        {/* First insertion zone */}
+                                                        <InsertionDropZone
+                                                            listId={list.id}
+                                                            position={0}
+                                                            isVisible={state.activeId?.startsWith('task-')}
                                                         />
-                                                    ))
+                                                        {list.tasks.map((task: any, index: number) => (
+                                                            <div key={task.id}>
+                                                                <SortableTask
+                                                                    task={task}
+                                                                    project={project}
+                                                                    onViewTask={onViewTask}
+                                                                    onEditTask={onEditTask}
+                                                                    onTaskClick={onTaskClick}
+                                                                    onAssignTask={handleAssignTask}
+                                                                    columnName={list.name}
+                                                                    dragFeedback={state.dragFeedback}
+                                                                />
+                                                                {/* Insertion zone after each task */}
+                                                                <InsertionDropZone
+                                                                    listId={list.id}
+                                                                    position={index + 1}
+                                                                    isVisible={state.activeId?.startsWith('task-')}
+                                                                />
+                                                            </div>
+                                                        ))}
+                                                    </>
                                                 ) : (
-                                                    <div className="text-center py-8 text-muted-foreground text-sm">
-                                                        No tasks yet. Click "Add Task" to create one.
-                                                    </div>
+                                                    <>
+                                                        {/* Empty column - still show first insertion zone */}
+                                                        <InsertionDropZone
+                                                            listId={list.id}
+                                                            position={0}
+                                                            isVisible={state.activeId?.startsWith('task-')}
+                                                        />
+                                                        <div className="text-center py-8 text-muted-foreground text-sm">
+                                                            No tasks yet. Click "Add Task" to create one.
+                                                        </div>
+                                                    </>
                                                 )}
                                             </SortableContext>
                                         </SortableList>
@@ -161,7 +456,7 @@ export default function ProjectBoardView({
 
                                 {/* Add Column Button */}
                                 {project.can_edit && (
-                                    <div className="w-80 flex-shrink-0">
+                                    <div className="w-60 flex-shrink-0">
                                         <Card
                                             className="h-full bg-muted/10 border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/5 transition-all duration-200 cursor-pointer"
                                             onClick={() => setCreateColumnModalOpen(true)}
@@ -194,7 +489,7 @@ export default function ProjectBoardView({
 
                 <DragOverlay>
                     {state.activeItem?.type === 'task' && state.activeItem.task && (
-                        <div className="rounded-lg border bg-card p-4 shadow-xl border-2 border-primary/50 opacity-95 cursor-grabbing w-80 max-w-80">
+                        <div className="rounded-lg border bg-card p-4 shadow-xl border-2 border-primary/50 opacity-95 cursor-grabbing w-60 max-w-60">
                             <div className="space-y-2">
                                 <div className="font-medium text-sm truncate">
                                     {state.activeItem.task.title}
@@ -233,7 +528,15 @@ export default function ProjectBoardView({
                 project={project}
                 column={selectedColumn}
                 open={editColumnModalOpen}
-                onOpenChange={setEditColumnModalOpen}
+                onOpenChange={handleEditColumnModalClose}
+            />
+
+            {/* Delete Column Modal */}
+            <DeleteColumnModal
+                project={project}
+                column={selectedColumn}
+                open={deleteColumnModalOpen}
+                onOpenChange={handleDeleteColumnModalClose}
             />
 
             {/* Manage Boards Modal */}
@@ -247,12 +550,40 @@ export default function ProjectBoardView({
                 }}
             />
 
+            {/* Task Create Modal */}
+            {selectedListForTask && (
+                <BoardTaskCreateModal
+                    open={taskCreateModalOpen}
+                    onOpenChange={setTaskCreateModalOpen}
+                    project={project}
+                    list={selectedListForTask}
+                    members={[...(project.members || []), ...(project.owner ? [project.owner] : [])].filter((m, i, arr) => arr.findIndex(x => x.id === m.id) === i)}
+                    labels={project.boards?.flatMap(board => board.lists?.flatMap(list => list.tasks?.flatMap(task => task.labels || []) || []) || [])?.filter((v, i, a) => v && a.findIndex(t => t.id === v.id) === i) || []}
+                    tags={[]}
+                    onSuccess={() => {
+                        router.reload();
+                    }}
+                />
+            )}
+
             {/* Task Assignment Modal */}
             <TaskAssignmentModal
                 task={taskToAssign}
                 project={project}
                 open={assignTaskModalOpen}
                 onOpenChange={setAssignTaskModalOpen}
+            />
+
+            {/* Unsaved Changes Confirmation Dialog */}
+            <ConfirmDialog
+                open={showUnsavedChangesDialog}
+                onOpenChange={setShowUnsavedChangesDialog}
+                title="Unsaved Column Changes"
+                description="You have unsaved column layout changes. Do you want to discard these changes and continue?"
+                confirmText="Discard Changes"
+                cancelText="Keep Editing"
+                onConfirm={handleUnsavedChangesConfirm}
+                variant="destructive"
             />
         </>
     );
@@ -266,14 +597,28 @@ export default function ProjectBoardView({
     }) {
         if (!task || !open) return null;
 
-        const handleAssigneeToggle = (memberId: number) => {
+        const handleAssigneeToggle = (e: React.MouseEvent, memberId: number) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            console.log('🎯 Assign button clicked for member:', memberId);
+
             const currentAssignees = task.assignees?.map((a: any) => a.id) || [];
             const newAssignees = currentAssignees.includes(memberId)
                 ? currentAssignees.filter((id: number) => id !== memberId)
                 : [...currentAssignees, memberId];
 
-            // Update task with new assignees
-            router.put(route('tasks.update', { project: project.id, task: task.id }), {
+            console.log('📝 Current assignees:', currentAssignees);
+            console.log('✨ New assignees:', newAssignees);
+
+            // Close modal immediately
+            onOpenChange(false);
+
+            // Update task with new assignees using Inertia router
+            const updateUrl = route('tasks.update', { project: project.id, task: task.id });
+            console.log('🔗 Update URL:', updateUrl);
+
+            const updateData = {
                 title: task.title,
                 description: task.description || '',
                 priority: task.priority,
@@ -283,36 +628,61 @@ export default function ProjectBoardView({
                 start_date: task.start_date,
                 duration_days: task.duration_days,
                 list_id: task.list_id,
+                position: task.position, // Preserve current position
                 assignee_ids: newAssignees,
                 label_ids: task.labels?.map((l: any) => l.id) || [],
                 is_archived: task.is_archived || false,
-            }, {
+            };
+
+            console.log('📦 Update data:', updateData);
+
+            router.put(updateUrl, updateData, {
                 preserveState: true,
                 preserveScroll: true,
                 onSuccess: () => {
-                    onOpenChange(false);
+                    console.log('✅ Assignment successful!');
                 },
                 onError: (errors) => {
-                    console.error('Failed to update task assignees:', errors);
+                    console.error('❌ Failed to update task assignees:', errors);
                 }
             });
         };
 
+        const handleClose = () => {
+            onOpenChange(false);
+            // Clean up overlays after animation
+            setTimeout(() => {
+                const overlays = document.querySelectorAll('.fixed.inset-0.z-50');
+                overlays.forEach(overlay => {
+                    if (overlay.querySelector('.bg-black\\/50') || overlay.classList.contains('bg-black')) {
+                        overlay.remove();
+                    }
+                });
+            }, 300);
+        };
+
         return (
             <div className="fixed inset-0 z-50">
-                <div className="fixed inset-0 bg-black/50" onClick={() => onOpenChange(false)} />
+                <div className="fixed inset-0 bg-black/50" onClick={handleClose} />
                 <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-background border rounded-lg shadow-lg p-6">
-                    <h3 className="text-lg font-semibold mb-4">Assign Task: {task.title}</h3>
+                    <h3 className="text-lg font-semibold mb-4">
+                        Assign Task: {task.title}
+                    </h3>
                     <div className="space-y-3 max-h-64 overflow-y-auto scrollbar-hide">
                         {project.members?.map((member) => {
                             const isAssigned = task.assignees?.some((a: any) => a.id === member.id);
                             return (
                                 <div
                                     key={member.id}
-                                    className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${
-                                        isAssigned ? 'bg-primary/10 border border-primary/20' : 'hover:bg-muted/50'
+                                    className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                                        isAssigned
+                                            ? 'bg-primary/10 border border-primary/20 hover:bg-primary/20'
+                                            : 'hover:bg-muted/50 hover:shadow-md hover:scale-[1.02]'
                                     }`}
-                                    onClick={() => handleAssigneeToggle(member.id)}
+                                    onClick={(e) => {
+                                        console.log('🖱️ Click detected on member:', member.name, member.id);
+                                        handleAssigneeToggle(e, member.id);
+                                    }}
                                 >
                                     <Avatar className="h-8 w-8">
                                         <AvatarImage src={member.avatar} />

@@ -37,38 +37,7 @@ class TaskController extends Controller
         ]);
     }
 
-    /**
-     * Show the form for creating a new task.
-     */
-    public function create(Request $request, Project $project, Board $board, TaskList $list): Response
-    {
-        // Check if the board belongs to the project and the list belongs to the board
-        if ($board->project_id !== $project->id || $list->board_id !== $board->id) {
-            abort(404, 'List not found in this board.');
-        }
 
-        // Get project members for assignee selection
-        $members = $project->members()->get();
-        $members->push($project->owner);
-        $members = $members->unique('id');
-
-        // Get project labels
-        $labels = $project->labels()->get();
-
-        // Get user's tags
-        $tags = Auth::user()->tags()->orderBy('name')->get();
-
-        return Inertia::render('tasks/create', [
-            'project' => $project,
-            'board' => $board,
-            'list' => $list,
-            'members' => $members,
-            'labels' => $labels,
-            'tags' => $tags,
-            'tab' => $request->get('tab', 'list'), // Pass tab parameter
-            'status' => $request->get('status'), // Pass status parameter if provided
-        ]);
-    }
 
     /**
      * Store a newly created task in storage.
@@ -297,6 +266,7 @@ class TaskController extends Controller
             'start_date' => 'nullable|date',
             'duration_days' => 'nullable|integer|min:1',
             'list_id' => 'required|exists:lists,id',
+            'position' => 'nullable|integer|min:0',
             'reviewer_id' => 'nullable|string',
             'section_id' => 'nullable|exists:sections,id',
             'assignee_ids' => 'nullable|array',
@@ -335,6 +305,11 @@ class TaskController extends Controller
             'section_id' => $validated['section_id'] ?? null,
             'is_archived' => $validated['is_archived'] ?? false,
         ];
+
+        // Preserve position if provided, otherwise keep current position
+        if (isset($validated['position'])) {
+            $updateData['position'] = $validated['position'];
+        }
 
         // Handle review status if provided
         if (isset($validated['review_status'])) {
@@ -428,8 +403,15 @@ class TaskController extends Controller
             'insertion_position' => 'nullable|integer|min:0',
         ]);
 
-        // Get the new list to determine the appropriate status
+        // Get the new list and verify it belongs to the project
         $newList = TaskList::find($validated['list_id']);
+        if (!$newList || $newList->board->project_id !== $project->id) {
+            return response()->json([
+                'success' => false,
+                'error' => 'List does not belong to this project'
+            ], 422);
+        }
+
         $newStatus = $this->getStatusFromListName($newList->name);
 
         $updateData = [

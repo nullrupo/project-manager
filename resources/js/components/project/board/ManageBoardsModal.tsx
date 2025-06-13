@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { useForm } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, Edit, Trash2, Plus } from 'lucide-react';
-import { Project } from '@/types/project-manager';
-import { route } from 'ziggy-js';
+import { Badge } from '@/components/ui/badge';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Settings, Plus, Edit, Trash2, MoreHorizontal, Shield, Palette } from 'lucide-react';
+import { Project, Board } from '@/types/project-manager';
+import EditBoardModal from './EditBoardModal';
+import DeleteBoardModal from './DeleteBoardModal';
 
 interface ManageBoardsModalProps {
     project: Project;
@@ -15,44 +16,52 @@ interface ManageBoardsModalProps {
     onCreateBoard: () => void;
 }
 
-export default function ManageBoardsModal({ 
-    project, 
-    open, 
-    onOpenChange, 
-    onCreateBoard 
+export default function ManageBoardsModal({
+    project,
+    open,
+    onOpenChange,
+    onCreateBoard
 }: ManageBoardsModalProps) {
-    const [editingBoard, setEditingBoard] = useState<number | null>(null);
-    
-    const { data, setData, put, delete: destroy, processing } = useForm({
-        name: '',
-        description: '',
-    });
+    const [editBoardModalOpen, setEditBoardModalOpen] = useState(false);
+    const [deleteBoardModalOpen, setDeleteBoardModalOpen] = useState(false);
+    const [selectedBoard, setSelectedBoard] = useState<Board | null>(null);
 
-    const handleEditBoard = (board: any) => {
-        setEditingBoard(board.id);
-        setData({
-            name: board.name,
-            description: board.description || '',
-        });
+    const handleClose = () => {
+        onOpenChange(false);
     };
 
-    const handleSaveBoard = (boardId: number) => {
-        put(route('boards.update', { project: project.id, board: boardId }), {
-            onSuccess: () => {
-                setEditingBoard(null);
-            },
-        });
+    const handleEditBoard = (board: Board) => {
+        setSelectedBoard(board);
+        setEditBoardModalOpen(true);
     };
 
-    const handleDeleteBoard = (boardId: number) => {
-        if (confirm('Are you sure you want to delete this board? This action cannot be undone.')) {
-            destroy(route('boards.destroy', { project: project.id, board: boardId }));
+    const handleDeleteBoard = (board: Board) => {
+        setSelectedBoard(board);
+        setDeleteBoardModalOpen(true);
+    };
+
+    const getBoardTypeIcon = (type: string) => {
+        switch (type) {
+            case 'scrum':
+                return <Settings className="h-4 w-4" />;
+            case 'custom':
+                return <Palette className="h-4 w-4" />;
+            default:
+                return <Settings className="h-4 w-4" />;
         }
     };
 
-    const handleClose = () => {
-        setEditingBoard(null);
-        onOpenChange(false);
+    const getBoardTypeLabel = (type: string) => {
+        switch (type) {
+            case 'kanban':
+                return 'Kanban';
+            case 'scrum':
+                return 'Scrum';
+            case 'custom':
+                return 'Custom';
+            default:
+                return 'Board';
+        }
     };
 
     return (
@@ -72,13 +81,13 @@ export default function ManageBoardsModal({
                     {/* Create New Board Button */}
                     <Card className="border-dashed border-2 hover:border-primary/50 transition-colors">
                         <CardContent className="flex items-center justify-center py-8">
-                            <Button 
-                                variant="ghost" 
+                            <Button
+                                variant="ghost"
                                 onClick={() => {
                                     handleClose();
                                     onCreateBoard();
                                 }}
-                                className="flex flex-col items-center gap-2 h-auto py-4"
+                                className="flex flex-col items-center gap-2 h-auto py-4 hover:bg-accent hover:text-accent-foreground hover:scale-105 transition-all duration-200"
                             >
                                 <Plus className="h-8 w-8" />
                                 <span>Create New Board</span>
@@ -89,86 +98,94 @@ export default function ManageBoardsModal({
                     {/* Existing Boards */}
                     {project.boards && project.boards.length > 0 ? (
                         <div className="space-y-3">
-                            {project.boards.map((board) => (
-                                <Card key={board.id}>
-                                    <CardHeader className="pb-3">
-                                        <div className="flex items-start justify-between">
-                                            <div className="flex-1">
-                                                {editingBoard === board.id ? (
-                                                    <div className="space-y-2">
-                                                        <Input
-                                                            value={data.name}
-                                                            onChange={(e) => setData('name', e.target.value)}
-                                                            placeholder="Board name"
-                                                        />
-                                                        <Input
-                                                            value={data.description}
-                                                            onChange={(e) => setData('description', e.target.value)}
-                                                            placeholder="Board description (optional)"
-                                                        />
-                                                        <div className="flex gap-2">
-                                                            <Button 
-                                                                size="sm" 
-                                                                onClick={() => handleSaveBoard(board.id)}
-                                                                disabled={processing}
-                                                            >
-                                                                Save
-                                                            </Button>
-                                                            <Button 
-                                                                size="sm" 
-                                                                variant="outline"
-                                                                onClick={() => setEditingBoard(null)}
-                                                            >
-                                                                Cancel
-                                                            </Button>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <>
+                            {project.boards.map((board) => {
+                                const taskCount = board.lists?.reduce((total, list) => total + (list.tasks?.length || 0), 0) || 0;
+
+                                return (
+                                    <Card key={board.id} className="relative board-card transition-all duration-200 hover:shadow-lg">
+                                        <CardHeader className="pb-3">
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2 mb-1">
                                                         <CardTitle className="text-lg">{board.name}</CardTitle>
-                                                        {board.description && (
-                                                            <p className="text-sm text-muted-foreground mt-1">
-                                                                {board.description}
-                                                            </p>
+                                                        {board.is_default && (
+                                                            <Badge variant="secondary" className="text-xs">
+                                                                <Shield className="h-3 w-3 mr-1" />
+                                                                Default
+                                                            </Badge>
                                                         )}
-                                                    </>
-                                                )}
-                                            </div>
-                                            
-                                            {editingBoard !== board.id && (
-                                                <div className="flex gap-2">
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={() => handleEditBoard(board)}
-                                                    >
-                                                        <Edit className="h-4 w-4" />
-                                                    </Button>
-                                                    {project.boards && project.boards.length > 1 && (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            onClick={() => handleDeleteBoard(board.id)}
-                                                            className="text-destructive hover:text-destructive"
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
+                                                        <Badge variant="outline" className="text-xs">
+                                                            {getBoardTypeIcon(board.type)}
+                                                            <span className="ml-1">{getBoardTypeLabel(board.type)}</span>
+                                                        </Badge>
+                                                    </div>
+                                                    {board.description && (
+                                                        <p className="text-sm text-muted-foreground mt-1">
+                                                            {board.description}
+                                                        </p>
                                                     )}
                                                 </div>
-                                            )}
-                                        </div>
-                                    </CardHeader>
-                                    
-                                    {board.lists && board.lists.length > 0 && (
-                                        <CardContent className="pt-0">
-                                            <div className="text-sm text-muted-foreground">
-                                                <strong>{board.lists.length}</strong> columns: {' '}
-                                                {board.lists.map(list => list.name).join(', ')}
+
+                                                {/* Board Actions */}
+                                                {project.can_edit && (
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-accent hover:text-accent-foreground hover:scale-110 transition-all duration-200">
+                                                                <MoreHorizontal className="h-4 w-4" />
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end">
+                                                            <DropdownMenuItem
+                                                                onClick={() => handleEditBoard(board)}
+                                                            >
+                                                                <Edit className="h-4 w-4 mr-2" />
+                                                                Edit Board
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuSeparator />
+                                                            <DropdownMenuItem
+                                                                className="text-destructive"
+                                                                onClick={() => handleDeleteBoard(board)}
+                                                            >
+                                                                <Trash2 className="h-4 w-4 mr-2" />
+                                                                Delete Board
+                                                            </DropdownMenuItem>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                )}
                                             </div>
+                                        </CardHeader>
+
+                                        <CardContent className="pt-0">
+                                            <div className="flex items-center justify-between text-sm text-muted-foreground">
+                                                <div>
+                                                    <strong>{board.lists?.length || 0}</strong> columns
+                                                    {board.lists && board.lists.length > 0 && (
+                                                        <span className="ml-2">
+                                                            ({board.lists.map(list => list.name).join(', ')})
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <strong>{taskCount}</strong> tasks
+                                                </div>
+                                            </div>
+
+                                            {/* Board Color Indicator */}
+                                            {board.background_color && (
+                                                <div className="flex items-center gap-2 mt-2">
+                                                    <div
+                                                        className="w-4 h-4 rounded border"
+                                                        style={{ backgroundColor: board.background_color }}
+                                                    />
+                                                    <span className="text-xs text-muted-foreground">
+                                                        Theme Color
+                                                    </span>
+                                                </div>
+                                            )}
                                         </CardContent>
-                                    )}
-                                </Card>
-                            ))}
+                                    </Card>
+                                );
+                            })}
                         </div>
                     ) : (
                         <div className="text-center py-8 text-muted-foreground">
@@ -177,6 +194,22 @@ export default function ManageBoardsModal({
                     )}
                 </div>
             </DialogContent>
+
+            {/* Edit Board Modal */}
+            <EditBoardModal
+                project={project}
+                board={selectedBoard}
+                open={editBoardModalOpen}
+                onOpenChange={setEditBoardModalOpen}
+            />
+
+            {/* Delete Board Modal */}
+            <DeleteBoardModal
+                project={project}
+                board={selectedBoard}
+                open={deleteBoardModalOpen}
+                onOpenChange={setDeleteBoardModalOpen}
+            />
         </Dialog>
     );
 }

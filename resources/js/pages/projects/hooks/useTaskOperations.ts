@@ -99,6 +99,8 @@ export const useTaskOperations = (project: Project, currentView?: string, curren
             if (!response.ok) {
                 const errorText = await response.text();
                 console.error('❌ HTTP error:', response.status, errorText);
+                console.error('❌ Request data was:', updates);
+                console.error('❌ Request URL was:', url);
                 // Revert optimistic update by reloading
                 router.reload();
                 return;

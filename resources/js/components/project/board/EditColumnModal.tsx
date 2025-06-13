@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useForm } from '@inertiajs/react';
+import { useForm, router } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,6 +8,7 @@ import { Edit, Trash2 } from 'lucide-react';
 import InputError from '@/components/input-error';
 import { Project } from '@/types/project-manager';
 import { route } from 'ziggy-js';
+import { cleanupAllModalOverlays } from '@/utils/modalCleanup';
 
 interface EditColumnModalProps {
     project: Project;
@@ -33,7 +34,7 @@ const colorOptions = [
 ];
 
 export default function EditColumnModal({ project, column, open, onOpenChange }: EditColumnModalProps) {
-    const { data, setData, put, delete: destroy, processing, errors, reset } = useForm<ColumnForm>({
+    const { data, setData, put, processing, errors, reset } = useForm<ColumnForm>({
         name: '',
         color: '#3b82f6',
     });
@@ -48,19 +49,25 @@ export default function EditColumnModal({ project, column, open, onOpenChange }:
         }
     }, [column]);
 
+
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         if (!column) return;
 
-        put(route('lists.update', { 
-            project: project.id, 
-            board: column.board_id, 
-            list: column.id 
+        put(route('lists.update', {
+            project: project.id,
+            board: column.board_id,
+            list: column.id
         }), {
             onSuccess: () => {
                 handleClose();
             },
+            onFinish: () => {
+                // Additional cleanup after request finishes
+                setTimeout(cleanupAllModalOverlays, 200);
+            }
         });
     };
 
@@ -68,31 +75,36 @@ export default function EditColumnModal({ project, column, open, onOpenChange }:
         if (!column) return;
 
         if (confirm(`Are you sure you want to delete the "${column.name}" column? This action cannot be undone.`)) {
-            destroy(route('lists.destroy', { 
-                project: project.id, 
-                board: column.board_id, 
-                list: column.id 
-            }), {
-                onSuccess: () => {
-                    handleClose();
-                },
-            });
+            router.delete(route('lists.destroy', {
+                project: project.id,
+                board: column.board_id,
+                list: column.id
+            }));
         }
     };
 
     const handleClose = () => {
         reset();
         onOpenChange(false);
+
+        // Clean up any stale overlays immediately and after a delay
+        cleanupAllModalOverlays();
+        setTimeout(cleanupAllModalOverlays, 100);
+        setTimeout(cleanupAllModalOverlays, 300);
     };
 
     const handleColorChange = (color: string) => {
         setData('color', color);
     };
 
-    if (!column) return null;
-
     return (
-        <Dialog open={open} onOpenChange={handleClose}>
+        <Dialog open={open && !!column} onOpenChange={(isOpen) => {
+            if (!isOpen) {
+                handleClose();
+                // Additional cleanup when dialog closes
+                setTimeout(cleanupAllModalOverlays, 50);
+            }
+        }}>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
@@ -100,7 +112,7 @@ export default function EditColumnModal({ project, column, open, onOpenChange }:
                         Edit Column
                     </DialogTitle>
                     <DialogDescription>
-                        Modify the "{column.name}" column
+                        Modify the "{column?.name || 'selected'}" column
                     </DialogDescription>
                 </DialogHeader>
 

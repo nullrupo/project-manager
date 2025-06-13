@@ -16,7 +16,7 @@ import { Tag, Label as LabelType } from '@/types/project-manager';
 interface TaskInspectorProps {
     task: any;
     onClose: () => void;
-    project: any;
+    project?: any;
     availableTags?: Tag[];
     availableLabels?: LabelType[];
 }
@@ -125,7 +125,7 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
         // Determine the correct route based on whether this is an inbox task
         const updateRoute = isInboxTask
             ? route('inbox.tasks.update', { task: inspectorTask.id })
-            : route('tasks.update', { project: project.id, task: inspectorTask.id });
+            : route('tasks.update', { project: project?.id || inspectorTask.project_id, task: inspectorTask.id });
 
         console.log('📍 Using route:', updateRoute, 'for', isInboxTask ? 'inbox task' : 'project task');
 
@@ -151,7 +151,7 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
                 setTimeout(() => setSaveState('idle'), 3000);
             }
         });
-    }, [inspectorTask, hasUnsavedChanges, taskData, project.id, router]);
+    }, [inspectorTask, hasUnsavedChanges, taskData, project?.id, router]);
 
     // Expose save function to parent components
     useImperativeHandle(ref, () => ({
@@ -428,7 +428,7 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
                 />
 
                 {/* Labels */}
-                {(project.can_manage_labels || availableLabels.length > 0) && (
+                {(project?.can_manage_labels || availableLabels.length > 0) && (
                     <LabelSelector
                         selectedLabels={(inspectorTask.labels || []).filter((label: any) => taskData.label_ids.includes(label.id))}
                         availableLabels={availableLabels}
@@ -437,7 +437,7 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
                             handleFieldChange('label_ids', labelIds);
                         }}
                         placeholder="Select project labels..."
-                        canManageLabels={project.can_manage_labels}
+                        canManageLabels={project?.can_manage_labels || false}
                     />
                 )}
 

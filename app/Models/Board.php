@@ -28,6 +28,12 @@ class Board extends Model
         'position',
         'background_color',
         'background_image',
+        'column_outline_style',
+        'column_spacing',
+        'card_style',
+        'show_task_count',
+        'show_wip_limits',
+        'enable_swimlanes',
     ];
 
     /**
@@ -38,6 +44,9 @@ class Board extends Model
     protected $casts = [
         'is_default' => 'boolean',
         'position' => 'integer',
+        'show_task_count' => 'boolean',
+        'show_wip_limits' => 'boolean',
+        'enable_swimlanes' => 'boolean',
     ];
 
     /**

@@ -44,14 +44,8 @@ export default function BoardSwitcher({
     }, [isOpen]);
 
     const handleBoardSwitch = (boardId: number) => {
-        if (boardId !== currentBoardId) {
-            // If onBoardChange is provided, use it (for project context)
-            // Otherwise, navigate to the board page (for standalone board view)
-            if (onBoardChange) {
-                onBoardChange(boardId);
-            } else {
-                router.get(route('boards.show', { project: project.id, board: boardId }));
-            }
+        if (boardId !== currentBoardId && onBoardChange) {
+            onBoardChange(boardId);
         }
         setIsOpen(false); // Close dropdown after selection
     };

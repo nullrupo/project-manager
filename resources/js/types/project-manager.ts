@@ -48,6 +48,12 @@ export interface Board {
     position: number;
     background_color: string | null;
     background_image: string | null;
+    column_outline_style?: 'none' | 'subtle' | 'bold' | 'rounded' | 'shadow' | 'single' | 'spaced' | 'double' | 'dashed' | 'dotted' | 'gradient';
+    column_spacing?: 'compact' | 'normal' | 'wide';
+    card_style?: 'minimal' | 'detailed' | 'compact';
+    show_task_count?: boolean;
+    show_wip_limits?: boolean;
+    enable_swimlanes?: boolean;
     created_at: string;
     updated_at: string;
     project?: Project;

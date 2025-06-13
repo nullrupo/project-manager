@@ -66,11 +66,10 @@ export default function CreateBoardModal({ project, open, onOpenChange }: Create
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        post(route('boards.store', project.id), {
-            onSuccess: () => {
-                handleClose();
-            },
-        });
+        // Board creation is currently not implemented
+        // This would need a project-based board creation route
+        console.log('Board creation not implemented');
+        handleClose();
     };
 
     const handleClose = () => {

@@ -1,5 +1,6 @@
 <?php
 
+
 use App\Http\Controllers\BoardController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ChecklistItemController;
@@ -41,12 +42,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Board routes
     Route::get('projects/{project}/boards', [BoardController::class, 'index'])->name('boards.index');
-    Route::get('projects/{project}/boards/create', [BoardController::class, 'create'])->name('boards.create');
     Route::post('projects/{project}/boards', [BoardController::class, 'store'])->name('boards.store');
     Route::get('projects/{project}/boards/{board}', [BoardController::class, 'show'])->name('boards.show');
-    Route::get('projects/{project}/boards/{board}/edit', [BoardController::class, 'edit'])->name('boards.edit');
     Route::put('projects/{project}/boards/{board}', [BoardController::class, 'update'])->name('boards.update');
     Route::delete('projects/{project}/boards/{board}', [BoardController::class, 'destroy'])->name('boards.destroy');
+    Route::post('projects/{project}/boards/positions', [BoardController::class, 'updatePositions'])->name('boards.positions');
+    Route::post('projects/{project}/boards/{board}/set-default', [BoardController::class, 'setDefault'])->name('boards.set-default');
 
     // List routes
     Route::post('projects/{project}/boards/{board}/lists', [TaskListController::class, 'store'])->name('lists.store');
@@ -57,7 +58,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Task routes
     Route::get('projects/{project}/tasks', [TaskController::class, 'index'])->name('tasks.index');
     Route::post('projects/{project}/tasks', [TaskController::class, 'storeProjectTask'])->name('project.tasks.store');
-    Route::get('projects/{project}/boards/{board}/lists/{list}/tasks/create', [TaskController::class, 'create'])->name('tasks.create');
+
     Route::post('projects/{project}/boards/{board}/lists/{list}/tasks', [TaskController::class, 'store'])->name('tasks.store');
     Route::put('projects/{project}/tasks/{task}', [TaskController::class, 'update'])->name('tasks.update');
     Route::patch('projects/{project}/tasks/{task}/due-date', [TaskController::class, 'updateDueDate'])->name('tasks.update-due-date');

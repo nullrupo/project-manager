@@ -32,6 +32,11 @@ export const useProjectState = (project: Project) => {
     const [taskEditModalOpen, setTaskEditModalOpen] = useState(false);
     const [taskViewModalOpen, setTaskViewModalOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<any>(null);
+
+    // Task creation modal states
+    const [taskCreateModalOpen, setTaskCreateModalOpen] = useState(false);
+    const [taskCreateDefaultSection, setTaskCreateDefaultSection] = useState<string | null>(null);
+    const [taskCreateDefaultStatus, setTaskCreateDefaultStatus] = useState<string>('to_do');
     
     // List view state
     const [listViewMode, setListViewMode] = useState<'status' | 'sections'>('sections');
@@ -138,6 +143,14 @@ export const useProjectState = (project: Project) => {
         setTaskViewModalOpen,
         selectedTask,
         setSelectedTask,
+
+        // Task creation modal states
+        taskCreateModalOpen,
+        setTaskCreateModalOpen,
+        taskCreateDefaultSection,
+        setTaskCreateDefaultSection,
+        taskCreateDefaultStatus,
+        setTaskCreateDefaultStatus,
         
         // List view state
         listViewMode,

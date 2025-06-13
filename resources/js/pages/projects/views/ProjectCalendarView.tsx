@@ -1175,9 +1175,22 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
             });
         };
 
+        const handleClose = () => {
+            onOpenChange(false);
+            // Clean up overlays after animation
+            setTimeout(() => {
+                const overlays = document.querySelectorAll('.fixed.inset-0.z-50');
+                overlays.forEach(overlay => {
+                    if (overlay.querySelector('.bg-black\\/50') || overlay.classList.contains('bg-black')) {
+                        overlay.remove();
+                    }
+                });
+            }, 300);
+        };
+
         return (
             <div className={`fixed inset-0 z-50 ${open ? 'block' : 'hidden'}`}>
-                <div className="fixed inset-0 bg-black/50" onClick={() => onOpenChange(false)} />
+                <div className="fixed inset-0 bg-black/50" onClick={handleClose} />
                 <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-background border rounded-lg shadow-lg p-6">
                     <h3 className="text-lg font-semibold mb-4">Assign Task: {task.title}</h3>
                     <div className="space-y-3 max-h-64 overflow-y-auto scrollbar-hide">

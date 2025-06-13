@@ -19,6 +19,7 @@ import ProjectCalendarView from './views/ProjectCalendarView';
 import ProjectHeader from './components/ProjectHeader';
 import ViewSwitcher from './components/ViewSwitcher';
 import TaskModals from './components/TaskModals';
+import TaskCreateModal from '@/components/project/TaskCreateModal';
 
 // Import hooks
 import { useProjectState } from './hooks/useProjectState';
@@ -79,22 +80,10 @@ export default function ProjectShow({ project }: ProjectShowProps) {
 
     // Task creation handler
     const handleCreateTask = (sectionId?: string, status?: string) => {
-        const params: any = {
-            project: project.id,
-            board: project.boards?.[0]?.id,
-            list: project.boards?.[0]?.lists?.[0]?.id,
-            view: 'list'
-        };
-
-        // Handle special "no-section" case - don't pass section_id for tasks without sections
-        if (sectionId && sectionId !== 'no-section' && state.listViewMode === 'sections') {
-            params.section_id = sectionId;
-        }
-        if (status && state.listViewMode === 'status') {
-            params.status = status;
-        }
-
-        router.get(route('tasks.create', params));
+        // Set the default section and status for the modal
+        state.setTaskCreateDefaultSection(sectionId === 'no-section' ? null : sectionId);
+        state.setTaskCreateDefaultStatus(status || 'to_do');
+        state.setTaskCreateModalOpen(true);
     };
 
     // Member management
@@ -159,7 +148,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                     onDragStart={dragAndDrop.handleBoardDragStart}
                     onDragOver={dragAndDrop.handleBoardDragOver}
                     onDragEnd={dragAndDrop.handleBoardDragEnd}
-                    onViewTask={handleViewTask}
+                    onViewTask={openInspector}
                     onEditTask={handleEditTask}
                     onTaskClick={openInspector}
                 />
@@ -181,6 +170,22 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                 taskViewModalOpen={state.taskViewModalOpen}
                 setTaskViewModalOpen={state.setTaskViewModalOpen}
                 onEditFromView={handleEditFromView}
+            />
+
+            {/* Task Create Modal */}
+            <TaskCreateModal
+                open={state.taskCreateModalOpen}
+                onOpenChange={state.setTaskCreateModalOpen}
+                project={project}
+                members={[...(project.members || []), ...(project.owner ? [project.owner] : [])].filter((m, i, arr) => arr.findIndex(x => x.id === m.id) === i)}
+                labels={project.boards?.flatMap(board => board.lists?.flatMap(list => list.tasks?.flatMap(task => task.labels || []) || []) || [])?.filter((v, i, a) => v && a.findIndex(t => t.id === v.id) === i) || []}
+                tags={[]}
+                sections={project.sections || []}
+                defaultSectionId={state.taskCreateDefaultSection}
+                defaultStatus={state.taskCreateDefaultStatus}
+                onSuccess={() => {
+                    router.reload();
+                }}
             />
 
             {/* Member Management Modals */}

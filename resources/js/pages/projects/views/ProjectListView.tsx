@@ -11,7 +11,7 @@ import ListTaskItem from '../components/ListTaskItem';
 import { getOrganizedTasks, getAllTasksFromSections, toggleSectionCollapse } from '../utils/projectUtils';
 import { TaskDisplayCustomizer } from '@/components/task/TaskDisplayCustomizer';
 import QuickAddTask from '@/components/project/QuickAddTask';
-import TaskCreateModal from '@/components/task-create-modal';
+
 import { useTags } from '@/hooks/useTags';
 import { router } from '@inertiajs/react';
 import { BulkActionsPanel } from '@/components/BulkActionsPanel';
@@ -47,7 +47,6 @@ export default function ProjectListView({
     onDeleteSection,
     onCreateTask
 }: ProjectListViewProps) {
-    const [taskCreateModalOpen, setTaskCreateModalOpen] = useState(false);
     const { tags } = useTags();
     const taskListRef = useRef<HTMLDivElement>(null);
 
@@ -168,7 +167,7 @@ export default function ProjectListView({
         }
 
         // Don't handle if modals are open
-        if (taskCreateModalOpen || state.taskEditModalOpen || state.taskViewModalOpen) {
+        if (state.taskCreateModalOpen || state.taskEditModalOpen || state.taskViewModalOpen) {
             return;
         }
 
@@ -322,23 +321,6 @@ export default function ProjectListView({
             // Handle special "no-section" case
             const actualSectionId = sectionId === 'no-section' ? undefined : sectionId;
             onCreateTask(actualSectionId, status);
-        } else {
-            // Fallback to direct navigation if no handler provided
-            const params: any = {
-                project: project.id,
-                board: project.boards?.[0]?.id,
-                list: project.boards?.[0]?.lists?.[0]?.id,
-                view: 'list'
-            };
-
-            if (sectionId && sectionId !== 'no-section' && state.listViewMode === 'sections') {
-                params.section_id = sectionId;
-            }
-            if (status && state.listViewMode === 'status') {
-                params.status = status;
-            }
-
-            router.get(route('tasks.create', params));
         }
     };
 
@@ -369,7 +351,7 @@ export default function ProjectListView({
                                     <Button
                                         variant="default"
                                         size="sm"
-                                        onClick={() => setTaskCreateModalOpen(true)}
+                                        onClick={() => handleCreateTask()}
                                     >
                                         <Plus className="h-4 w-4 mr-2" />
                                         New Task
@@ -680,20 +662,7 @@ export default function ProjectListView({
                 isProcessing={isProcessing}
             />
 
-            {/* Task Create Modal */}
-            <TaskCreateModal
-                open={taskCreateModalOpen}
-                onOpenChange={setTaskCreateModalOpen}
-                project={project}
-                members={project.members || []}
-                labels={[]}
-                tags={tags}
-                sections={project.sections || []}
-                onSuccess={() => {
-                    // Refresh the page to show the new task
-                    router.reload();
-                }}
-            />
+
         </div>
     );
 }

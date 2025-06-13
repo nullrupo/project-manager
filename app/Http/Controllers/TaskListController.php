@@ -49,7 +49,8 @@ class TaskListController extends Controller
             'work_in_progress_limit' => $request->input('work_in_progress_limit'),
         ]);
 
-        return redirect()->route('boards.show', [$project, $board])
+        // Always redirect back to project view with board view active
+        return redirect()->route('projects.show', ['project' => $project->id, 'view' => 'board'])
             ->with('success', 'List created successfully.');
     }
 
@@ -77,7 +78,8 @@ class TaskListController extends Controller
 
         $list->update($validated);
 
-        return redirect()->route('boards.show', [$project, $board])
+        // Always redirect back to project view with board view active
+        return redirect()->route('projects.show', ['project' => $project->id, 'view' => 'board'])
             ->with('success', 'List updated successfully.');
     }
 
@@ -117,7 +119,7 @@ class TaskListController extends Controller
     /**
      * Remove the specified list from storage.
      */
-    public function destroy(Project $project, Board $board, TaskList $list): RedirectResponse
+    public function destroy(Request $request, Project $project, Board $board, TaskList $list): RedirectResponse
     {
         // Check if the board belongs to the project and the list belongs to the board
         if ($board->project_id !== $project->id || $list->board_id !== $board->id) {
@@ -131,7 +133,8 @@ class TaskListController extends Controller
 
         $list->delete();
 
-        return redirect()->route('boards.show', [$project, $board])
+        // Always redirect back to project view with board view active
+        return redirect()->route('projects.show', ['project' => $project->id, 'view' => 'board'])
             ->with('success', 'List deleted successfully.');
     }
 }
