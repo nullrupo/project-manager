@@ -69,6 +69,16 @@ export const useProjectState = (project: Project) => {
         draggedTaskListId: number | null;
         isTaskDrag: boolean;
     } | null>(null);
+
+    const [listDragFeedback, setListDragFeedback] = useState<{
+        overId: string | null;
+        overType: 'task' | 'insertion' | null;
+        activeId: string | null;
+        draggedTaskSectionId: string | null;
+        isTaskDrag: boolean;
+    } | null>(null);
+
+    const [dragSourceSectionId, setDragSourceSectionId] = useState<string | null>(null);
     
     // Calendar drag state
     const [activeTask, setActiveTask] = useState<any>(null);
@@ -198,6 +208,10 @@ export const useProjectState = (project: Project) => {
         setDragSourceListId,
         dragFeedback,
         setDragFeedback,
+        listDragFeedback,
+        setListDragFeedback,
+        dragSourceSectionId,
+        setDragSourceSectionId,
         
         // Calendar drag state
         activeTask,

@@ -1,13 +1,13 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
-import { DndContext, closestCenter } from '@dnd-kit/core';
+import { DndContext, closestCenter, DragOverlay } from '@dnd-kit/core';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Menu, Plus, ChevronDown, ChevronRight, Layers, ListTodo, Sparkles, Clock, Archive } from 'lucide-react';
+import { Menu, Plus, ChevronDown, ChevronRight, Layers, ListTodo, Sparkles, Clock, Archive, CheckCircle2 } from 'lucide-react';
 import { Project } from '@/types/project-manager';
-import ListTaskItem, { ListInsertionDropZone } from '../components/ListTaskItem';
+import ListTaskItem from '../components/ListTaskItem';
 import { getOrganizedTasks, getAllTasksFromSections, toggleSectionCollapse } from '../utils/projectUtils';
 import { TaskDisplayCustomizer } from '@/components/task/TaskDisplayCustomizer';
 import QuickAddTask from '@/components/project/QuickAddTask';
@@ -483,8 +483,15 @@ export default function ProjectListView({
                                         const isCollapsed = state.collapsedSections.has(section.id);
                                         const taskIds = section.tasks.map((task: any) => `list-task-${task.id}`);
 
+                                        // Section-level drag detection for pulse effects
+                                        const isSectionTargeted = state.listDragFeedback?.isTaskDrag &&
+                                            state.listDragFeedback?.draggedTaskSectionId === section.id &&
+                                            section.tasks?.some((task: any) => `list-task-${task.id}` === state.listDragFeedback?.overId);
+
                                         return (
-                                            <div key={section.id} className="space-y-2">
+                                            <div key={section.id} className={`space-y-2 transition-all duration-300 ${
+                                                isSectionTargeted ? 'bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-950/20 dark:to-purple-900/30 border-2 border-purple-300 dark:border-purple-600 rounded-lg p-2 shadow-lg shadow-purple-200/20 dark:shadow-purple-900/20' : ''
+                                            }`}>
                                                 {/* Section Header */}
                                                 <div
                                                     className="flex items-center justify-between p-2 bg-muted/30 rounded-md border border-dashed border-muted-foreground/30 hover:bg-muted/50 transition-colors cursor-pointer"
@@ -562,51 +569,29 @@ export default function ProjectListView({
                                                         items={taskIds}
                                                         strategy={verticalListSortingStrategy}
                                                     >
-                                                        <div className="space-y-1">
+                                                        <div className="space-y-2">
                                                             {section.tasks && section.tasks.length > 0 ? (
-                                                                <>
-                                                                    {/* First insertion zone */}
-                                                                    <ListInsertionDropZone
+                                                                section.tasks.map((task: any) => (
+                                                                    <ListTaskItem
+                                                                        key={task.id}
+                                                                        task={task}
+                                                                        project={project}
                                                                         sectionId={section.id}
-                                                                        position={0}
-                                                                        isVisible={state.listActiveId?.startsWith('list-task-')}
+                                                                        onTaskClick={handleTaskClick}
+                                                                        onEditTask={onEditTask}
+                                                                        onViewTask={onViewTask}
+                                                                        onAssignTask={onAssignTask}
+                                                                        currentView={state.activeView}
+                                                                        isSelected={state.selectedTasks.has(task.id)}
+                                                                        onToggleSelection={toggleTaskSelection}
+                                                                        currentBoardId={state.currentBoardId}
+                                                                        dragFeedback={state.listDragFeedback}
                                                                     />
-                                                                    {section.tasks.map((task: any, index: number) => (
-                                                                        <div key={task.id}>
-                                                                            <ListTaskItem
-                                                                                task={task}
-                                                                                project={project}
-                                                                                sectionId={section.id}
-                                                                                onTaskClick={handleTaskClick}
-                                                                                onEditTask={onEditTask}
-                                                                                onViewTask={onViewTask}
-                                                                                onAssignTask={onAssignTask}
-                                                                                currentView={state.activeView}
-                                                                                isSelected={state.selectedTasks.has(task.id)}
-                                                                                onToggleSelection={toggleTaskSelection}
-                                                                                currentBoardId={state.currentBoardId}
-                                                                            />
-                                                                            {/* Insertion zone after each task */}
-                                                                            <ListInsertionDropZone
-                                                                                sectionId={section.id}
-                                                                                position={index + 1}
-                                                                                isVisible={state.listActiveId?.startsWith('list-task-')}
-                                                                            />
-                                                                        </div>
-                                                                    ))}
-                                                                </>
+                                                                ))
                                                             ) : (
-                                                                <>
-                                                                    {/* Empty section - still show first insertion zone */}
-                                                                    <ListInsertionDropZone
-                                                                        sectionId={section.id}
-                                                                        position={0}
-                                                                        isVisible={state.listActiveId?.startsWith('list-task-')}
-                                                                    />
-                                                                    <div className="text-center py-6 text-muted-foreground text-sm ml-4">
-                                                                        No tasks in this section yet.
-                                                                    </div>
-                                                                </>
+                                                                <div className="text-center py-6 text-muted-foreground text-sm ml-4">
+                                                                    No tasks in this section yet.
+                                                                </div>
                                                             )}
                                                             {/* Quick Add for this section */}
                                                             {project.can_manage_tasks && (
@@ -672,6 +657,27 @@ export default function ProjectListView({
                                         </div>
                                     )}
                                     </div>
+
+                                    {/* Drag Overlay for smooth visual feedback */}
+                                    <DragOverlay>
+                                        {state.listActiveItem?.type === 'task' && state.listActiveItem.task && (
+                                            <div className="rounded-lg border bg-card p-3 shadow-xl border-2 border-purple-500/50 opacity-95 cursor-grabbing max-w-md">
+                                                <div className="space-y-2">
+                                                    <div className="font-medium text-sm truncate">
+                                                        {state.listActiveItem.task.title}
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                                        {state.listActiveItem.task.status === 'done' && (
+                                                            <div className="w-2 h-2 rounded-full bg-green-500" />
+                                                        )}
+                                                        {state.listActiveItem.task.assignees && state.listActiveItem.task.assignees.length > 0 && (
+                                                            <span>{state.listActiveItem.task.assignees[0].name}</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </DragOverlay>
                                 </DndContext>
                             </>
                         ) : (

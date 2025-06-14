@@ -479,19 +479,7 @@ export const SortableTask = ({ task, project, onViewTask, onEditTask, onTaskClic
     const isSameColumnDrag = isThisTaskTargeted && draggedTaskListId === task.list_id;
     const isCrossColumnDrag = isThisTaskTargeted && draggedTaskListId && draggedTaskListId !== task.list_id;
 
-    // Debug logging for ring colors
-    if (isThisTaskTargeted) {
-        console.log('🎨 Task ring debug:', {
-            taskId: task.id,
-            draggedTaskListId,
-            taskListId: task.list_id,
-            isSameColumn: isSameColumnDrag,
-            isCrossColumn: isCrossColumnDrag,
-            isThisTaskTargeted,
-            overId: dragFeedback?.overId,
-            color: isSameColumnDrag ? 'purple' : isCrossColumnDrag ? 'blue' : 'none'
-        });
-    }
+
 
     // Combine refs
     const combinedRef = (node: HTMLElement | null) => {

@@ -133,6 +133,8 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                     onDragEnd={dragAndDrop.handleListDragEnd}
                     onTaskClick={openInspector}
                     onEditTask={handleEditTask}
+                    onViewTask={openInspector}
+                    onAssignTask={openInspector}
                     onCreateSection={handleCreateSection}
                     onEditSection={handleEditSection}
                     onDeleteSection={handleDeleteSection}
