@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { Menu, Plus, ChevronDown, ChevronRight, Layers, ListTodo, Sparkles, Clock, Archive } from 'lucide-react';
 import { Project } from '@/types/project-manager';
-import ListTaskItem from '../components/ListTaskItem';
+import ListTaskItem, { ListInsertionDropZone } from '../components/ListTaskItem';
 import { getOrganizedTasks, getAllTasksFromSections, toggleSectionCollapse } from '../utils/projectUtils';
 import { TaskDisplayCustomizer } from '@/components/task/TaskDisplayCustomizer';
 import QuickAddTask from '@/components/project/QuickAddTask';
@@ -27,6 +27,8 @@ interface ProjectListViewProps {
     onDragEnd: (event: any) => void;
     onTaskClick: (task: any) => void;
     onEditTask: (task: any) => void;
+    onViewTask?: (task: any) => void;
+    onAssignTask?: (task: any) => void;
     onCreateSection: () => void;
     onEditSection: (section: any) => void;
     onDeleteSection: (section: any) => void;
@@ -42,6 +44,8 @@ export default function ProjectListView({
     onDragEnd,
     onTaskClick,
     onEditTask,
+    onViewTask,
+    onAssignTask,
     onCreateSection,
     onEditSection,
     onDeleteSection,
@@ -483,7 +487,7 @@ export default function ProjectListView({
                                             <div key={section.id} className="space-y-2">
                                                 {/* Section Header */}
                                                 <div
-                                                    className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-dashed border-muted-foreground/30 hover:bg-muted/50 transition-colors cursor-pointer"
+                                                    className="flex items-center justify-between p-2 bg-muted/30 rounded-md border border-dashed border-muted-foreground/30 hover:bg-muted/50 transition-colors cursor-pointer"
                                                     onClick={() => handleSectionToggle(section.id)}
                                                 >
                                                     <div className="flex items-center gap-2">
@@ -558,21 +562,52 @@ export default function ProjectListView({
                                                         items={taskIds}
                                                         strategy={verticalListSortingStrategy}
                                                     >
-                                                        <div className="space-y-2 ml-6">
-                                                            {section.tasks.map((task: any) => (
-                                                                <ListTaskItem
-                                                                    key={task.id}
-                                                                    task={task}
-                                                                    project={project}
-                                                                    sectionId={section.id}
-                                                                    onTaskClick={handleTaskClick}
-                                                                    onEditTask={onEditTask}
-                                                                    currentView={state.activeView}
-                                                                    isSelected={state.selectedTasks.has(task.id)}
-                                                                    onToggleSelection={toggleTaskSelection}
-                                                                    currentBoardId={state.currentBoardId}
-                                                                />
-                                                            ))}
+                                                        <div className="space-y-1">
+                                                            {section.tasks && section.tasks.length > 0 ? (
+                                                                <>
+                                                                    {/* First insertion zone */}
+                                                                    <ListInsertionDropZone
+                                                                        sectionId={section.id}
+                                                                        position={0}
+                                                                        isVisible={state.listActiveId?.startsWith('list-task-')}
+                                                                    />
+                                                                    {section.tasks.map((task: any, index: number) => (
+                                                                        <div key={task.id}>
+                                                                            <ListTaskItem
+                                                                                task={task}
+                                                                                project={project}
+                                                                                sectionId={section.id}
+                                                                                onTaskClick={handleTaskClick}
+                                                                                onEditTask={onEditTask}
+                                                                                onViewTask={onViewTask}
+                                                                                onAssignTask={onAssignTask}
+                                                                                currentView={state.activeView}
+                                                                                isSelected={state.selectedTasks.has(task.id)}
+                                                                                onToggleSelection={toggleTaskSelection}
+                                                                                currentBoardId={state.currentBoardId}
+                                                                            />
+                                                                            {/* Insertion zone after each task */}
+                                                                            <ListInsertionDropZone
+                                                                                sectionId={section.id}
+                                                                                position={index + 1}
+                                                                                isVisible={state.listActiveId?.startsWith('list-task-')}
+                                                                            />
+                                                                        </div>
+                                                                    ))}
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    {/* Empty section - still show first insertion zone */}
+                                                                    <ListInsertionDropZone
+                                                                        sectionId={section.id}
+                                                                        position={0}
+                                                                        isVisible={state.listActiveId?.startsWith('list-task-')}
+                                                                    />
+                                                                    <div className="text-center py-6 text-muted-foreground text-sm ml-4">
+                                                                        No tasks in this section yet.
+                                                                    </div>
+                                                                </>
+                                                            )}
                                                             {/* Quick Add for this section */}
                                                             {project.can_manage_tasks && (
                                                                 <div className="mt-2">

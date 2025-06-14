@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SortableContext, horizontalListSortingStrategy, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
-import { DndContext, closestCenter, DragOverlay, CollisionDetection } from '@dnd-kit/core';
+import { DndContext, closestCenter, closestCorners, pointerWithin, rectIntersection, DragOverlay, CollisionDetection } from '@dnd-kit/core';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ListTodo, CheckCircle2, Plus, Settings, Users, ZoomIn, ZoomOut, RotateCcw, Move, Save, Edit } from 'lucide-react';
 import { router } from '@inertiajs/react';
 import { route } from 'ziggy-js';
 import { Project } from '@/types/project-manager';
-import { SortableList, SortableTask, InsertionDropZone } from '@/components/project/board/BoardComponents';
+import { SortableList, SortableTask } from '@/components/project/board/BoardComponents';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { TaskDisplayCustomizer } from '@/components/task/TaskDisplayCustomizer';
 import { TaskDisplay } from '@/components/task/TaskDisplay';
@@ -220,8 +220,42 @@ export default function ProjectBoardView({
     // Get current board from state
     const currentBoard = project.boards?.find(board => board.id === state.currentBoardId) || project.boards?.[0];
 
-    // Use default collision detection
-    const customCollisionDetection = closestCenter;
+    // Custom collision detection that prioritizes tasks over columns
+    const customCollisionDetection: CollisionDetection = (args) => {
+        // First try to find task collisions using pointer detection
+        const pointerCollisions = pointerWithin(args);
+        const taskCollisions = pointerCollisions.filter(collision =>
+            collision.id.toString().startsWith('task-')
+        );
+
+        // If we found task collisions, prioritize them
+        if (taskCollisions.length > 0) {
+            // Return the closest task collision
+            return closestCenter({
+                ...args,
+                droppableContainers: args.droppableContainers.filter(container =>
+                    taskCollisions.some(collision => collision.id === container.id)
+                )
+            });
+        }
+
+        // If no task collisions, fall back to column detection
+        const columnCollisions = pointerCollisions.filter(collision =>
+            collision.id.toString().startsWith('list-')
+        );
+
+        if (columnCollisions.length > 0) {
+            return closestCenter({
+                ...args,
+                droppableContainers: args.droppableContainers.filter(container =>
+                    columnCollisions.some(collision => collision.id === container.id)
+                )
+            });
+        }
+
+        // Final fallback to closest center
+        return closestCenter(args);
+    };
 
     // Handle edit column
     const handleEditColumn = (column: any) => {
@@ -373,12 +407,13 @@ export default function ProjectBoardView({
                     >
                         {project.boards && project.boards.length > 0 ? (
                             <div
-                                className="flex gap-3 overflow-x-auto pb-4 pr-4 transition-transform duration-200 origin-top-left"
+                                className="flex gap-3 overflow-x-auto overflow-y-visible pb-4 pr-4 transition-transform duration-200 origin-top-left"
                                 style={{
                                     transform: `scale(${zoomLevel})`,
                                     transformOrigin: 'top left',
                                     width: `${100 / zoomLevel}%`,
-                                    minWidth: '100%'
+                                    minWidth: '100%',
+                                    paddingTop: '4px' // Add padding to prevent clipping
                                 }}
                             >
                                 <SortableContext
@@ -409,45 +444,24 @@ export default function ProjectBoardView({
                                             >
                                                 {list.tasks && list.tasks.length > 0 ? (
                                                     <>
-                                                        {/* First insertion zone */}
-                                                        <InsertionDropZone
-                                                            listId={list.id}
-                                                            position={0}
-                                                            isVisible={state.activeId?.startsWith('task-')}
-                                                        />
                                                         {list.tasks.map((task: any, index: number) => (
-                                                            <div key={task.id}>
-                                                                <SortableTask
-                                                                    task={task}
-                                                                    project={project}
-                                                                    onViewTask={onViewTask}
-                                                                    onEditTask={onEditTask}
-                                                                    onTaskClick={onTaskClick}
-                                                                    onAssignTask={handleAssignTask}
-                                                                    columnName={list.name}
-                                                                    dragFeedback={state.dragFeedback}
-                                                                />
-                                                                {/* Insertion zone after each task */}
-                                                                <InsertionDropZone
-                                                                    listId={list.id}
-                                                                    position={index + 1}
-                                                                    isVisible={state.activeId?.startsWith('task-')}
-                                                                />
-                                                            </div>
+                                                            <SortableTask
+                                                                key={task.id}
+                                                                task={task}
+                                                                project={project}
+                                                                onViewTask={onViewTask}
+                                                                onEditTask={onEditTask}
+                                                                onTaskClick={onTaskClick}
+                                                                onAssignTask={handleAssignTask}
+                                                                columnName={list.name}
+                                                                dragFeedback={state.dragFeedback}
+                                                            />
                                                         ))}
                                                     </>
                                                 ) : (
-                                                    <>
-                                                        {/* Empty column - still show first insertion zone */}
-                                                        <InsertionDropZone
-                                                            listId={list.id}
-                                                            position={0}
-                                                            isVisible={state.activeId?.startsWith('task-')}
-                                                        />
-                                                        <div className="text-center py-8 text-muted-foreground text-sm">
-                                                            No tasks yet. Click "Add Task" to create one.
-                                                        </div>
-                                                    </>
+                                                    <div className="text-center py-8 text-muted-foreground text-sm">
+                                                        No tasks yet. Click "Add Task" to create one.
+                                                    </div>
                                                 )}
                                             </SortableContext>
                                         </SortableList>

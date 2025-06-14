@@ -16,7 +16,7 @@ import { Project } from '@/types/project-manager';
 import { TaskDisplay } from '@/components/task/TaskDisplay';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useDroppable } from '@dnd-kit/core';
+import { useDroppable, useDraggable } from '@dnd-kit/core';
 
 // Insertion Drop Zone Component - invisible zones between tasks
 interface InsertionDropZoneProps {
@@ -35,20 +35,28 @@ export const InsertionDropZone = ({ listId, position, isVisible }: InsertionDrop
         },
     });
 
+    // Only show drop zone when actively dragging and hovering
+    const shouldShow = isVisible && isOver;
+
     return (
         <div
             ref={setNodeRef}
-            className={`transition-all duration-300 ease-out ${
-                isVisible && isOver
-                    ? 'h-10 w-full bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-2 border-dashed border-blue-400 dark:border-blue-500 rounded-lg mb-3 shadow-sm flex items-center justify-center'
-                    : 'h-1 w-full'
+            className={`transition-all duration-100 ease-out relative ${
+                shouldShow
+                    ? 'h-8 w-full bg-blue-100 dark:bg-blue-900/30 border border-dashed border-blue-400 dark:border-blue-500 rounded-sm -my-2 mx-2 flex items-center justify-center z-10'
+                    : 'h-0 w-full overflow-hidden'
             }`}
+            style={{
+                // Extend the drop zone slightly to overlap with task margins and eliminate gaps
+                marginTop: shouldShow ? '-4px' : '0',
+                marginBottom: shouldShow ? '-4px' : '0',
+            }}
         >
-            {isVisible && isOver && (
-                <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm font-medium">
-                    <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+            {shouldShow && (
+                <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400 text-xs font-medium">
+                    <div className="w-1 h-1 rounded-full bg-blue-500" />
                     Drop here
-                    <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                    <div className="w-1 h-1 rounded-full bg-blue-500" />
                 </div>
             )}
         </div>
@@ -84,10 +92,7 @@ interface SortableTaskProps {
     onTaskClick?: (task: any) => void;
     onAssignTask?: (task: any) => void;
     columnName?: string; // Column name for status derivation
-    dragFeedback?: {
-        type: 'within-column' | 'between-columns' | 'invalid' | null;
-        targetListId: number | null;
-    };
+    dragFeedback?: any; // Drag feedback state for ring colors
 }
 
 
@@ -114,6 +119,50 @@ export const SortableList = ({ list, children, project, onDeleteList, onEditList
         },
     });
 
+    // Check for drag effects - both column-level and task-level
+    const isDraggingTask = active?.id.toString().startsWith('task-');
+
+    // Try multiple ways to get the dragged task's list ID
+    let draggedTaskListId = active?.data?.current?.listId;
+
+    // Fallback: extract from task ID and find in project data
+    if (!draggedTaskListId && active?.id.toString().startsWith('task-')) {
+        const taskId = parseInt(active.id.toString().replace('task-', ''));
+        // Find the task in the project's boards to get its list_id
+        const allTasks = project.boards?.flatMap(board =>
+            board.lists?.flatMap(list => list.tasks || []) || []
+        ) || [];
+        const draggedTask = allTasks.find(t => t.id === taskId);
+        if (draggedTask) {
+            draggedTaskListId = draggedTask.list_id;
+        }
+    }
+
+    // Column-level drag detection
+    const isColumnDraggedOver = isOver && isDraggingTask;
+    const isSameColumnDrag = isColumnDraggedOver && draggedTaskListId === list.id;
+
+    // Task-level drag detection using enhanced feedback
+    const isTaskInColumnTargeted = dragFeedback?.isTaskDrag &&
+        dragFeedback?.draggedTaskListId === list.id &&
+        dragFeedback?.overType === 'task' &&
+        list.tasks?.some((task: any) => `task-${task.id}` === dragFeedback.overId);
+
+    // Cross-column drag detection - when dragging over tasks in a different column
+    const isCrossColumnTaskTargeted = dragFeedback?.isTaskDrag &&
+        dragFeedback?.draggedTaskListId !== list.id &&
+        dragFeedback?.overType === 'task' &&
+        list.tasks?.some((task: any) => `task-${task.id}` === dragFeedback.overId);
+
+    // Direct column hover for cross-column drags
+    const isCrossColumnDrag = isColumnDraggedOver && draggedTaskListId && draggedTaskListId !== list.id;
+
+    // Determine if column should pulse
+    const shouldColumnPulse = isSameColumnDrag || isTaskInColumnTargeted;
+    const shouldColumnPulseCrossColumn = isCrossColumnTaskTargeted || isCrossColumnDrag;
+
+
+
     // Combine refs
     const setNodeRef = (node: HTMLElement | null) => {
         setSortableRef(node);
@@ -122,9 +171,7 @@ export const SortableList = ({ list, children, project, onDeleteList, onEditList
 
 
 
-    // Check if we're dragging a task over this list container (for cross-column drops)
-    const isDraggedOver = isOver && active?.id.toString().startsWith('task-') &&
-                         active?.data?.current?.listId !== list.id;
+
 
     const style = {
         transform: CSS.Transform.toString(transform),
@@ -261,20 +308,25 @@ export const SortableList = ({ list, children, project, onDeleteList, onEditList
 
     return (
         <div
-            ref={setNodeRef}
             style={{
-                ...style,
                 width: `${currentWidth}px`,
                 minWidth: '200px',
                 maxWidth: '500px'
             }}
             className={`flex-shrink-0 relative ${getSpacingStyles()}`}
         >
-            <Card className={`h-full min-h-[500px] transition-all duration-300 ease-out ${
-                isDraggedOver
-                    ? 'bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-2 border-blue-400 dark:border-blue-500 border-solid shadow-xl shadow-blue-200/20 dark:shadow-blue-900/20 scale-[1.01] ring-2 ring-blue-200/50 dark:ring-blue-800/50'
-                    : `bg-muted/20 ${getColumnBorderStyles()}`
-            }`}>
+            <div
+                ref={setNodeRef}
+                style={style}
+                className={`h-full min-h-[500px] flex flex-col transition-all duration-300 ease-out ${
+                    shouldColumnPulse
+                        ? 'bg-gradient-to-br from-purple-50 to-violet-50 dark:from-purple-950/20 dark:to-violet-950/20 border-2 border-purple-400 dark:border-purple-500 border-solid shadow-xl shadow-purple-200/20 dark:shadow-purple-900/20 scale-[1.01] ring-2 ring-purple-200/50 dark:ring-purple-800/50'
+                        : shouldColumnPulseCrossColumn
+                        ? 'bg-gradient-to-br from-blue-50 to-sky-50 dark:from-blue-950/20 dark:to-sky-950/20 border-2 border-blue-400 dark:border-blue-500 border-solid shadow-xl shadow-blue-200/20 dark:shadow-blue-900/20 scale-[1.01] ring-2 ring-blue-200/50 dark:ring-blue-800/50'
+                        : ''
+                }`}
+            >
+                <Card className={`h-full flex flex-col ${getColumnBorderStyles()} bg-muted/20`}>
                 <CardHeader
                     className={`pb-4 bg-gradient-to-r from-background to-muted/30 rounded-t-lg ${isResizable && project.can_edit ? 'cursor-grab active:cursor-grabbing' : ''}`}
                     {...(isResizable && project.can_edit ? attributes : {})}
@@ -342,9 +394,9 @@ export const SortableList = ({ list, children, project, onDeleteList, onEditList
                         />
                     )}
                 </CardHeader>
-                <CardContent className="pb-3 space-y-2 flex-1 flex flex-col">
-                    {/* Task container */}
-                    <div className="space-y-1 flex-1">
+                <CardContent className="pb-3 space-y-2 flex-1 flex flex-col min-h-0">
+                    {/* Task container - ensure it takes full available height */}
+                    <div className="space-y-1 flex-1 min-h-[200px]">
                         {children}
                     </div>
                 </CardContent>
@@ -354,7 +406,7 @@ export const SortableList = ({ list, children, project, onDeleteList, onEditList
                     {project.can_manage_tasks ? (
                         <Button
                             variant="ghost"
-                            className="w-full border-2 border-dashed border-muted-foreground/30 hover:border-blue-400 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 dark:hover:from-blue-950/30 dark:hover:to-indigo-950/30 transition-all duration-300 rounded-lg group"
+                            className={`w-full border-2 border-dashed border-muted-foreground/30 hover:border-blue-400 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 dark:hover:from-blue-950/30 dark:hover:to-indigo-950/30 transition-all duration-300 rounded-lg group ${getColumnBorderStyles()}`}
                             size="sm"
                             onClick={() => {
                                 if (onCreateTask) {
@@ -368,7 +420,7 @@ export const SortableList = ({ list, children, project, onDeleteList, onEditList
                     ) : (
                         <Button
                             variant="ghost"
-                            className="w-full border-2 border-dashed border-muted-foreground/20 rounded-lg opacity-50"
+                            className={`w-full border-2 border-dashed border-muted-foreground/20 rounded-lg opacity-50 ${getColumnBorderStyles()}`}
                             size="sm"
                             disabled
                         >
@@ -377,7 +429,8 @@ export const SortableList = ({ list, children, project, onDeleteList, onEditList
                         </Button>
                     )}
                 </CardFooter>
-            </Card>
+                </Card>
+            </div>
 
             {/* Resize handle */}
             {isResizable && (
@@ -406,10 +459,47 @@ export const SortableTask = ({ task, project, onViewTask, onEditTask, onTaskClic
         },
     });
 
-    // Visual feedback - only blue pulse for cross-column movement
-    const shouldPulseBlue = dragFeedback?.type === 'between-columns' &&
-                           dragFeedback?.targetListId === task.list_id &&
-                           !isDragging;
+    // Also make it explicitly droppable for better collision detection
+    const { setNodeRef: setDroppableRef, isOver, active } = useDroppable({
+        id: `task-${task.id}`,
+        data: {
+            type: 'task',
+            task,
+            listId: task.list_id,
+        },
+    });
+
+    // Use the same enhanced logic as column pulse (which works)
+    const isThisTaskTargeted = dragFeedback?.isTaskDrag &&
+        dragFeedback?.overId === `task-${task.id}`;
+
+    const draggedTaskListId = dragFeedback?.draggedTaskListId;
+
+    // Enhanced detection using dragFeedback like column pulse
+    const isSameColumnDrag = isThisTaskTargeted && draggedTaskListId === task.list_id;
+    const isCrossColumnDrag = isThisTaskTargeted && draggedTaskListId && draggedTaskListId !== task.list_id;
+
+    // Debug logging for ring colors
+    if (isThisTaskTargeted) {
+        console.log('🎨 Task ring debug:', {
+            taskId: task.id,
+            draggedTaskListId,
+            taskListId: task.list_id,
+            isSameColumn: isSameColumnDrag,
+            isCrossColumn: isCrossColumnDrag,
+            isThisTaskTargeted,
+            overId: dragFeedback?.overId,
+            color: isSameColumnDrag ? 'purple' : isCrossColumnDrag ? 'blue' : 'none'
+        });
+    }
+
+    // Combine refs
+    const combinedRef = (node: HTMLElement | null) => {
+        setNodeRef(node);
+        setDroppableRef(node);
+    };
+
+    // No visual feedback on tasks to prevent flashing - only use drop zones
 
     const style = {
         transform: CSS.Transform.toString(transform),
@@ -432,25 +522,20 @@ export const SortableTask = ({ task, project, onViewTask, onEditTask, onTaskClic
         <div className="relative">
             {/* Main task element */}
             <div
-                ref={setNodeRef}
+                ref={combinedRef}
                 style={style}
-                className={`mb-2 rounded-lg border bg-card p-4 shadow-sm group relative cursor-pointer task-hover-effect drag-transition ${
-                    isDragging ? 'shadow-2xl scale-105 rotate-2 ring-4 ring-blue-200/50 dark:ring-blue-800/50 bg-blue-50/50 dark:bg-blue-950/20 drag-floating drag-glow' : ''
-                } ${
-                    shouldPulseBlue ? 'ring-2 ring-blue-400/70 shadow-lg shadow-blue-200/30 dark:shadow-blue-900/30 bg-blue-50/30 dark:bg-blue-950/20 drop-zone-active' : ''
-                }`}
+                className={`mb-1 rounded-lg border bg-card p-4 shadow-sm group relative cursor-grab hover:shadow-md transition-all duration-200 ${
+                    isDragging ? 'shadow-lg scale-105 opacity-90 cursor-grabbing' : 'active:cursor-grabbing'
+                } ${isSameColumnDrag ? 'ring-4 ring-purple-500 ring-opacity-75 border-purple-500' : ''} ${isCrossColumnDrag ? 'ring-4 ring-blue-500 ring-opacity-75 border-blue-500' : ''}`}
                 data-task-clickable
                 data-sortable-item
                 data-dragging={isDragging}
+                data-task-id={task.id}
                 onClick={handleClick}
                 {...attributes}
+                {...listeners}
+                title="Drag to move task"
             >
-                {/* Invisible drag area - covers entire task except buttons */}
-                <div
-                    className="absolute inset-0 z-0 cursor-grab active:cursor-grabbing"
-                    {...listeners}
-                    title="Drag to move task"
-                />
 
                 {/* Action buttons - positioned absolutely */}
                 <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 z-20 flex gap-1.5">
