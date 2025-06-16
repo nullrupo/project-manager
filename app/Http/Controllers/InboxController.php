@@ -28,7 +28,7 @@ class InboxController extends Controller
                           $q->where('users.id', $user->id);
                       });
             })
-            ->with(['assignees', 'labels', 'creator', 'project'])
+            ->with(['assignees', 'labels', 'tags', 'creator', 'project', 'checklistItems'])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -43,10 +43,14 @@ class InboxController extends Controller
                   });
         })->orderBy('name')->get();
 
+        // Get user's tags
+        $tags = $user->tags()->orderBy('name')->get();
+
         return Inertia::render('inbox', [
             'tasks' => $tasks,
             'users' => $users,
             'projects' => $projects,
+            'tags' => $tags,
         ]);
     }
 
@@ -59,10 +63,12 @@ class InboxController extends Controller
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'priority' => 'required|string|in:low,medium,high,urgent',
-            'status' => 'required|string|in:to_do,in_progress,done',
+            'status' => 'required|string|in:to_do,in_progress,review,done',
             'due_date' => 'nullable|date',
             'assignee_ids' => 'nullable|array',
             'assignee_ids.*' => 'exists:users,id',
+            'tag_ids' => 'nullable|array',
+            'tag_ids.*' => 'exists:tags,id',
             'project_id' => 'nullable|exists:projects,id',
         ]);
 
@@ -86,6 +92,7 @@ class InboxController extends Controller
         $position = 0;
 
         // If project is assigned, find the appropriate list and position
+        $sectionId = null;
         if (!$isInboxTask) {
             $project = Project::findOrFail($validated['project_id']);
 
@@ -96,6 +103,14 @@ class InboxController extends Controller
                 if ($firstList) {
                     $listId = $firstList->id;
                     $position = Task::where('list_id', $listId)->max('position') + 1;
+                }
+            }
+
+            // Assign to default section if project has sections
+            if ($project->sections()->count() > 0) {
+                $defaultSection = $project->sections()->orderBy('position')->first();
+                if ($defaultSection) {
+                    $sectionId = $defaultSection->id;
                 }
             }
         }
@@ -109,6 +124,7 @@ class InboxController extends Controller
             'due_date' => $validated['due_date'] ?? null,
             'project_id' => $validated['project_id'] ?? null,
             'list_id' => $listId,
+            'section_id' => $sectionId,
             'position' => $position,
             'is_inbox' => $isInboxTask,
             'created_by' => Auth::id(),
@@ -119,6 +135,14 @@ class InboxController extends Controller
         // Attach assignees if provided
         if (isset($validated['assignee_ids']) && !empty($validated['assignee_ids'])) {
             $task->assignees()->attach($validated['assignee_ids']);
+        }
+
+        // Attach tags if provided (with permission check - only user's own tags)
+        if (isset($validated['tag_ids']) && !empty($validated['tag_ids'])) {
+            $userTags = Auth::user()->tags()->whereIn('id', $validated['tag_ids'])->pluck('id');
+            if ($userTags->isNotEmpty()) {
+                $task->tags()->attach($userTags);
+            }
         }
 
         // Check if this is a quick task (minimal data) to avoid notification spam
@@ -161,11 +185,14 @@ class InboxController extends Controller
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'priority' => 'required|string|in:low,medium,high,urgent',
-            'status' => 'required|string|in:to_do,in_progress,done',
+            'status' => 'required|string|in:to_do,in_progress,review,done',
+            'review_status' => 'nullable|string|in:pending,approved,rejected',
             'due_date' => 'nullable|date',
             'project_id' => 'nullable|exists:projects,id',
             'assignee_ids' => 'nullable|array',
             'assignee_ids.*' => 'exists:users,id',
+            'tag_ids' => 'nullable|array',
+            'tag_ids.*' => 'exists:tags,id',
         ]);
 
         // Check if user has permission to assign task to the project
@@ -188,6 +215,7 @@ class InboxController extends Controller
         $position = $task->position;
 
         // If project assignment is changing
+        $sectionId = $task->section_id; // Keep current section by default
         if ($newProjectId !== $currentProjectId) {
             if ($newProjectId) {
                 // Moving to a project - find appropriate list and position
@@ -202,14 +230,25 @@ class InboxController extends Controller
                         $position = Task::where('list_id', $listId)->max('position') + 1;
                     }
                 }
+
+                // Assign to default section if project has sections
+                $sectionId = null;
+                if ($project->sections()->count() > 0) {
+                    $defaultSection = $project->sections()->orderBy('position')->first();
+                    if ($defaultSection) {
+                        $sectionId = $defaultSection->id;
+                    }
+                }
             } else {
-                // Moving back to inbox - clear list and position
+                // Moving back to inbox - clear list, position, and section
                 $listId = null;
                 $position = 0;
+                $sectionId = null;
             }
         }
 
-        $task->update([
+        // Handle status and review_status updates
+        $updateData = [
             'title' => $validated['title'],
             'description' => $validated['description'] ?? null,
             'priority' => $validated['priority'],
@@ -217,13 +256,36 @@ class InboxController extends Controller
             'due_date' => $validated['due_date'] ?? null,
             'project_id' => $newProjectId,
             'list_id' => $listId,
+            'section_id' => $sectionId,
             'position' => $position,
             'is_inbox' => $shouldBeInInbox,
-        ]);
+        ];
+
+        // Handle review status if provided
+        if (isset($validated['review_status'])) {
+            $updateData['review_status'] = $validated['review_status'];
+        }
+
+        // Set completed_at timestamp when marking as done
+        if ($validated['status'] === 'done' && $task->status !== 'done') {
+            $updateData['completed_at'] = now();
+        } elseif ($validated['status'] !== 'done' && $task->status === 'done') {
+            $updateData['completed_at'] = null;
+        }
+
+        $task->update($updateData);
 
         // Sync assignees if provided
         if (isset($validated['assignee_ids'])) {
             $task->assignees()->sync($validated['assignee_ids']);
+        }
+
+        // Sync tags (with permission check - only user's own tags)
+        if (isset($validated['tag_ids'])) {
+            $userTags = Auth::user()->tags()->whereIn('id', $validated['tag_ids'])->pluck('id');
+            $task->tags()->sync($userTags);
+        } else {
+            $task->tags()->sync([]);
         }
 
         // Determine success message based on what happened
@@ -244,7 +306,7 @@ class InboxController extends Controller
     /**
      * Remove the specified inbox task.
      */
-    public function destroy(Task $task): RedirectResponse
+    public function destroy(Task $task): RedirectResponse|\Illuminate\Http\JsonResponse
     {
         // Check if the task is an inbox task
         if (!$task->is_inbox) {
@@ -256,7 +318,18 @@ class InboxController extends Controller
             abort(403, 'You do not have permission to delete this task.');
         }
 
+        // Soft delete the task
         $task->delete();
+
+        // Return JSON response for AJAX requests (for undo functionality)
+        if (request()->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Task deleted successfully',
+                'task_id' => $task->id,
+                'undo_url' => route('inbox.tasks.restore', ['task' => $task->id])
+            ]);
+        }
 
         return redirect()->route('inbox')
             ->with('success', 'Task deleted successfully.');
@@ -284,8 +357,8 @@ class InboxController extends Controller
 
         $project = Project::findOrFail($validated['project_id']);
 
-        // Check if user has access to the project
-        if (!$project->is_public && !$project->members->contains(Auth::id()) && $project->owner_id !== Auth::id()) {
+        // Check if user has access to the project (all projects are private, check membership)
+        if (!$project->members->contains(Auth::id()) && $project->owner_id !== Auth::id()) {
             abort(403, 'You do not have permission to add tasks to this project.');
         }
 
@@ -308,10 +381,20 @@ class InboxController extends Controller
             }
         }
 
+        // Assign to default section if project has sections
+        $sectionId = null;
+        if ($project->sections()->count() > 0) {
+            $defaultSection = $project->sections()->orderBy('position')->first();
+            if ($defaultSection) {
+                $sectionId = $defaultSection->id;
+            }
+        }
+
         // Update the task to move it to the project
         $task->update([
             'project_id' => $project->id,
             'list_id' => $listId,
+            'section_id' => $sectionId,
             'is_inbox' => false,
             'position' => $listId ? \App\Models\Task::where('list_id', $listId)->max('position') + 1 : 0,
         ]);
@@ -371,5 +454,57 @@ class InboxController extends Controller
 
         return redirect()->route('inbox')
             ->with('success', "Inbox cleaned! {$cleanupCount} tasks moved to archives and projects.");
+    }
+
+    /**
+     * Toggle task completion using the flexible completion logic.
+     */
+    public function toggleCompletion(Task $task): \Illuminate\Http\JsonResponse
+    {
+        // Check if the task is an inbox task
+        if (!$task->is_inbox) {
+            abort(404, 'Task not found in inbox.');
+        }
+
+        // Check if user has permission to update this task
+        if ($task->created_by !== Auth::id() && !$task->assignees->contains(Auth::id())) {
+            abort(403, 'You do not have permission to update this task.');
+        }
+
+        // Use the task's toggle completion method
+        $updateData = $task->toggleCompletion();
+        $task->update($updateData);
+
+        return response()->json([
+            'success' => true,
+            'task' => $task->fresh(['project', 'assignees', 'labels', 'tags', 'creator', 'checklistItems'])
+        ]);
+    }
+
+    /**
+     * Restore a soft-deleted inbox task.
+     */
+    public function restore($taskId): \Illuminate\Http\JsonResponse
+    {
+        // Find the soft-deleted task
+        $task = Task::withTrashed()->where('id', $taskId)->where('is_inbox', true)->first();
+
+        if (!$task) {
+            return response()->json(['error' => 'Task not found'], 404);
+        }
+
+        // Check if user has permission to restore this task
+        if ($task->created_by !== Auth::id() && !$task->assignees->contains(Auth::id())) {
+            return response()->json(['error' => 'You do not have permission to restore this task'], 403);
+        }
+
+        // Restore the task
+        $task->restore();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Task restored successfully',
+            'task' => $task->fresh(['project', 'assignees', 'labels', 'tags', 'creator', 'checklistItems'])
+        ]);
     }
 }

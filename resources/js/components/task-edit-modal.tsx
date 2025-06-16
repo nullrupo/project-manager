@@ -10,25 +10,27 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Project, Task, TaskList, User, Label as ProjectLabel } from '@/types/project-manager';
 import { LoaderCircle, Calendar, User as UserIcon, Tag, List, Save, X } from 'lucide-react';
+import { useShortName } from '@/hooks/use-initials';
 
 interface TaskEditModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     project: Project;
     task: Task;
-    members: User[];
-    labels: ProjectLabel[];
-    lists: TaskList[];
+    members?: User[];
+    labels?: ProjectLabel[];
+    lists?: TaskList[];
 }
 
 interface TaskEditForm {
     title: string;
     description: string;
-    priority: 'low' | 'medium' | 'high' | 'urgent';
+    priority: 'low' | 'medium' | 'high';
     status: string;
     estimate: number | null;
     due_date: string;
     list_id: number;
+    reviewer_id: string;
     assignee_ids: number[];
     label_ids: number[];
     is_archived: boolean;
@@ -43,6 +45,7 @@ export default function TaskEditModal({
     labels,
     lists
 }: TaskEditModalProps) {
+    const getShortName = useShortName();
     const { data, setData, put, processing, errors, reset } = useForm<TaskEditForm>({
         title: task.title,
         description: task.description || '',
@@ -51,6 +54,7 @@ export default function TaskEditModal({
         estimate: task.estimate,
         due_date: task.due_date ? task.due_date.split('T')[0] : '',
         list_id: task.list_id || 0,
+        reviewer_id: task.reviewer_id?.toString() || 'default',
         assignee_ids: task.assignees?.map(a => a.id) || [],
         label_ids: task.labels?.map(l => l.id) || [],
         is_archived: task.is_archived,
@@ -163,14 +167,8 @@ export default function TaskEditModal({
                                         </SelectItem>
                                         <SelectItem value="high">
                                             <div className="flex items-center gap-2">
-                                                <div className="w-2 h-2 rounded-full bg-orange-500"></div>
-                                                High
-                                            </div>
-                                        </SelectItem>
-                                        <SelectItem value="urgent">
-                                            <div className="flex items-center gap-2">
                                                 <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                                                Urgent
+                                                High
                                             </div>
                                         </SelectItem>
                                     </SelectContent>
@@ -236,7 +234,7 @@ export default function TaskEditModal({
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {lists.map((list) => (
+                                    {lists && lists.map((list) => (
                                         <SelectItem key={list.id} value={list.id.toString()}>
                                             {list.name}
                                         </SelectItem>
@@ -244,6 +242,31 @@ export default function TaskEditModal({
                                 </SelectContent>
                             </Select>
                         </div>
+
+                        {/* Reviewer field - only show for review projects */}
+                        {project.completion_behavior === 'review' && (
+                            <div className="space-y-1">
+                                <Label className="text-sm font-medium">Reviewer</Label>
+                                <Select value={data.reviewer_id} onValueChange={(value) => setData('reviewer_id', value)}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Use project default" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="default">
+                                            Use project default ({project.default_reviewer?.name || 'None'})
+                                        </SelectItem>
+                                        {members && members.map((member) => (
+                                            <SelectItem key={member.id} value={member.id.toString()}>
+                                                {getShortName(member.name)}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">
+                                    Override the project's default reviewer for this task.
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                     {/* Team & Labels */}
@@ -256,18 +279,22 @@ export default function TaskEditModal({
                             </Label>
                             <div className="border rounded-md p-3 max-h-32 overflow-y-auto">
                                 <div className="space-y-2">
-                                    {members.map((member) => (
-                                        <div key={member.id} className="flex items-center space-x-2">
-                                            <Checkbox
-                                                id={`assignee-${member.id}`}
-                                                checked={data.assignee_ids.includes(member.id)}
-                                                onCheckedChange={(checked) => handleAssigneeChange(member.id, checked as boolean)}
-                                            />
-                                            <Label htmlFor={`assignee-${member.id}`} className="text-sm cursor-pointer">
-                                                {member.name}
-                                            </Label>
-                                        </div>
-                                    ))}
+                                    {members && members.length > 0 ? (
+                                        members.map((member) => (
+                                            <div key={member.id} className="flex items-center space-x-2">
+                                                <Checkbox
+                                                    id={`assignee-${member.id}`}
+                                                    checked={data.assignee_ids.includes(member.id)}
+                                                    onCheckedChange={(checked) => handleAssigneeChange(member.id, checked as boolean)}
+                                                />
+                                                <Label htmlFor={`assignee-${member.id}`} className="text-sm cursor-pointer">
+                                                    {getShortName(member.name)}
+                                                </Label>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground">No members available</p>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -280,22 +307,26 @@ export default function TaskEditModal({
                             </Label>
                             <div className="border rounded-md p-3 max-h-32 overflow-y-auto">
                                 <div className="space-y-2">
-                                    {labels.map((label) => (
-                                        <div key={label.id} className="flex items-center space-x-2">
-                                            <Checkbox
-                                                id={`label-${label.id}`}
-                                                checked={data.label_ids.includes(label.id)}
-                                                onCheckedChange={(checked) => handleLabelChange(label.id, checked as boolean)}
-                                            />
-                                            <Label htmlFor={`label-${label.id}`} className="text-sm cursor-pointer flex items-center gap-2">
-                                                <div
-                                                    className="w-3 h-3 rounded-full"
-                                                    style={{ backgroundColor: label.color }}
+                                    {labels && labels.length > 0 ? (
+                                        labels.map((label) => (
+                                            <div key={label.id} className="flex items-center space-x-2">
+                                                <Checkbox
+                                                    id={`label-${label.id}`}
+                                                    checked={data.label_ids.includes(label.id)}
+                                                    onCheckedChange={(checked) => handleLabelChange(label.id, checked as boolean)}
                                                 />
-                                                {label.name}
-                                            </Label>
-                                        </div>
-                                    ))}
+                                                <Label htmlFor={`label-${label.id}`} className="text-sm cursor-pointer flex items-center gap-2">
+                                                    <div
+                                                        className="w-3 h-3 rounded-full"
+                                                        style={{ backgroundColor: label.color }}
+                                                    />
+                                                    {label.name}
+                                                </Label>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground">No labels available</p>
+                                    )}
                                 </div>
                             </div>
                         </div>

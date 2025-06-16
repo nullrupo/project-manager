@@ -1,123 +1,177 @@
 import { useState } from 'react';
-import { useForm } from '@inertiajs/react';
+import { router } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Project, TaskList, User, Label as ProjectLabel } from '@/types/project-manager';
-import { LoaderCircle, Calendar, User as UserIcon, Tag, List, Plus } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Project, User, Label as LabelType, Tag, Section } from '@/types/project-manager';
+import { TagSelector } from '@/components/tag/TagSelector';
+import { LabelSelector } from '@/components/label/LabelSelector';
+import { useTags } from '@/hooks/useTags';
+import { Clock, Calendar, AlertCircle, User as UserIcon, Tag as TagIcon } from 'lucide-react';
+
+interface TaskCreateData {
+    title: string;
+    description: string;
+    priority: 'low' | 'medium' | 'high' | 'urgent';
+    due_date: string | null;
+    estimate: number | null;
+    assignee_ids: number[];
+    label_ids: number[];
+    tag_ids: number[];
+}
 
 interface TaskCreateModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     project: Project;
     members: User[];
-    labels: ProjectLabel[];
-    lists: TaskList[];
-    initialListId?: number;
+    labels: LabelType[];
+    tags: Tag[];
+    sections: Section[];
+    defaultSectionId?: string | null;
+    defaultStatus?: string;
+    onSuccess?: () => void;
 }
 
-interface TaskCreateForm {
-    title: string;
-    description: string;
-    priority: 'low' | 'medium' | 'high' | 'urgent';
-    status: string;
-    estimate: number | null;
-    due_date: string;
-    list_id: number;
-    assignee_ids: number[];
-    label_ids: number[];
-}
-
-export default function TaskCreateModal({ open, onOpenChange, project, members, labels, lists, initialListId }: TaskCreateModalProps) {
-    const [initialized, setInitialized] = useState(false);
-    const { data, setData, post, processing, errors, reset } = useForm({
+export default function TaskCreateModal({
+    open,
+    onOpenChange,
+    project,
+    members,
+    labels,
+    tags,
+    sections,
+    defaultSectionId = null,
+    defaultStatus = 'to_do',
+    onSuccess
+}: TaskCreateModalProps) {
+    const { createTag } = useTags();
+    const [isCreating, setIsCreating] = useState(false);
+    const [createTaskData, setCreateTaskData] = useState<TaskCreateData>({
         title: '',
         description: '',
         priority: 'medium',
-        status: 'to_do',
-        estimate: '',
-        due_date: '',
-        list_id: initialListId || lists[0]?.id || 0,
-        assignee_ids: [] as number[],
-        label_ids: [] as number[],
+        due_date: null,
+        estimate: null,
+        assignee_ids: [],
+        label_ids: [],
+        tag_ids: []
     });
 
-    // When modal opens, set list_id to initialListId if provided
-    // Only set on first open, not on every render
-    if (open && initialListId && !initialized) {
-        setData('list_id', initialListId);
-        setInitialized(true);
-    }
-    if (!open && initialized) {
-        setInitialized(false);
-    }
-
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        // Prepare payload with correct types for backend
-        const payload = {
-            ...data,
-            estimate: data.estimate === '' ? null : Number(data.estimate),
-        };
-        post(
-            route('tasks.store', { project: project.id, board: lists.find(l => l.id === data.list_id)?.board_id, list: data.list_id }),
-            {
-                ...payload,
-                onSuccess: () => {
-                    reset();
-                    onOpenChange(false);
-                },
-            }
-        );
-    };
-
-    const handleClose = () => {
-        reset();
+    const closeDialog = () => {
+        setCreateTaskData({
+            title: '',
+            description: '',
+            priority: 'medium',
+            due_date: null,
+            estimate: null,
+            assignee_ids: [],
+            label_ids: [],
+            tag_ids: []
+        });
         onOpenChange(false);
     };
 
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!createTaskData.title.trim()) return;
+
+        setIsCreating(true);
+        const taskData = {
+            ...createTaskData,
+            status: defaultStatus,
+            section_id: defaultSectionId === 'no-section' ? null : defaultSectionId,
+        };
+
+        console.log('Creating task with data:', taskData);
+        console.log('Using route:', route('project.tasks.store', {
+            project: project.id
+        }));
+
+        router.post(route('project.tasks.store', {
+            project: project.id
+        }), taskData, {
+            onSuccess: () => {
+                console.log('✅ Task created successfully!');
+                setIsCreating(false);
+                closeDialog();
+                if (onSuccess) {
+                    onSuccess();
+                }
+            },
+            onError: (errors) => {
+                console.error('Failed to create task:', errors);
+                console.error('Task data sent:', taskData);
+                setIsCreating(false);
+            }
+        });
+    };
+
+    const handleTagsChange = (selectedTags: Tag[]) => {
+        setCreateTaskData(prev => ({
+            ...prev,
+            tag_ids: selectedTags.map(tag => tag.id)
+        }));
+    };
+
+    const handleCreateTagCallback = async (name: string, color: string): Promise<Tag> => {
+        return await createTag(name, color);
+    };
+
+    const handleLabelsChange = (selectedLabels: LabelType[]) => {
+        setCreateTaskData(prev => ({
+            ...prev,
+            label_ids: selectedLabels.map(label => label.id)
+        }));
+    };
+
     return (
-        <Dialog open={open} onOpenChange={handleClose}>
-            <DialogContent className="sm:max-w-4xl max-h-[80vh] overflow-y-auto">
-                <DialogHeader className="pb-3">
-                    <DialogTitle className="text-lg flex items-center gap-2">
-                        <Plus className="h-4 w-4" />
-                        Create Task
-                    </DialogTitle>
-                    <DialogDescription>
-                        Add a new task to your project
-                    </DialogDescription>
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                    <DialogTitle>Create New Task</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-4">
-                        <Label htmlFor="title" className="text-sm font-medium">Task Title</Label>
-                        <Input
-                            id="title"
-                            value={data.title}
-                            onChange={(e) => setData('title', e.target.value)}
-                            placeholder="Enter task title"
-                            required
-                        />
-                        {errors.title && <p className="text-sm text-red-500">{errors.title}</p>}
-                    </div>
-                    <div className="space-y-4">
-                        <Label htmlFor="description" className="text-sm font-medium">Description</Label>
-                        <Textarea
-                            id="description"
-                            value={data.description}
-                            onChange={(e) => setData('description', e.target.value)}
-                            placeholder="Describe the task..."
-                            rows={2}
-                        />
-                        {errors.description && <p className="text-sm text-red-500">{errors.description}</p>}
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* 1. Title */}
                         <div className="space-y-2">
-                            <Label className="text-sm font-medium">Priority</Label>
-                            <Select value={data.priority} onValueChange={(value: any) => setData('priority', value)}>
+                            <Label htmlFor="create-title" className="text-sm font-medium">Title</Label>
+                            <Input
+                                id="create-title"
+                                placeholder="Task title"
+                                value={createTaskData.title}
+                                onChange={(e) => setCreateTaskData(prev => ({ ...prev, title: e.target.value }))}
+                                required
+                            />
+                        </div>
+
+                        {/* 2. Description */}
+                        <div className="space-y-2">
+                            <Label htmlFor="create-description" className="text-sm font-medium">Description</Label>
+                            <Textarea
+                                id="create-description"
+                                placeholder="Task description (optional)"
+                                value={createTaskData.description}
+                                onChange={(e) => setCreateTaskData(prev => ({ ...prev, description: e.target.value }))}
+                                rows={3}
+                            />
+                        </div>
+
+                        {/* 3. Priority */}
+                        <div className="space-y-2">
+                            <Label className="text-sm font-medium flex items-center gap-2">
+                                <AlertCircle className="h-4 w-4" />
+                                Priority
+                            </Label>
+                            <Select
+                                value={createTaskData.priority}
+                                onValueChange={(value: 'low' | 'medium' | 'high' | 'urgent') =>
+                                    setCreateTaskData(prev => ({ ...prev, priority: value }))
+                                }
+                            >
                                 <SelectTrigger>
                                     <SelectValue />
                                 </SelectTrigger>
@@ -129,124 +183,143 @@ export default function TaskCreateModal({ open, onOpenChange, project, members, 
                                 </SelectContent>
                             </Select>
                         </div>
+
+                        {/* 4. Due Date */}
                         <div className="space-y-2">
-                            <Label className="text-sm font-medium">Status</Label>
-                            <Select value={data.status} onValueChange={(value: any) => setData('status', value)}>
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="to_do">To Do</SelectItem>
-                                    <SelectItem value="in_progress">In Progress</SelectItem>
-                                    <SelectItem value="done">Done</SelectItem>
-                                </SelectContent>
-                            </Select>
+                            <Label htmlFor="create-due-date" className="text-sm font-medium flex items-center gap-2">
+                                <Calendar className="h-4 w-4" />
+                                Due Date
+                            </Label>
+                            <Input
+                                id="create-due-date"
+                                type="date"
+                                value={createTaskData.due_date || ''}
+                                onChange={(e) => setCreateTaskData(prev => ({
+                                    ...prev,
+                                    due_date: e.target.value || null
+                                }))}
+                            />
                         </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                        {/* 5. Estimate */}
                         <div className="space-y-2">
-                            <Label className="text-sm font-medium">List/Column</Label>
-                            <Select value={data.list_id.toString()} onValueChange={(value) => setData('list_id', parseInt(value))}>
+                            <Label htmlFor="create-estimate" className="text-sm font-medium">Estimate (hours)</Label>
+                            <Input
+                                id="create-estimate"
+                                type="number"
+                                min="0"
+                                step="0.5"
+                                value={createTaskData.estimate || ''}
+                                onChange={(e) => setCreateTaskData(prev => ({
+                                    ...prev,
+                                    estimate: e.target.value ? parseFloat(e.target.value) : null
+                                }))}
+                                placeholder="0"
+                            />
+                        </div>
+
+                        {/* 6. Assignees */}
+                        <div className="space-y-2">
+                            <Label className="text-sm font-medium flex items-center gap-2">
+                                <UserIcon className="h-4 w-4" />
+                                Assignees
+                            </Label>
+                            <Select
+                                value=""
+                                onValueChange={(value) => {
+                                    const userId = parseInt(value);
+                                    if (!createTaskData.assignee_ids.includes(userId)) {
+                                        setCreateTaskData(prev => ({
+                                            ...prev,
+                                            assignee_ids: [...prev.assignee_ids, userId]
+                                        }));
+                                    }
+                                }}
+                            >
                                 <SelectTrigger>
-                                    <SelectValue />
+                                    <SelectValue placeholder="Add assignee..." />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {lists.map((list) => (
-                                        <SelectItem key={list.id} value={list.id.toString()}>
-                                            {list.name}
+                                    {(members || []).map(member => (
+                                        <SelectItem
+                                            key={member.id}
+                                            value={member.id.toString()}
+                                            disabled={createTaskData.assignee_ids.includes(member.id)}
+                                        >
+                                            {member.name}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label className="text-sm font-medium">Due Date</Label>
-                            <Input
-                                id="due_date"
-                                type="date"
-                                value={data.due_date}
-                                onChange={(e) => setData('due_date', e.target.value)}
-                            />
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                            <Label className="text-sm font-medium">Estimate (hrs)</Label>
-                            <Input
-                                id="estimate"
-                                type="number"
-                                value={data.estimate}
-                                onChange={(e) => setData('estimate', e.target.value)}
-                                placeholder="0"
-                                min="0"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label className="text-sm font-medium">Assignees</Label>
-                            <div className="border rounded-md p-3 max-h-32 overflow-y-auto">
-                                <div className="space-y-2">
-                                    {members.map((member) => (
-                                        <div key={member.id} className="flex items-center space-x-2">
-                                            <input
-                                                type="checkbox"
-                                                id={`assignee-${member.id}`}
-                                                checked={Array.isArray(data.assignee_ids) && data.assignee_ids.includes(member.id)}
-                                                onChange={(e) => {
-                                                    const ids = Array.isArray(data.assignee_ids) ? data.assignee_ids : [];
-                                                    if (e.target.checked) {
-                                                        setData('assignee_ids', [...ids, member.id] as number[]);
-                                                    } else {
-                                                        setData('assignee_ids', ids.filter((id: number) => id !== member.id) as number[]);
-                                                    }
-                                                }}
-                                            />
-                                            <Label htmlFor={`assignee-${member.id}`} className="text-sm cursor-pointer">
-                                                {member.name}
-                                            </Label>
-                                        </div>
-                                    ))}
+
+                            {/* Selected Assignees */}
+                            {createTaskData.assignee_ids.length > 0 && (
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                    {createTaskData.assignee_ids.map(userId => {
+                                        const user = (members || []).find(m => m.id === userId);
+                                        return user ? (
+                                            <span
+                                                key={userId}
+                                                className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-sm"
+                                            >
+                                                {user.name}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setCreateTaskData(prev => ({
+                                                        ...prev,
+                                                        assignee_ids: prev.assignee_ids.filter(id => id !== userId)
+                                                    }))}
+                                                    className="ml-1 text-blue-600 hover:text-blue-800"
+                                                >
+                                                    ×
+                                                </button>
+                                            </span>
+                                        ) : null;
+                                    })}
                                 </div>
-                            </div>
+                            )}
+                        </div>
+
+                        {/* 7. Labels */}
+                        <div className="space-y-2">
+                            <Label className="text-sm font-medium">Project Labels</Label>
+                            <LabelSelector
+                                selectedLabels={(labels || []).filter(label => createTaskData.label_ids.includes(label.id))}
+                                availableLabels={labels || []}
+                                onLabelsChange={handleLabelsChange}
+                                placeholder="Select project labels..."
+                            />
+                        </div>
+
+                        {/* 8. Tags */}
+                        <div className="space-y-2">
+                            <Label className="text-sm font-medium flex items-center gap-2">
+                                <TagIcon className="h-4 w-4" />
+                                Personal Tags
+                            </Label>
+                            <TagSelector
+                                selectedTags={(tags || []).filter(tag => createTaskData.tag_ids.includes(tag.id))}
+                                availableTags={tags || []}
+                                onTagsChange={handleTagsChange}
+                                onCreateTag={handleCreateTagCallback}
+                                placeholder="Select personal tags..."
+                            />
                         </div>
                     </div>
-                    <div className="space-y-2">
-                        <Label className="text-sm font-medium">Labels</Label>
-                        <div className="border rounded-md p-3 max-h-32 overflow-y-auto">
-                            <div className="space-y-2">
-                                {labels.map((label) => (
-                                    <div key={label.id} className="flex items-center space-x-2">
-                                        <input
-                                            type="checkbox"
-                                            id={`label-${label.id}`}
-                                            checked={Array.isArray(data.label_ids) && data.label_ids.includes(label.id)}
-                                            onChange={(e) => {
-                                                const ids = Array.isArray(data.label_ids) ? data.label_ids : [];
-                                                if (e.target.checked) {
-                                                    setData('label_ids', [...ids, label.id] as number[]);
-                                                } else {
-                                                    setData('label_ids', ids.filter((id: number) => id !== label.id) as number[]);
-                                                }
-                                            }}
-                                        />
-                                        <Label htmlFor={`label-${label.id}`} className="text-sm cursor-pointer flex items-center gap-2">
-                                            <div
-                                                className="w-3 h-3 rounded-full"
-                                                style={{ backgroundColor: label.color }}
-                                            />
-                                            {label.name}
-                                        </Label>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                    <DialogFooter className="pt-4">
-                        <Button type="button" variant="outline" onClick={handleClose}>
+
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={closeDialog}>
                             Cancel
                         </Button>
-                        <Button type="submit" disabled={processing}>
-                            {processing && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-                            Create Task
+                        <Button type="submit" disabled={isCreating || !createTaskData.title.trim()}>
+                            {isCreating ? (
+                                <>
+                                    <Clock className="h-4 w-4 mr-2 animate-spin" />
+                                    Creating...
+                                </>
+                            ) : (
+                                'Create Task'
+                            )}
                         </Button>
                     </DialogFooter>
                 </form>

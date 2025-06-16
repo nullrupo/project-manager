@@ -12,6 +12,7 @@ import { UserPlus, Mail, Shield, Edit, Eye, Crown, Search, Users, X } from 'luci
 import InputError from '@/components/input-error';
 import { Project, User } from '@/types/project-manager';
 import { route } from 'ziggy-js';
+import { useShortName } from '@/hooks/use-initials';
 
 interface InviteMemberModalProps {
     project: Project;
@@ -38,6 +39,7 @@ const roleIcons = {
 };
 
 export default function InviteMemberModal({ project, open, onOpenChange }: InviteMemberModalProps) {
+    const getShortName = useShortName();
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<User[]>([]);
     const [isSearching, setIsSearching] = useState(false);
@@ -193,7 +195,7 @@ export default function InviteMemberModal({ project, open, onOpenChange }: Invit
                                                 </AvatarFallback>
                                             </Avatar>
                                             <div>
-                                                <p className="font-medium">{selectedUser.name}</p>
+                                                <p className="font-medium">{getShortName(selectedUser.name)}</p>
                                                 <p className="text-sm text-muted-foreground">{selectedUser.email}</p>
                                             </div>
                                         </div>
@@ -243,7 +245,7 @@ export default function InviteMemberModal({ project, open, onOpenChange }: Invit
                                                         </AvatarFallback>
                                                     </Avatar>
                                                     <div>
-                                                        <p className="font-medium text-sm">{user.name}</p>
+                                                        <p className="font-medium text-sm">{getShortName(user.name)}</p>
                                                         <p className="text-xs text-muted-foreground">{user.email}</p>
                                                     </div>
                                                 </div>

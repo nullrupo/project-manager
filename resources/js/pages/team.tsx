@@ -1,56 +1,145 @@
+import { useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
 import { User } from '@/types';
-import { Head, Link } from '@inertiajs/react';
-import { Mail, Plus, UserPlus } from 'lucide-react';
+import { Project } from '@/types/project-manager';
+import { Head } from '@inertiajs/react';
+import { Mail, Phone, UserPlus } from 'lucide-react';
+import { useMobileDetection } from '@/hooks/use-mobile-detection';
+import { useShortName } from '@/hooks/use-initials';
+import InviteToProjectsModal from '@/components/invite-to-projects-modal';
 
 interface TeamProps {
     team: User[];
+    ownedProjects: Project[];
 }
 
-export default function Team({ team = [] }: TeamProps) {
+export default function Team({ team = [], ownedProjects = [] }: TeamProps) {
+    const isMobile = useMobileDetection();
+    const getShortName = useShortName();
+    const [inviteModalOpen, setInviteModalOpen] = useState(false);
+    const [selectedUser, setSelectedUser] = useState<User | null>(null);
+
+    const handleInviteToProjects = (user: User) => {
+        setSelectedUser(user);
+        setInviteModalOpen(true);
+    };
+
+    const handleEmailClick = (email: string) => {
+        window.location.href = `mailto:${email}`;
+    };
+
+    const handlePhoneClick = (phoneNumber: string) => {
+        if (isMobile) {
+            window.location.href = `tel:${phoneNumber}`;
+        }
+    };
+
+    const formatPhoneNumber = (phoneNumber: string) => {
+        // Remove +84 prefix if it exists and return the number as entered by user
+        // Also handle various formats like +84 123, +84123, etc.
+        return phoneNumber.replace(/^\+84\s*/, '').trim();
+    };
+
+    const formatRoleDepartment = (role?: string, department?: string) => {
+        if (role && department) {
+            return `${role} - ${department}`;
+        }
+        if (role) {
+            return role;
+        }
+        if (department) {
+            return department;
+        }
+        return null;
+    };
+
     return (
         <AppLayout>
             <Head title="Team" />
             <div className="space-y-6">
                 <div className="flex justify-between items-center">
                     <h1 className="text-2xl font-semibold">Team</h1>
-                    <div className="flex gap-2">
-                        <Button>
-                            <UserPlus className="h-4 w-4 mr-2" />
-                            Invite Member
-                        </Button>
-                    </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3">
                     {team.length > 0 ? (
                         team.map(member => (
-                            <Card key={member.id}>
-                                <CardHeader className="pb-2">
-                                    <div className="flex items-center space-x-4">
-                                        <Avatar>
+                            <Card key={member.id} className="flex flex-col h-full gap-2 py-3">
+                                <CardHeader className="pb-0 pt-0 px-3">
+                                    <div className="flex flex-col items-center text-center space-y-1">
+                                        <Avatar className="h-8 w-8">
                                             <AvatarImage src={member.avatar} alt={member.name} />
-                                            <AvatarFallback>{member.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                                            <AvatarFallback className="text-xs font-semibold">
+                                                {getShortName(member.name)}
+                                            </AvatarFallback>
                                         </Avatar>
                                         <div>
-                                            <CardTitle>{member.name}</CardTitle>
-                                            <CardDescription>{member.email}</CardDescription>
+                                            <CardTitle className="text-xs leading-tight">
+                                                {member.name} ({getShortName(member.name)})
+                                            </CardTitle>
+                                            <div className="text-xs text-muted-foreground mt-0.5 min-h-[0.75rem]">
+                                                {formatRoleDepartment(member.role, member.department) || ''}
+                                            </div>
                                         </div>
                                     </div>
                                 </CardHeader>
-                                <CardContent>
-                                    <div className="text-sm text-muted-foreground">
-                                        <p>Member since {new Date(member.created_at).toLocaleDateString()}</p>
+                                <CardContent className="flex-grow space-y-1 py-0 px-3">
+                                    {/* Email with button */}
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs text-muted-foreground truncate flex-1 mr-1">
+                                            {member.email}
+                                        </span>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleEmailClick(member.email)}
+                                            className="shrink-0 h-4 w-4 p-0"
+                                        >
+                                            <Mail className="h-2.5 w-2.5" />
+                                        </Button>
+                                    </div>
+
+                                    {/* Phone with button */}
+                                    <div className="flex items-center justify-between min-h-[1rem]">
+                                        {member.phone ? (
+                                            <>
+                                                <span className="text-xs text-muted-foreground truncate flex-1 mr-1">
+                                                    {formatPhoneNumber(member.phone)}
+                                                </span>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => handlePhoneClick(member.phone)}
+                                                    className="shrink-0 h-4 w-4 p-0"
+                                                    disabled={!isMobile}
+                                                    title={isMobile ? 'Call' : 'Calling only available on mobile devices'}
+                                                >
+                                                    <Phone className="h-2.5 w-2.5" />
+                                                </Button>
+                                            </>
+                                        ) : (
+                                            <div className="w-full"></div>
+                                        )}
                                     </div>
                                 </CardContent>
-                                <CardFooter>
-                                    <Button variant="outline" size="sm" className="w-full">
-                                        <Mail className="h-4 w-4 mr-2" />
-                                        Contact
-                                    </Button>
+                                <CardFooter className="mt-auto pt-0 pb-0 px-3">
+                                    {/* Invite to project button (only show if user has owned projects) */}
+                                    {ownedProjects.length > 0 ? (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="w-full h-5 text-xs"
+                                            onClick={() => handleInviteToProjects(member)}
+                                        >
+                                            <UserPlus className="h-2.5 w-2.5 mr-1" />
+                                            Invite
+                                        </Button>
+                                    ) : (
+                                        <div className="w-full min-h-[1.25rem]"></div>
+                                    )}
                                 </CardFooter>
                             </Card>
                         ))
@@ -61,16 +150,22 @@ export default function Team({ team = [] }: TeamProps) {
                             </div>
                             <h3 className="text-lg font-medium">No team members yet</h3>
                             <p className="text-muted-foreground mt-1">
-                                Invite team members to collaborate on your projects.
+                                Team members will appear here once they join the platform.
                             </p>
-                            <Button className="mt-4">
-                                <UserPlus className="h-4 w-4 mr-2" />
-                                Invite Member
-                            </Button>
                         </div>
                     )}
                 </div>
             </div>
+
+            {/* Invite to Projects Modal */}
+            {selectedUser && (
+                <InviteToProjectsModal
+                    user={selectedUser}
+                    ownedProjects={ownedProjects}
+                    open={inviteModalOpen}
+                    onOpenChange={setInviteModalOpen}
+                />
+            )}
         </AppLayout>
     );
 }

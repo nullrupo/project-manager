@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Project, User } from '@/types/project-manager';
 import { Save, Shield, User as UserIcon, Crown, Settings, Eye, Users, ListTodo, Tag, MessageSquare, Lock } from 'lucide-react';
 import InputError from '@/components/input-error';
+import { useShortName } from '@/hooks/use-initials';
 
 interface MemberPermissionModalProps {
     project: Project;
@@ -96,6 +97,7 @@ const defaultPermissions = {
 };
 
 export default function MemberPermissionModal({ project, member, open, onOpenChange }: MemberPermissionModalProps) {
+    const getShortName = useShortName();
     const [selectedRole, setSelectedRole] = useState<'admin' | 'editor' | 'viewer'>('viewer');
 
     const { data, setData, put, processing, errors, reset } = useForm<MemberEditForm>({
@@ -184,7 +186,7 @@ export default function MemberPermissionModal({ project, member, open, onOpenCha
                                 </AvatarFallback>
                             </Avatar>
                             <div>
-                                <h3 className="font-medium">{member.name}</h3>
+                                <h3 className="font-medium">{getShortName(member.name)}</h3>
                                 <p className="text-sm text-muted-foreground">{member.email}</p>
                                 <Badge variant="outline" className="mt-1 text-xs">
                                     Current: {member.pivot?.role || 'viewer'}

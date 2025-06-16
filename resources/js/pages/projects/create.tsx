@@ -9,17 +9,16 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, useForm } from '@inertiajs/react';
-import { LoaderCircle, Globe, Shield, Palette, Info } from 'lucide-react';
-import { FormEventHandler, useEffect } from 'react';
+import { LoaderCircle, Palette } from 'lucide-react';
+import { FormEventHandler } from 'react';
 
 interface ProjectCreateForm {
     name: string;
-    key: string;
     description: string;
-    is_public: boolean;
     background_color: string;
     icon: string;
-    visibility: 'private' | 'public';
+    completion_behavior: 'simple' | 'review' | 'custom';
+    requires_review: boolean;
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -36,29 +35,12 @@ const breadcrumbs: BreadcrumbItem[] = [
 export default function ProjectCreate() {
     const { data, setData, post, processing, errors } = useForm<ProjectCreateForm>({
         name: '',
-        key: '',
         description: '',
-        is_public: false,
         background_color: '#3498db',
         icon: '',
-        visibility: 'private',
+        completion_behavior: 'simple',
+        requires_review: false,
     });
-
-    // Auto-generate project key from name
-    useEffect(() => {
-        if (data.name && !data.key) {
-            const generatedKey = data.name
-                .toUpperCase()
-                .replace(/[^A-Z0-9]/g, '')
-                .substring(0, 4);
-            setData('key', generatedKey);
-        }
-    }, [data.name]);
-
-    // Sync visibility with is_public
-    useEffect(() => {
-        setData('is_public', data.visibility === 'public');
-    }, [data.visibility]);
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
@@ -96,25 +78,6 @@ export default function ProjectCreate() {
                                 <InputError message={errors.name} />
                             </div>
 
-                            {/* Project Key */}
-                            <div className="space-y-2">
-                                <Label htmlFor="key" className="text-sm font-medium">Project Key</Label>
-                                <Input
-                                    id="key"
-                                    value={data.key}
-                                    onChange={(e) => setData('key', e.target.value.toUpperCase())}
-                                    placeholder="PROJ"
-                                    maxLength={10}
-                                    required
-                                    className="font-mono text-base"
-                                />
-                                <p className="text-sm text-muted-foreground flex items-center gap-1">
-                                    <Info className="h-3 w-3" />
-                                    A short, unique identifier for this project (e.g., PROJ, TEST)
-                                </p>
-                                <InputError message={errors.key} />
-                            </div>
-
                             {/* Description */}
                             <div className="space-y-2">
                                 <Label htmlFor="description" className="text-sm font-medium">Description</Label>
@@ -128,36 +91,37 @@ export default function ProjectCreate() {
                                 <InputError message={errors.description} />
                             </div>
 
-                            {/* Project Visibility */}
+                            {/* Task Completion Behavior */}
                             <div className="space-y-3">
-                                <Label className="text-sm font-medium">Project Visibility</Label>
+                                <Label className="text-sm font-medium">Task Completion Behavior</Label>
                                 <RadioGroup
-                                    value={data.visibility}
-                                    onValueChange={(value: 'private' | 'public') => setData('visibility', value)}
+                                    value={data.completion_behavior}
+                                    onValueChange={(value: 'simple' | 'review' | 'custom') => setData('completion_behavior', value)}
                                     className="space-y-3"
                                 >
                                     <div className="flex items-center space-x-3 rounded-lg border p-4 hover:bg-muted/50 transition-colors">
-                                        <RadioGroupItem value="private" id="private" />
-                                        <div className="flex items-center gap-2 flex-1">
-                                            <Shield className="h-4 w-4 text-muted-foreground" />
-                                            <div>
-                                                <Label htmlFor="private" className="font-medium cursor-pointer">Private</Label>
-                                                <p className="text-sm text-muted-foreground">Only you and invited members can access this project</p>
-                                            </div>
+                                        <RadioGroupItem value="simple" id="simple" />
+                                        <div className="flex-1">
+                                            <Label htmlFor="simple" className="font-medium cursor-pointer">Simple</Label>
+                                            <p className="text-sm text-muted-foreground">Tasks can be marked as done directly. Best for personal projects.</p>
                                         </div>
                                     </div>
                                     <div className="flex items-center space-x-3 rounded-lg border p-4 hover:bg-muted/50 transition-colors">
-                                        <RadioGroupItem value="public" id="public" />
-                                        <div className="flex items-center gap-2 flex-1">
-                                            <Globe className="h-4 w-4 text-muted-foreground" />
-                                            <div>
-                                                <Label htmlFor="public" className="font-medium cursor-pointer">Public</Label>
-                                                <p className="text-sm text-muted-foreground">Anyone in your organization can view this project</p>
-                                            </div>
+                                        <RadioGroupItem value="review" id="review" />
+                                        <div className="flex-1">
+                                            <Label htmlFor="review" className="font-medium cursor-pointer">Review Workflow</Label>
+                                            <p className="text-sm text-muted-foreground">Tasks go through a review process before being marked as done. Best for team projects.</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center space-x-3 rounded-lg border p-4 hover:bg-muted/50 transition-colors">
+                                        <RadioGroupItem value="custom" id="custom" />
+                                        <div className="flex-1">
+                                            <Label htmlFor="custom" className="font-medium cursor-pointer">Custom</Label>
+                                            <p className="text-sm text-muted-foreground">Advanced completion workflow with custom statuses.</p>
                                         </div>
                                     </div>
                                 </RadioGroup>
-                                <InputError message={errors.is_public} />
+                                <InputError message={errors.completion_behavior} />
                             </div>
 
                             {/* Background Color */}

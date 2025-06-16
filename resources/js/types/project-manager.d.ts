@@ -8,7 +8,6 @@ export interface Project {
     owner_id: number;
     icon: string | null;
     background_color: string | null;
-    is_public: boolean;
     is_archived: boolean;
     created_at: string;
     updated_at: string;
@@ -40,6 +39,12 @@ export interface Board {
     position: number;
     background_color: string | null;
     background_image: string | null;
+    column_outline_style?: 'none' | 'subtle' | 'bold' | 'rounded' | 'shadow' | 'single' | 'spaced' | 'double' | 'dashed' | 'dotted' | 'gradient';
+    column_spacing?: 'compact' | 'normal' | 'wide';
+    card_style?: 'minimal' | 'detailed' | 'compact';
+    show_task_count?: boolean;
+    show_wip_limits?: boolean;
+    enable_swimlanes?: boolean;
     created_at: string;
     updated_at: string;
     project?: Project;
@@ -70,8 +75,8 @@ export interface Task {
     project_id: number | null;
     created_by: number;
     position: number;
-    priority: 'low' | 'medium' | 'high' | 'urgent';
-    status: 'to_do' | 'in_progress' | 'done';
+    priority: 'low' | 'medium' | 'high';
+    status: 'to_do' | 'in_progress' | 'review' | 'done';
     estimate: number | null;
     due_date: string | null;
     completed_at: string | null;

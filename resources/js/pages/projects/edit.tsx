@@ -6,16 +6,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
-import { Project } from '@/types/project-manager';
-import { Head, useForm } from '@inertiajs/react';
-import { LoaderCircle } from 'lucide-react';
+import { Project, User } from '@/types/project-manager';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Head, useForm, router } from '@inertiajs/react';
+import { LoaderCircle, Trash2 } from 'lucide-react';
 import { FormEventHandler } from 'react';
 
 interface ProjectEditProps {
     project: Project;
+    members: User[];
 }
 
-export default function ProjectEdit({ project }: ProjectEditProps) {
+export default function ProjectEdit({ project, members }: ProjectEditProps) {
     const breadcrumbs: BreadcrumbItem[] = [
         {
             title: 'Projects',
@@ -33,16 +35,23 @@ export default function ProjectEdit({ project }: ProjectEditProps) {
 
     const { data, setData, put, processing, errors } = useForm({
         name: project.name,
-        key: project.key,
         description: project.description || '',
-        is_public: project.is_public,
         background_color: project.background_color || '#3498db',
         icon: project.icon || '',
+        completion_behavior: project.completion_behavior || 'simple',
+        requires_review: project.requires_review || false,
+        default_reviewer_id: project.default_reviewer_id?.toString() || 'none',
     });
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
         put(route('projects.update', project.id));
+    };
+
+    const handleDeleteProject = () => {
+        if (confirm('Are you sure you want to delete this project? This action cannot be undone and will permanently delete all tasks, boards, and project data.')) {
+            router.delete(route('projects.destroy', { project: project.id }));
+        }
     };
 
     return (
@@ -65,22 +74,6 @@ export default function ProjectEdit({ project }: ProjectEditProps) {
                                     required
                                 />
                                 <InputError message={errors.name} />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="key">Project Key</Label>
-                                <Input
-                                    id="key"
-                                    value={data.key}
-                                    onChange={(e) => setData('key', e.target.value.toUpperCase())}
-                                    placeholder="PROJ"
-                                    maxLength={10}
-                                    required
-                                />
-                                <p className="text-sm text-muted-foreground">
-                                    A short, unique identifier for this project (e.g., PROJ, TEST)
-                                </p>
-                                <InputError message={errors.key} />
                             </div>
 
                             <div className="space-y-2">
@@ -113,14 +106,94 @@ export default function ProjectEdit({ project }: ProjectEditProps) {
                                 <InputError message={errors.background_color} />
                             </div>
 
-                            <div className="flex items-center space-x-2">
-                                <Checkbox
-                                    id="is_public"
-                                    checked={data.is_public}
-                                    onCheckedChange={(checked) => setData('is_public', !!checked)}
-                                />
-                                <Label htmlFor="is_public">Make this project public</Label>
-                                <InputError message={errors.is_public} />
+                            <div className="space-y-4 border-t pt-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="completion_behavior" className="text-sm font-medium">Task Completion Behavior</Label>
+                                    <select
+                                        id="completion_behavior"
+                                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                        value={data.completion_behavior}
+                                        onChange={(e) => setData('completion_behavior', e.target.value as 'simple' | 'review' | 'custom')}
+                                    >
+                                        <option value="simple">Simple (To Do ↔ Done)</option>
+                                        <option value="review">Review Workflow (To Do → Review → Done)</option>
+                                        <option value="custom">Custom (Advanced)</option>
+                                    </select>
+                                    <p className="text-xs text-muted-foreground">
+                                        {data.completion_behavior === 'simple' && 'Tasks can be marked as done directly. Best for personal projects.'}
+                                        {data.completion_behavior === 'review' && 'Tasks go through a review process before being marked as done. Best for team projects.'}
+                                        {data.completion_behavior === 'custom' && 'Advanced completion workflow with custom statuses.'}
+                                    </p>
+                                    <InputError message={errors.completion_behavior} />
+                                </div>
+
+                                {data.completion_behavior === 'review' && (
+                                    <>
+                                        <div className="flex items-center space-x-2">
+                                            <Checkbox
+                                                id="requires_review"
+                                                checked={data.requires_review}
+                                                onCheckedChange={(checked) => setData('requires_review', !!checked)}
+                                            />
+                                            <Label htmlFor="requires_review" className="text-sm">
+                                                Require review approval for task completion
+                                            </Label>
+                                            <InputError message={errors.requires_review} />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="default_reviewer_id" className="text-sm font-medium">Default Reviewer</Label>
+                                            <Select
+                                                value={data.default_reviewer_id}
+                                                onValueChange={(value) => setData('default_reviewer_id', value)}
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select a default reviewer" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="none">No default reviewer</SelectItem>
+                                                    {members.map((member) => (
+                                                        <SelectItem key={member.id} value={member.id.toString()}>
+                                                            {member.name}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <p className="text-xs text-muted-foreground">
+                                                Tasks will be assigned to this reviewer by default when submitted for review.
+                                                Individual tasks can override this setting.
+                                            </p>
+                                            <InputError message={errors.default_reviewer_id} />
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+
+                            {/* Danger Zone */}
+                            <div className="space-y-4 border-t pt-4 mt-6">
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-medium text-destructive">Danger Zone</Label>
+                                    <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h4 className="text-sm font-medium text-destructive">Delete Project</h4>
+                                                <p className="text-xs text-muted-foreground mt-1">
+                                                    Permanently delete this project and all its data. This action cannot be undone.
+                                                </p>
+                                            </div>
+                                            <Button
+                                                type="button"
+                                                variant="destructive"
+                                                size="sm"
+                                                onClick={handleDeleteProject}
+                                                className="ml-4"
+                                            >
+                                                <Trash2 className="h-4 w-4 mr-2" />
+                                                Delete Project
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </CardContent>
                         <CardFooter className="flex justify-between">

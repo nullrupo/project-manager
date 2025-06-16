@@ -6,25 +6,42 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    DropdownMenuSeparator
+} from '@/components/ui/dropdown-menu';
 import AppLayout from '@/layouts/app-layout';
 import { Head, router } from '@inertiajs/react';
-import { CalendarDays, Clock, Inbox, Plus, Trash2, FolderOpen, ArrowRight, Sparkles, FileText, Search, X } from 'lucide-react';
+import { CalendarDays, Clock, Inbox, Plus, Trash2, FolderOpen, ArrowRight, Sparkles, FileText, Search, X, MoreHorizontal, Edit } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useBatchTaskOperations } from '@/hooks/useBatchTaskOperations';
 import { BulkActionsPanel } from '@/components/BulkActionsPanel';
+import { useShortName } from '@/hooks/use-initials';
+import { useGlobalTaskInspector } from '@/contexts/GlobalTaskInspectorContext';
+import { TaskDisplay } from '@/components/task/TaskDisplay';
+import { TaskDisplayCustomizer } from '@/components/task/TaskDisplayCustomizer';
+import { useUndoNotification } from '@/contexts/UndoNotificationContext';
+import { TagSelector } from '@/components/tag/TagSelector';
+import { useTags } from '@/hooks/useTags';
 
 interface Task {
     id: number;
     title: string;
     description: string | null;
-    priority: 'low' | 'medium' | 'high' | 'urgent';
-    status: 'to_do' | 'in_progress' | 'done';
+    priority: 'low' | 'medium' | 'high';
+    status: 'to_do' | 'in_progress' | 'review' | 'done';
+    review_status?: 'pending' | 'approved' | 'rejected' | null;
     due_date: string | null;
     project?: {
         id: number;
         name: string;
         key: string;
+        completion_behavior?: 'simple' | 'review' | 'custom';
+        requires_review?: boolean;
     };
     assignees?: { id: number; name: string }[];
     is_inbox: boolean;
@@ -43,18 +60,56 @@ interface Project {
     key: string;
 }
 
+interface Tag {
+    id: number;
+    name: string;
+    color: string;
+    user_id: number;
+    description: string | null;
+    is_default: boolean;
+}
+
 interface InboxPageProps {
     tasks: Task[];
     users: User[];
     projects: Project[];
+    tags: Tag[];
 }
 
 // Remove breadcrumbs to eliminate redundant "inbox" text at top
 
-export default function InboxPage({ tasks = [], users = [], projects = [] }: InboxPageProps) {
+export default function InboxPage({ tasks = [], users = [], projects = [], tags = [] }: InboxPageProps) {
+    const getShortName = useShortName();
+    const { openInspector } = useGlobalTaskInspector();
+    const { showUndoNotification } = useUndoNotification();
+    const { createTag } = useTags();
+
+    // Helper function to get display status
+    const getDisplayStatus = (task: Task): string => {
+        // If task has explicit review status, return it
+        if (task.status === 'review') {
+            return 'review';
+        }
+        // Legacy support: if task is in_progress with pending review, show as review
+        if (task.status === 'in_progress' && task.review_status === 'pending') {
+            return 'review';
+        }
+        return task.status;
+    };
+
+    // Helper function to get status color
+    const getStatusColor = (task: Task): string => {
+        const displayStatus = getDisplayStatus(task);
+        switch (displayStatus) {
+            case 'to_do': return 'bg-gray-100 text-gray-800 border-gray-200';
+            case 'in_progress': return 'bg-blue-100 text-blue-800 border-blue-200';
+            case 'review': return 'bg-purple-100 text-purple-800 border-purple-200';
+            case 'done': return 'bg-green-100 text-green-800 border-green-200';
+            default: return 'bg-gray-100 text-gray-800 border-gray-200';
+        }
+    };
+
     const [editingTask, setEditingTask] = useState<Task | null>(null);
-    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-    const [taskToDelete, setTaskToDelete] = useState<number | null>(null);
     const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
     const [taskToMove, setTaskToMove] = useState<Task | null>(null);
     const [selectedProjectId, setSelectedProjectId] = useState<string>('');
@@ -92,9 +147,10 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
     const [createTaskData, setCreateTaskData] = useState({
         title: '',
         description: '',
-        priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
+        priority: 'medium' as 'low' | 'medium' | 'high',
         due_date: null as string | null,
         assignee_ids: [] as number[],
+        tag_ids: [] as number[],
         project_id: null as number | null
     });
     const [isCreatingTask, setIsCreatingTask] = useState(false);
@@ -170,7 +226,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                     bValue = b.title.toLowerCase();
                     break;
                 case 'priority':
-                    const priorityOrder = { low: 1, medium: 2, high: 3, urgent: 4 };
+                    const priorityOrder = { low: 1, medium: 2, high: 3 };
                     aValue = priorityOrder[a.priority];
                     bValue = priorityOrder[b.priority];
                     break;
@@ -179,7 +235,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                     bValue = b.due_date ? new Date(b.due_date).getTime() : 0;
                     break;
                 case 'status':
-                    const statusOrder = { to_do: 1, in_progress: 2, done: 3 };
+                    const statusOrder = { to_do: 1, in_progress: 2, review: 3, done: 4 };
                     aValue = statusOrder[a.status];
                     bValue = statusOrder[b.status];
                     break;
@@ -298,17 +354,30 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
         }
     };
 
-    // Open delete confirmation dialog
-    const openDeleteDialog = (taskId: number) => {
-        setTaskToDelete(taskId);
-        setIsDeleteDialogOpen(true);
-    };
+    // Delete a task with undo functionality
+    const deleteTask = async (taskId: number) => {
+        try {
+            const response = await fetch(route('inbox.tasks.destroy', { task: taskId }), {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'Accept': 'application/json',
+                },
+            });
 
-    // Delete a task
-    const deleteTask = () => {
-        if (taskToDelete) {
-            router.delete(route('inbox.tasks.destroy', { task: taskToDelete }));
-            setTaskToDelete(null);
+            const data = await response.json();
+            if (data.success) {
+                // Show undo notification
+                showUndoNotification(data.message, data.undo_url);
+
+                // Reload the page to reflect the deletion
+                router.reload();
+            } else {
+                console.error('Failed to delete task:', data);
+            }
+        } catch (error) {
+            console.error('Failed to delete task:', error);
         }
     };
 
@@ -380,12 +449,21 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
         setShowBulkActions(newSelected.size > 0);
     };
 
-    // Toggle task completion status
+    // Toggle task completion status using flexible completion logic
     const toggleTaskCompletion = (taskId: number) => {
         const task = tasks.find(t => t.id === taskId);
         if (task) {
-            const newStatus = task.status === 'done' ? 'to_do' : 'done';
-            quickUpdateStatus(taskId, newStatus);
+            // Use the new toggle completion endpoint for flexible behavior
+            router.post(route('inbox.tasks.toggle-completion', { task: taskId }), {}, {
+                preserveState: true,
+                preserveScroll: true,
+                onSuccess: () => {
+                    // Task will be updated automatically via Inertia
+                },
+                onError: (errors) => {
+                    console.error('Failed to toggle task completion:', errors);
+                }
+            });
         }
     };
 
@@ -422,8 +500,24 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
     };
 
     const handleKeyDown = (event: React.KeyboardEvent) => {
-        // Only handle keyboard navigation when not in an input field
-        if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        // Only handle keyboard navigation when not in an input field, textarea, or dropdown
+        if (event.target instanceof HTMLInputElement ||
+            event.target instanceof HTMLTextAreaElement ||
+            event.target instanceof HTMLSelectElement) {
+            return;
+        }
+
+        // Check if the event is coming from within a dropdown, dialog, or inspector
+        const target = event.target as HTMLElement;
+        if (target.closest('[role="listbox"]') ||
+            target.closest('[role="combobox"]') ||
+            target.closest('[data-radix-select-content]') ||
+            target.closest('[data-radix-select-trigger]') ||
+            target.closest('[data-radix-select-item]') ||
+            target.closest('[data-global-inspector]') ||
+            target.closest('[role="dialog"]') ||
+            target.closest('.select-content') ||
+            target.closest('.select-trigger')) {
             return;
         }
 
@@ -474,13 +568,22 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
     );
 
     // Quick status update
-    const quickUpdateStatus = (taskId: number, newStatus: string) => {
+    const quickUpdateStatus = (taskId: number, newStatus: string, reviewStatus: string | null = null) => {
         const task = tasks.find(t => t.id === taskId);
         if (task) {
-            router.put(route('inbox.tasks.update', { task: taskId }), {
+            const updateData = {
                 ...task,
                 status: newStatus,
-            }, { preserveState: true });
+            };
+
+            if (reviewStatus !== null) {
+                updateData.review_status = reviewStatus;
+            }
+
+            router.put(route('inbox.tasks.update', { task: taskId }), updateData, {
+                preserveState: true,
+                preserveScroll: true
+            });
         }
     };
 
@@ -550,6 +653,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
             priority: 'medium',
             due_date: null,
             assignee_ids: [],
+            tag_ids: [],
             project_id: null
         });
         setSelectedProject(null);
@@ -565,6 +669,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
             priority: 'medium',
             due_date: null,
             assignee_ids: [],
+            tag_ids: [],
             project_id: null
         });
         setSelectedProject(null);
@@ -591,6 +696,18 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                 setIsCreatingTask(false);
             }
         });
+    };
+
+    // Tag handling functions
+    const handleTagsChange = (selectedTags: Tag[]) => {
+        setCreateTaskData(prev => ({
+            ...prev,
+            tag_ids: selectedTags.map(tag => tag.id)
+        }));
+    };
+
+    const handleCreateTag = async (name: string, color: string): Promise<Tag> => {
+        return await createTag(name, color);
     };
 
     // Project search and selection helpers
@@ -688,6 +805,9 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                         </Tooltip>
                     </TooltipProvider>
 
+                    {/* Task Display Customizer */}
+                    <TaskDisplayCustomizer pageKey="inbox" />
+
                     {sortedTasks.length > 0 && (
                         <div className="flex items-center gap-2 ml-auto">
                             <Checkbox
@@ -760,17 +880,25 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                     return (
                                         <div
                                             key={task.id}
-                                            className={`group flex items-start gap-3 p-3 rounded-lg border-2 transition-all cursor-pointer bg-white dark:bg-gray-900 ${
-                                                isOverdue
-                                                    ? 'border-red-300 shadow-sm'
-                                                    : 'border-border shadow-sm hover:shadow-md'
+                                            className={`group flex items-start gap-3 p-3 rounded-lg border border-border transition-all duration-200 cursor-pointer bg-white dark:bg-gray-800 hover:shadow-md ${
+                                                task.status === 'done' ? 'opacity-60' : ''
+                                            } ${isOverdue
+                                                ? 'border-red-300'
+                                                : ''
                                             } ${isSelected
                                                 ? 'ring-2 ring-primary/30 border-primary/30'
                                                 : 'hover:border-primary/20'
                                             }`}
+                                            data-task-clickable
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                toggleTaskSelection(task.id, e);
+                                                if (e.ctrlKey || e.metaKey || e.shiftKey) {
+                                                    // Multi-select behavior with modifier keys
+                                                    toggleTaskSelection(task.id, e);
+                                                } else {
+                                                    // Single click opens inspector
+                                                    openInspector(task);
+                                                }
                                             }}
                                             onDoubleClick={() => editTask(task)}
                                         >
@@ -781,73 +909,63 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                                     quickUpdateStatus(task.id, newStatus);
                                                 }}
                                                 onClick={(e) => e.stopPropagation()}
-                                                className="mt-1 border-2 border-muted-foreground/40 data-[state=checked]:border-primary data-[state=checked]:bg-primary"
+                                                className="mt-1"
                                             />
 
                                             <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <h3 className={`font-medium truncate ${task.status === 'done' ? 'line-through text-muted-foreground' : ''}`}>
-                                                        {task.title}
-                                                    </h3>
-                                                    {isOverdue && (
-                                                        <Badge variant="destructive" className="text-xs">
-                                                            Overdue
+                                                <TaskDisplay
+                                                    task={task}
+                                                    compact
+                                                    pageKey="inbox"
+                                                />
+                                                {task.project && (
+                                                    <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
+                                                        <FolderOpen className="h-3 w-3" />
+                                                        <span>{task.project.name}</span>
+                                                        <Badge variant="outline" className="text-xs">
+                                                            {task.project.key}
                                                         </Badge>
-                                                    )}
-                                                </div>
-
-                                                {task.description && (
-                                                    <p className="text-sm text-muted-foreground mb-1 line-clamp-2">{task.description}</p>
+                                                    </div>
                                                 )}
-
-                                                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                                    {task.due_date && (
-                                                        <div className={`flex items-center gap-1 ${isOverdue ? 'text-red-600' : ''}`}>
-                                                            <CalendarDays className="h-3 w-3" />
-                                                            <span>{new Date(task.due_date).toLocaleDateString()}</span>
-                                                        </div>
-                                                    )}
-
-                                                    {task.project && (
-                                                        <div className="flex items-center gap-1">
-                                                            <FolderOpen className="h-3 w-3" />
-                                                            <span>{task.project.name}</span>
-                                                            <Badge variant="outline" className="text-xs">
-                                                                {task.project.key}
-                                                            </Badge>
-                                                        </div>
-                                                    )}
-                                                </div>
                                             </div>
 
-                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                {projects.length > 0 && (
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="h-8 w-8 p-0 text-blue-500 hover:text-blue-600"
-                                                        onClick={(e) => {
+                                            <div className="flex items-center gap-1 ml-2">
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                                            <MoreHorizontal className="h-3 w-3" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuItem onClick={(e) => {
                                                             e.stopPropagation();
-                                                            openMoveDialog(task);
-                                                        }}
-                                                        title="Move to Project"
-                                                    >
-                                                        <ArrowRight className="h-4 w-4" />
-                                                    </Button>
-                                                )}
-
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="h-8 w-8 p-0 text-red-500 hover:text-red-600"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        openDeleteDialog(task.id);
-                                                    }}
-                                                    title="Delete Task"
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
+                                                            editTask(task);
+                                                        }}>
+                                                            <Edit className="h-4 w-4 mr-2" />
+                                                            Edit
+                                                        </DropdownMenuItem>
+                                                        {projects.length > 0 && (
+                                                            <DropdownMenuItem onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                openMoveDialog(task);
+                                                            }}>
+                                                                <ArrowRight className="h-4 w-4 mr-2" />
+                                                                Move to Project
+                                                            </DropdownMenuItem>
+                                                        )}
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                deleteTask(task.id);
+                                                            }}
+                                                            className="text-destructive"
+                                                        >
+                                                            <Trash2 className="h-4 w-4 mr-2" />
+                                                            Delete
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
                                             </div>
                                         </div>
                                     );
@@ -961,9 +1079,6 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                                     >
                                                         <FolderOpen className="h-4 w-4 text-muted-foreground" />
                                                         <span className="flex-1">{project.name}</span>
-                                                        <Badge variant="secondary" className="text-xs">
-                                                            {project.key}
-                                                        </Badge>
                                                     </button>
                                                 ))}
                                             </div>
@@ -1087,34 +1202,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                 </DialogContent>
             </Dialog>
 
-            {/* Delete Confirmation Dialog */}
-            <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                        <DialogTitle>Delete Task</DialogTitle>
-                        <DialogDescription>
-                            Are you sure you want to delete this task? This action cannot be undone.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => setIsDeleteDialogOpen(false)}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            variant="destructive"
-                            onClick={() => {
-                                deleteTask();
-                                setIsDeleteDialogOpen(false);
-                            }}
-                        >
-                            Delete
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+
 
 
 
@@ -1190,9 +1278,6 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                                 >
                                                     <FolderOpen className="h-4 w-4 text-muted-foreground" />
                                                     <span className="flex-1">{project.name}</span>
-                                                    <Badge variant="secondary" className="text-xs">
-                                                        {project.key}
-                                                    </Badge>
                                                 </button>
                                             ))}
                                         </div>
@@ -1215,12 +1300,11 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                     id="create-priority"
                                     className="w-full rounded-md border border-input bg-background px-3 py-2"
                                     value={createTaskData.priority}
-                                    onChange={(e) => setCreateTaskData(prev => ({ ...prev, priority: e.target.value as 'low' | 'medium' | 'high' | 'urgent' }))}
+                                    onChange={(e) => setCreateTaskData(prev => ({ ...prev, priority: e.target.value as 'low' | 'medium' | 'high' }))}
                                 >
                                     <option value="low">Low</option>
                                     <option value="medium">Medium</option>
                                     <option value="high">High</option>
-                                    <option value="urgent">Urgent</option>
                                 </select>
                             </div>
 
@@ -1269,12 +1353,21 @@ export default function InboxPage({ tasks = [], users = [], projects = [] }: Inb
                                         <SelectItem value="no-assignee">No assignee</SelectItem>
                                         {users.map((user) => (
                                             <SelectItem key={user.id} value={user.id.toString()}>
-                                                {user.name}
+                                                {getShortName(user.name)}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
                             </div>
+
+                            {/* 7. Tags */}
+                            <TagSelector
+                                selectedTags={tags.filter(tag => createTaskData.tag_ids.includes(tag.id))}
+                                availableTags={tags}
+                                onTagsChange={handleTagsChange}
+                                onCreateTag={handleCreateTag}
+                                placeholder="Select personal tags..."
+                            />
                         </div>
 
                         <DialogFooter>

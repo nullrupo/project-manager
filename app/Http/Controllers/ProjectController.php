@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Project;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -23,7 +24,7 @@ class ProjectController extends Controller
         $user = Auth::user();
 
         // Get all projects for all users to view
-        $projects = Project::with(['owner', 'members'])
+        $projects = Project::with(['owner', 'members', 'pendingInvitations'])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -31,6 +32,8 @@ class ProjectController extends Controller
         $projects->each(function ($project) use ($user) {
             $project->can_edit = Auth::id() === $project->owner_id;
             $project->is_favorited = $project->isFavoritedBy($user);
+            $project->is_team_project = $project->isTeamProject();
+            $project->is_personal_project = $project->isPersonalProject();
         });
 
         return Inertia::render('projects/index', [
@@ -53,12 +56,22 @@ class ProjectController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'key' => 'required|string|max:10|unique:projects,key',
             'description' => 'nullable|string',
-            'is_public' => 'boolean',
             'background_color' => 'nullable|string|max:50',
             'icon' => 'nullable|string|max:50',
+            'completion_behavior' => 'nullable|string|in:simple,review,custom',
+            'requires_review' => 'boolean',
         ]);
+
+        // Auto-generate a unique project key from name
+        $key = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $validated['name']), 0, 4));
+        $counter = 1;
+        $originalKey = $key;
+        while (Project::where('key', $key)->exists()) {
+            $key = $originalKey . $counter;
+            $counter++;
+        }
+        $validated['key'] = $key;
 
         // Create the project
         $project = new Project($validated);
@@ -83,14 +96,20 @@ class ProjectController extends Controller
         ]);
 
         $board->lists()->create([
-            'name' => 'In Progress',
+            'name' => 'Doing',
             'position' => 1,
             'color' => '#f39c12',
         ]);
 
         $board->lists()->create([
-            'name' => 'Done',
+            'name' => 'Review',
             'position' => 2,
+            'color' => '#9b59b6',
+        ]);
+
+        $board->lists()->create([
+            'name' => 'Done',
+            'position' => 3,
             'color' => '#2ecc71',
         ]);
 
@@ -106,6 +125,7 @@ class ProjectController extends Controller
         // Load the project with its relationships
         $project->load([
             'owner',
+            'defaultReviewer',
             'members' => function ($query) {
                 $query->withPivot([
                     'role',
@@ -117,6 +137,12 @@ class ProjectController extends Controller
                     'can_comment'
                 ]);
             },
+            'sections' => function ($query) {
+                $query->orderBy('position');
+            },
+            'sections.tasks' => function ($query) {
+                $query->where('is_archived', false)->orderBy('position');
+            },
             'boards' => function ($query) {
                 $query->orderBy('position');
             },
@@ -124,11 +150,13 @@ class ProjectController extends Controller
                 $query->orderBy('position');
             },
             'boards.lists.tasks' => function ($query) {
-                $query->orderBy('position');
+                $query->where('is_archived', false)->orderBy('position');
             },
             'boards.lists.tasks.assignees',
             'boards.lists.tasks.labels',
             'boards.lists.tasks.creator',
+            'boards.lists.tasks.reviewer',
+            'boards.lists.tasks.checklistItems',
             'boards.lists.tasks.list.board',
         ]);
 
@@ -147,6 +175,34 @@ class ProjectController extends Controller
     }
 
     /**
+     * Display the archived tasks for the specified project.
+     */
+    public function archive(Project $project): Response
+    {
+        // Check if user has permission to view this project
+        if (!ProjectPermissionService::can($project, 'can_view_project')) {
+            abort(403, 'You do not have permission to view this project.');
+        }
+
+        // Load archived tasks with their relationships
+        $archivedTasks = $project->tasks()
+            ->where('is_archived', true)
+            ->with(['assignees', 'labels', 'tags', 'creator', 'section', 'list'])
+            ->orderBy('completed_at', 'desc')
+            ->paginate(50);
+
+        // Add permission information
+        $user = Auth::user();
+        $project->can_manage_tasks = ProjectPermissionService::can($project, 'can_manage_tasks');
+        $project->user_role = ProjectPermissionService::getUserRole($project, $user);
+
+        return Inertia::render('projects/archive', [
+            'project' => $project,
+            'archivedTasks' => $archivedTasks,
+        ]);
+    }
+
+    /**
      * Show the form for editing the specified project.
      */
     public function edit(Project $project): Response
@@ -156,8 +212,17 @@ class ProjectController extends Controller
             abort(403, 'You do not have permission to edit this project.');
         }
 
+        // Load project with relationships
+        $project->load(['defaultReviewer', 'members']);
+
+        // Get project members for reviewer selection
+        $members = $project->members()->get();
+        $members->push($project->owner);
+        $members = $members->unique('id');
+
         return Inertia::render('projects/edit', [
             'project' => $project,
+            'members' => $members,
         ]);
     }
 
@@ -173,12 +238,24 @@ class ProjectController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'key' => 'required|string|max:10|unique:projects,key,' . $project->id,
             'description' => 'nullable|string',
-            'is_public' => 'boolean',
             'background_color' => 'nullable|string|max:50',
             'icon' => 'nullable|string|max:50',
+            'completion_behavior' => 'required|string|in:simple,review,custom',
+            'requires_review' => 'boolean',
+            'default_reviewer_id' => 'nullable|string',
+            'enable_multiple_boards' => 'boolean',
         ]);
+
+        // Handle the "none" value for default_reviewer_id
+        if ($validated['default_reviewer_id'] === 'none' || empty($validated['default_reviewer_id'])) {
+            $validated['default_reviewer_id'] = null;
+        }
+
+        // Validate that the reviewer exists if provided
+        if ($validated['default_reviewer_id'] && !User::find($validated['default_reviewer_id'])) {
+            return back()->withErrors(['default_reviewer_id' => 'The selected reviewer is invalid.']);
+        }
 
         $project->update($validated);
 

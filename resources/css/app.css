@@ -302,6 +302,19 @@ a:hover,
     box-shadow: inherit !important;
 }
 
+/* Ensure buttons always have proper hover effects */
+button:hover,
+[data-slot="button"]:hover,
+.btn:hover {
+    pointer-events: auto !important;
+}
+
+/* Ensure modal buttons work properly */
+[data-radix-dialog-content] button:hover,
+[data-radix-dialog-content] [data-slot="button"]:hover {
+    pointer-events: auto !important;
+}
+
 /* Specific fix for navigation groups */
 nav ul li:not(:hover) {
     background: transparent !important;
@@ -393,4 +406,126 @@ nav:not(:hover) {
 
 .dark [data-sidebar="sidebar"] ::-webkit-scrollbar-thumb:hover {
     background: oklch(0.6 0 0 / 0.5);
+}
+
+/* Hide scrollbars utility class */
+.scrollbar-hide {
+    -ms-overflow-style: none;  /* Internet Explorer 10+ */
+    scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Safari and Chrome */
+}
+
+/* Enhanced Drag and Drop Visual Feedback */
+@keyframes drag-glow {
+    0%, 100% {
+        box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+    }
+    50% {
+        box-shadow: 0 0 30px rgba(59, 130, 246, 0.5);
+    }
+}
+
+@keyframes drop-zone-pulse {
+    0%, 100% {
+        background: linear-gradient(90deg, rgba(59, 130, 246, 0.1), rgba(99, 102, 241, 0.1));
+        border-color: rgba(59, 130, 246, 0.6);
+    }
+    50% {
+        background: linear-gradient(90deg, rgba(59, 130, 246, 0.2), rgba(99, 102, 241, 0.2));
+        border-color: rgba(59, 130, 246, 0.8);
+    }
+}
+
+@keyframes floating {
+    0%, 100% {
+        transform: translateY(0px) rotate(0deg);
+    }
+    50% {
+        transform: translateY(-2px) rotate(1deg);
+    }
+}
+
+.drag-floating {
+    animation: floating 2s ease-in-out infinite;
+}
+
+.drag-glow {
+    animation: drag-glow 1.5s ease-in-out infinite;
+}
+
+.drop-zone-active {
+    animation: drop-zone-pulse 1.5s ease-in-out infinite;
+}
+
+/* Smooth transitions for all drag elements */
+.drag-transition {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Enhanced task hover effects */
+.task-hover-effect:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.dark .task-hover-effect:hover {
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+/* Subtle pulse animation for save button */
+@keyframes subtle-pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.85;
+        transform: scale(1.02);
+    }
+}
+
+/* Force button hover effects to work */
+button,
+[data-slot="button"],
+.btn {
+    transition: all 0.2s ease !important;
+}
+
+button:hover,
+[data-slot="button"]:hover,
+.btn:hover {
+    transform: scale(1.02) !important;
+    transition: all 0.2s ease !important;
+}
+
+/* Specific fixes for modal buttons */
+.modal button:hover,
+[data-radix-dialog-content] button:hover {
+    background-color: var(--accent) !important;
+    transform: scale(1.02) !important;
+}
+
+/* Ghost button hover effects */
+button[data-variant="ghost"]:hover,
+[data-slot="button"][data-variant="ghost"]:hover {
+    background-color: var(--accent) !important;
+    color: var(--accent-foreground) !important;
+}
+
+/* Board management modal specific styles */
+.board-card:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Ensure all interactive elements have hover effects */
+.cursor-pointer:hover,
+[role="button"]:hover,
+button:hover,
+[data-slot="button"]:hover {
+    opacity: 0.9 !important;
+    transform: scale(1.02) !important;
 }

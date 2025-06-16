@@ -33,8 +33,11 @@ class Project extends Model
         'owner_id',
         'icon',
         'background_color',
-        'is_public',
         'is_archived',
+        'completion_behavior',
+        'requires_review',
+        'default_reviewer_id',
+        'enable_multiple_boards',
     ];
 
     /**
@@ -43,8 +46,9 @@ class Project extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'is_public' => 'boolean',
         'is_archived' => 'boolean',
+        'requires_review' => 'boolean',
+        'enable_multiple_boards' => 'boolean',
     ];
 
     /**
@@ -95,5 +99,71 @@ class Project extends Model
     public function labels(): HasMany
     {
         return $this->hasMany(Label::class);
+    }
+
+    /**
+     * Get the invitations for the project.
+     */
+    public function invitations(): HasMany
+    {
+        return $this->hasMany(ProjectInvitation::class);
+    }
+
+    /**
+     * Get pending invitations for the project.
+     */
+    public function pendingInvitations(): HasMany
+    {
+        return $this->hasMany(ProjectInvitation::class)->where('status', 'pending');
+    }
+
+    /**
+     * Get permission templates for the project.
+     */
+    public function permissionTemplates(): HasMany
+    {
+        return $this->hasMany(PermissionTemplate::class);
+    }
+
+    /**
+     * Get the default reviewer for the project.
+     */
+    public function defaultReviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'default_reviewer_id');
+    }
+
+    /**
+     * Get the sections for the project.
+     */
+    public function sections(): HasMany
+    {
+        return $this->hasMany(Section::class);
+    }
+
+    /**
+     * Check if this project is a team project.
+     * A project is considered a team project if:
+     * 1. It has members other than the owner, OR
+     * 2. It has pending invitations
+     */
+    public function isTeamProject(): bool
+    {
+        // Check if there are members other than the owner
+        $hasOtherMembers = $this->members()->where('user_id', '!=', $this->owner_id)->exists();
+
+        // Check if there are pending invitations
+        $hasPendingInvitations = $this->pendingInvitations()->exists();
+
+        return $hasOtherMembers || $hasPendingInvitations;
+    }
+
+    /**
+     * Check if this project is a personal project.
+     * A project is personal if it's not a team project.
+     */
+    public function isPersonalProject(): bool
+    {
+        return !$this->isTeamProject();
     }
 }

@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Project, Task } from '@/types/project-manager';
+import { getStatusFromColumnName } from '@/utils/statusMapping';
 import { router } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import { route } from 'ziggy-js';
@@ -27,6 +28,7 @@ import {
     ExternalLink,
     Layers
 } from 'lucide-react';
+import { createModalCloseHandler, useModalCleanup } from '@/utils/modalCleanup';
 
 interface TaskDetailModalProps {
     task: any;
@@ -44,10 +46,21 @@ export default function TaskDetailModal({ task, project, open, onOpenChange, ava
     const [isUpdating, setIsUpdating] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
 
+    // Use cleanup hook
+    const cleanup = useModalCleanup();
+
     // Update local state when task changes
     useEffect(() => {
         setCurrentListId(task.list_id);
     }, [task.list_id]);
+
+    // Cleanup overlays when component unmounts
+    useEffect(() => {
+        return cleanup;
+    }, [cleanup]);
+
+    // Handle modal close with cleanup
+    const handleClose = createModalCloseHandler(onOpenChange);
 
     // Get current list info - prioritize task.list if it has board info
     const currentList = (task.list && task.list.board) ? task.list :
@@ -176,7 +189,7 @@ export default function TaskDetailModal({ task, project, open, onOpenChange, ava
 
     // Get status color and icon based on list
     const getListStatusInfo = (listName: string, listColor?: string) => {
-        const status = getStatusFromListName(listName);
+        const status = getStatusFromColumnName(listName);
         const baseColor = listColor || '#3498db';
 
         switch (status) {
@@ -212,7 +225,7 @@ export default function TaskDetailModal({ task, project, open, onOpenChange, ava
         <div className={`fixed inset-0 z-50 transition-all duration-300 ${open ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
             <div
                 className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300"
-                onClick={() => onOpenChange(false)}
+                onClick={handleClose}
             />
             <div className={`fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-4xl max-h-[90vh] overflow-hidden transition-all duration-300 ${open ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
                 <Card className="shadow-2xl border-0 bg-white dark:bg-gray-950">
@@ -393,7 +406,7 @@ export default function TaskDetailModal({ task, project, open, onOpenChange, ava
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => onOpenChange(false)}
+                                onClick={handleClose}
                                 className="h-8 w-8 p-0 hover:bg-white/50 dark:hover:bg-gray-800/50"
                             >
                                 <X className="h-4 w-4" />

@@ -13,7 +13,24 @@ use Inertia\Response;
 
 class ProjectMemberController extends Controller
 {
+    /**
+     * Display a listing of project members
+     */
+    public function index(Project $project): Response
+    {
+        // Check if user can view project members
+        if (!ProjectPermissionService::can($project, 'can_view_project')) {
+            abort(403, 'You do not have permission to view project members.');
+        }
 
+        $project->load(['members', 'owner']);
+
+        return Inertia::render('projects/members/index', [
+            'project' => $project,
+            'members' => $project->members,
+            'owner' => $project->owner,
+        ]);
+    }
 
     /**
      * Search for users to add to project
@@ -100,6 +117,23 @@ class ProjectMemberController extends Controller
 
         return redirect()->route('projects.show', $project)
             ->with('success', 'Member removed from project successfully.');
+    }
+
+    /**
+     * Get project invitations for management
+     */
+    public function invitations(Project $project)
+    {
+        if (!ProjectPermissionService::can($project, 'can_manage_members')) {
+            abort(403, 'You do not have permission to view project invitations.');
+        }
+
+        $invitations = $project->invitations()
+            ->with(['invitedBy:id,name,email', 'invitedUser:id,name,email'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json($invitations);
     }
 
     /**

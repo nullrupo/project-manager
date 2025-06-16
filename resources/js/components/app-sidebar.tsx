@@ -25,7 +25,9 @@ import {
     Star,
     PanelLeftClose,
     PanelLeftOpen,
-    Settings2
+    Settings2,
+    Tags,
+    UserPlus
 } from 'lucide-react';
 import AppLogo from './app-logo';
 import { ThemeSwitcher } from './theme-switcher';
@@ -83,6 +85,13 @@ const mainNavGroups: NavGroup[] = [
                 icon: Calendar,
                 user_created: false,
             },
+            {
+                id: 'tags',
+                title: 'Personal Tags',
+                href: route('tags.manage'),
+                icon: Tags,
+                user_created: false,
+            },
         ]
     },
     {
@@ -134,6 +143,13 @@ const mainNavGroups: NavGroup[] = [
                 title: 'Team',
                 href: route('team'),
                 icon: Users,
+                user_created: false,
+            },
+            {
+                id: 'invitations',
+                title: 'Invitations',
+                href: route('invitations.dashboard'),
+                icon: UserPlus,
                 user_created: false,
             },
             {

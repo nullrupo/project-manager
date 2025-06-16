@@ -4,6 +4,9 @@ import { createInertiaApp } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 import { ThemeProvider } from './providers/theme-provider';
+import { GlobalTaskInspectorProvider } from './contexts/GlobalTaskInspectorContext';
+import { UndoNotificationProvider } from './contexts/UndoNotificationContext';
+import { setupGlobalModalCleanup } from './utils/modalCleanup';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -15,7 +18,11 @@ createInertiaApp({
 
         root.render(
             <ThemeProvider defaultTheme="light">
-                <App {...props} />
+                <UndoNotificationProvider>
+                    <GlobalTaskInspectorProvider>
+                        <App {...props} />
+                    </GlobalTaskInspectorProvider>
+                </UndoNotificationProvider>
             </ThemeProvider>
         );
     },
@@ -23,5 +30,8 @@ createInertiaApp({
         color: '#4B5563',
     },
 });
+
+// Setup global modal cleanup listeners
+setupGlobalModalCleanup();
 
 // Theme is now managed by ThemeProvider

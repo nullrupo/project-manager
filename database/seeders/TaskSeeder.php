@@ -78,7 +78,7 @@ class TaskSeeder extends Seeder
                 'created_by' => $defaultCreator->id,
                 'status' => match($taskData['status']) {
                     'todo' => 'to_do',
-                    'review' => 'in_progress',
+                    'review' => 'review',
                     'done' => 'done',
                     'archived' => 'done',
                     default => 'to_do'
