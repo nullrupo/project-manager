@@ -21,6 +21,14 @@ export default defineConfig({
             host: 'localhost',
         },
     },
+    build: {
+        rollupOptions: {
+            output: {
+                manualChunks: undefined,
+            },
+        },
+        chunkSizeWarningLimit: 1000,
+    },
     esbuild: {
         jsx: 'automatic',
     },
