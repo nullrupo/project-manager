@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { X, Undo2 } from 'lucide-react';
 import { router } from '@inertiajs/react';
+import { fetchWithCsrf } from '@/utils/csrf';
 
 interface UndoNotificationProps {
     message: string;
@@ -37,13 +38,8 @@ export default function UndoNotification({
 
     const handleUndo = () => {
         // Make the undo request
-        fetch(undoUrl, {
+        fetchWithCsrf(undoUrl, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                'Accept': 'application/json',
-            },
         })
         .then(response => response.json())
         .then(data => {

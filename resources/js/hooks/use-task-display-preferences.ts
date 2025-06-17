@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { usePage } from '@inertiajs/react';
 import { SharedData } from '@/types/project-manager';
+import { route } from 'ziggy-js';
+import { fetchWithCsrf } from '@/utils/csrf';
 
 export interface TaskDisplayPreferences {
     show_urgency: boolean;
@@ -53,12 +55,8 @@ export function useTaskDisplayPreferences() {
     const updatePreferences = async (newPreferences: Partial<TaskDisplayPreferences>) => {
         setIsLoading(true);
         try {
-            const response = await fetch(route('task-display-preferences.update'), {
+            const response = await fetchWithCsrf(route('task-display-preferences.update'), {
                 method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
                 body: JSON.stringify(newPreferences),
             });
 

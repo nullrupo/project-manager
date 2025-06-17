@@ -27,6 +27,7 @@ import { TaskDisplayCustomizer } from '@/components/task/TaskDisplayCustomizer';
 import { useUndoNotification } from '@/contexts/UndoNotificationContext';
 import { TagSelector } from '@/components/tag/TagSelector';
 import { useTags } from '@/hooks/useTags';
+import { fetchWithCsrf } from '@/utils/csrf';
 
 interface Task {
     id: number;
@@ -357,13 +358,8 @@ export default function InboxPage({ tasks = [], users = [], projects = [], tags 
     // Delete a task with undo functionality
     const deleteTask = async (taskId: number) => {
         try {
-            const response = await fetch(route('inbox.tasks.destroy', { task: taskId }), {
+            const response = await fetchWithCsrf(route('inbox.tasks.destroy', { task: taskId }), {
                 method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                    'Accept': 'application/json',
-                },
             });
 
             const data = await response.json();

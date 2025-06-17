@@ -11,6 +11,7 @@ import { getOrganizedTasks } from '../utils/projectUtils';
 import { getStatusFromColumnName } from '@/utils/statusMapping';
 import { route } from 'ziggy-js';
 import { Project } from '@/types/project-manager';
+import { fetchWithCsrf } from '@/utils/csrf';
 
 /**
  * Helper function to determine task status based on list name
@@ -191,12 +192,8 @@ export const useDragAndDrop = (
                 // Send the updated positions to the server
                 const boardId = state.currentBoardId || project.boards?.[0]?.id;
                 if (boardId) {
-                    fetch(route('lists.positions', { project: project.id, board: boardId }), {
+                    fetchWithCsrf(route('lists.positions', { project: project.id, board: boardId }), {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                        },
                         body: JSON.stringify({
                             lists: updatedLists.map((list: any) => ({
                                 id: list.id,

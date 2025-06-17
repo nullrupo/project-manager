@@ -1,6 +1,8 @@
 import { router } from '@inertiajs/react';
+import { route } from 'ziggy-js';
 import { Project } from '@/types/project-manager';
 import { useUndoNotification } from '@/contexts/UndoNotificationContext';
+import { fetchWithCsrf } from '@/utils/csrf';
 
 /**
  * Custom hook for task operations
@@ -13,16 +15,11 @@ export const useTaskOperations = (project: Project, currentView?: string, curren
      */
     const toggleTaskCompletion = async (taskId: number) => {
         try {
-            const response = await fetch(route('tasks.toggle-completion', { project: project.id, task: taskId }), {
+            const response = await fetchWithCsrf(route('tasks.toggle-completion', { project: project.id, task: taskId }), {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                    'Accept': 'application/json',
-                },
                 body: JSON.stringify({})
             });
-            
+
             const data = await response.json();
             if (data.success) {
                 router.reload();
@@ -44,13 +41,8 @@ export const useTaskOperations = (project: Project, currentView?: string, curren
                 params.view = currentView;
             }
 
-            const response = await fetch(route('tasks.destroy', params), {
+            const response = await fetchWithCsrf(route('tasks.destroy', params), {
                 method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                    'Accept': 'application/json',
-                },
             });
 
             const data = await response.json();
@@ -84,13 +76,8 @@ export const useTaskOperations = (project: Project, currentView?: string, curren
             const url = route('tasks.move', { project: project.id, task: taskId });
             console.log('📡 Making request to:', url);
 
-            const response = await fetch(url, {
+            const response = await fetchWithCsrf(url, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                    'Accept': 'application/json',
-                },
                 body: JSON.stringify(updates)
             });
 
@@ -129,16 +116,11 @@ export const useTaskOperations = (project: Project, currentView?: string, curren
      */
     const updateTaskPositions = async (tasks: any[]) => {
         try {
-            const response = await fetch(route('tasks.positions', { project: project.id }), {
+            const response = await fetchWithCsrf(route('tasks.positions', { project: project.id }), {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                    'Accept': 'application/json',
-                },
                 body: JSON.stringify({ tasks })
             });
-            
+
             const data = await response.json();
             if (data.success) {
                 router.reload();
