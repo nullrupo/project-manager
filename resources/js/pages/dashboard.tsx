@@ -4,12 +4,16 @@ import AppLayout from '@/layouts/app-layout';
 import { type RecentActivity } from '@/types';
 import { Head, Link } from '@inertiajs/react';
 import { LayoutDashboard, ListTodo, Plus, Users, FolderPlus, PlusCircle, CheckCircle, MessageCircle, Clock } from 'lucide-react';
+import { useState } from 'react';
+import CreateProjectModal from '@/components/project/CreateProjectModal';
 
 interface DashboardProps {
     recentActivities: RecentActivity[];
 }
 
 export default function Dashboard({ recentActivities }: DashboardProps) {
+    const [createModalOpen, setCreateModalOpen] = useState(false);
+
     const getActivityIcon = (iconName: string) => {
         switch (iconName) {
             case 'folder-plus':
@@ -49,12 +53,10 @@ export default function Dashboard({ recentActivities }: DashboardProps) {
                 <div className="flex justify-between items-center py-2">
                     <h1 className="text-2xl font-semibold">Dashboard</h1>
                     <div className="relative">
-                        <Link href={route('projects.create')}>
-                            <Button className="relative z-10">
-                                <Plus className="mr-2 h-4 w-4" />
-                                New Project
-                            </Button>
-                        </Link>
+                        <Button className="relative z-10" onClick={() => setCreateModalOpen(true)}>
+                            <Plus className="mr-2 h-4 w-4" />
+                            New Project
+                        </Button>
                     </div>
                 </div>
 
@@ -166,6 +168,7 @@ export default function Dashboard({ recentActivities }: DashboardProps) {
                     </CardContent>
                 </Card>
             </div>
+            <CreateProjectModal open={createModalOpen} onOpenChange={setCreateModalOpen} />
         </AppLayout>
     );
 }

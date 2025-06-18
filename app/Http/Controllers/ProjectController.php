@@ -57,61 +57,56 @@ class ProjectController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'background_color' => 'nullable|string|max:50',
-            'icon' => 'nullable|string|max:50',
-            'completion_behavior' => 'nullable|string|in:simple,review,custom',
+            'background_color' => 'nullable|string|max:7',
+            'icon' => 'nullable|string|max:10',
+            'completion_behavior' => 'required|in:simple,review,custom',
             'requires_review' => 'boolean',
         ]);
 
-        // Auto-generate a unique project key from name
-        $key = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $validated['name']), 0, 4));
-        $counter = 1;
-        $originalKey = $key;
-        while (Project::where('key', $key)->exists()) {
-            $key = $originalKey . $counter;
-            $counter++;
-        }
-        $validated['key'] = $key;
+        // Generate a unique project key
+        $key = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $validated['name']), 0, 3));
+        $key .= str_pad(Project::where('key', 'like', $key . '%')->count() + 1, 2, '0', STR_PAD_LEFT);
 
-        // Create the project
-        $project = new Project($validated);
-        $project->owner_id = Auth::id();
-        $project->save();
+        $project = Project::create([
+            'name' => $validated['name'],
+            'description' => $validated['description'],
+            'background_color' => $validated['background_color'],
+            'icon' => $validated['icon'],
+            'key' => $key,
+            'completion_behavior' => $validated['completion_behavior'],
+            'requires_review' => $validated['completion_behavior'] === 'review' ? ($validated['requires_review'] ?? false) : false,
+            'owner_id' => auth()->id(),
+            'is_personal_project' => true,
+        ]);
 
-        // Add the creator as a member with 'owner' role and full permissions
-        ProjectPermissionService::addUserToProject($project, Auth::user(), 'owner');
-
-        // Create a default board
+        // Create default board and lists
         $board = $project->boards()->create([
-            'name' => 'Default Board',
+            'name' => 'Main Board',
+            'description' => 'Default board for the project',
             'is_default' => true,
-            'type' => 'kanban',
         ]);
 
-        // Create default lists for the board
-        $board->lists()->create([
-            'name' => 'To Do',
-            'position' => 0,
-            'color' => '#3498db',
-        ]);
+        $lists = [
+            ['name' => 'To Do', 'order' => 1],
+            ['name' => 'In Progress', 'order' => 2],
+            ['name' => 'Done', 'order' => 3],
+        ];
 
-        $board->lists()->create([
-            'name' => 'Doing',
-            'position' => 1,
-            'color' => '#f39c12',
-        ]);
+        foreach ($lists as $list) {
+            $board->lists()->create($list);
+        }
 
-        $board->lists()->create([
-            'name' => 'Review',
-            'position' => 2,
-            'color' => '#9b59b6',
-        ]);
-
-        $board->lists()->create([
-            'name' => 'Done',
-            'position' => 3,
-            'color' => '#2ecc71',
-        ]);
+        // Create "First Task" in the "To Do" list
+        $todoList = $board->lists()->where('name', 'To Do')->first();
+        if ($todoList) {
+            $todoList->tasks()->create([
+                'title' => 'First Task',
+                'description' => 'This is your first task. Edit or delete it to get started!',
+                'order' => 1,
+                'created_by' => auth()->id(),
+                'assigned_to' => auth()->id(),
+            ]);
+        }
 
         return redirect()->route('projects.show', $project)
             ->with('success', 'Project created successfully.');

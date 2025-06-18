@@ -11,6 +11,7 @@ import { CalendarDays, Plus, User, Users, Globe, Archive } from 'lucide-react';
 import StarButton from '@/components/star-button';
 import { useState, useMemo } from 'react';
 import { useShortName } from '@/hooks/use-initials';
+import CreateProjectModal from '@/components/project/CreateProjectModal';
 
 interface ProjectsIndexProps {
     projects: Project[];
@@ -21,6 +22,7 @@ type ProjectFilter = 'all' | 'personal' | 'team';
 export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
     const { auth } = usePage<SharedData>().props;
     const [activeFilter, setActiveFilter] = useState<ProjectFilter>('all');
+    const [createModalOpen, setCreateModalOpen] = useState(false);
     const getShortName = useShortName();
 
     // Filter projects based on the active filter
@@ -46,12 +48,10 @@ export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
             <Head title="Projects" />
             <div className="flex items-center justify-between mb-6">
                 <h1 className="text-2xl font-semibold">Projects</h1>
-                <Link href={route('projects.create')}>
-                    <Button>
-                        <Plus className="mr-2 h-4 w-4" />
-                        New Project
-                    </Button>
-                </Link>
+                <Button onClick={() => setCreateModalOpen(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    New Project
+                </Button>
             </div>
 
             {/* Filter Controls */}
@@ -107,12 +107,10 @@ export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
                          'Join a team project or create a new one.'}
                     </p>
                     <div className="mt-6">
-                        <Link href={route('projects.create')}>
-                            <Button>
-                                <Plus className="mr-2 h-4 w-4" />
-                                New Project
-                            </Button>
-                        </Link>
+                        <Button onClick={() => setCreateModalOpen(true)}>
+                            <Plus className="mr-2 h-4 w-4" />
+                            New Project
+                        </Button>
                     </div>
                 </div>
             ) : (
@@ -239,6 +237,12 @@ export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
                     ))}
                 </div>
             )}
+
+            {/* Create Project Modal */}
+            <CreateProjectModal
+                open={createModalOpen}
+                onOpenChange={setCreateModalOpen}
+            />
         </AppLayout>
     );
 }
