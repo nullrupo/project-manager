@@ -399,26 +399,3 @@ if (typeof window !== 'undefined') {
     (window as any).fixPointerEvents = fixPointerEvents;
     (window as any).forceCleanupAllOverlays = forceCleanupAllOverlays;
 }
-
-// Improved automatic overlay cleanup: only remove overlays not managed by React
-const overlayCleanupTimeouts = new WeakMap<Element, ReturnType<typeof setTimeout>>();
-export const improvedOverlayCleanup = () => {
-    document.querySelectorAll('.fixed.inset-0.z-50:not([data-managed-by-react="true"])').forEach(el => {
-        // Remove overlays not managed by React after a short grace period
-        if (!overlayCleanupTimeouts.has(el)) {
-            const timeout = setTimeout(() => {
-                el.remove();
-                overlayCleanupTimeouts.delete(el);
-                // Optionally, log for debugging
-                // console.log('Removed non-React overlay:', el);
-            }, 500);
-            overlayCleanupTimeouts.set(el, timeout);
-        }
-    });
-};
-
-// Set up MutationObserver for automatic cleanup
-if (typeof window !== 'undefined' && typeof MutationObserver !== 'undefined') {
-    const observer = new MutationObserver(improvedOverlayCleanup);
-    observer.observe(document.body, { childList: true, subtree: true });
-}

@@ -112,6 +112,30 @@ export const useProjectState = (project: Project) => {
         }
     }, [currentBoardId, project.boards]);
 
+    // Global navigation cleanup: close all modals on route change
+    useEffect(() => {
+        const handleCleanup = () => {
+            setInviteModalOpen(false);
+            setDeleteDialogOpen(false);
+            setPermissionModalOpen(false);
+            setDetailsModalOpen(false);
+            setTaskEditModalOpen(false);
+            setTaskViewModalOpen(false);
+            setTaskCreateModalOpen(false);
+            setSectionEditModalOpen(false);
+            setSectionCreateModalOpen(false);
+            setInspectorOpen(false);
+            setDurationModalOpen && setDurationModalOpen(false);
+            setTaskDetailModalOpen && setTaskDetailModalOpen(false);
+        };
+        window.addEventListener('popstate', handleCleanup);
+        window.addEventListener('inertia:navigate', handleCleanup);
+        return () => {
+            window.removeEventListener('popstate', handleCleanup);
+            window.removeEventListener('inertia:navigate', handleCleanup);
+        };
+    }, []);
+
     return {
         // View state
         activeView,
