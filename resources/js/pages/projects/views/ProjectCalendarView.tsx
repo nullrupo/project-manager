@@ -16,14 +16,18 @@ import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import axios from 'axios';
 
-// Add route function declaration
-declare global {
-    function route(name: string, params?: any): string;
-}
-
 interface ProjectCalendarViewProps {
     project: Project;
     state: any;
+}
+
+const avatarColors = ['#F87171', '#FBBF24', '#34D399', '#60A5FA', '#A78BFA', '#F472B6', '#FCD34D', '#6EE7B7', '#818CF8', '#F9A8D4'];
+function getColorForIndex(index: number, prevColorIndex: number = -1) {
+    let colorIndex = index % avatarColors.length;
+    if (colorIndex === prevColorIndex) {
+        colorIndex = (colorIndex + 1) % avatarColors.length;
+    }
+    return colorIndex;
 }
 
 export default function ProjectCalendarView({ project, state }: ProjectCalendarViewProps) {
@@ -54,7 +58,7 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
 
     // Task assignment modal state
     const [assignTaskModalOpen, setAssignTaskModalOpen] = useState(false);
-    const [taskToAssign, setTaskToAssign] = useState<any>(null);
+    const [taskToAssignId, setTaskToAssignId] = useState<number | null>(null);
 
     // Task duration modal state
     const [durationModalOpen, setDurationModalOpen] = useState(false);
@@ -69,6 +73,12 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
 
     // Task create modal state
     const [taskCreateModalOpen, setTaskCreateModalOpen] = useState(false);
+
+    // --- Normalized members list: always includes owner, deduplicated ---
+    const normalizedMembers = [
+        ...(project.members || []),
+        ...(project.owner ? [project.owner] : [])
+    ].filter((m, i, arr) => m && arr.findIndex(x => x.id === m.id) === i);
 
     // Shared priority color function
     const getPriorityColor = (priority: string) => {
@@ -358,7 +368,7 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
         // Check if dragging a member
         if (active.id.toString().startsWith('member-')) {
             const memberId = active.id.toString().split('-')[1];
-            const member = project.members?.find(m => m.id.toString() === memberId);
+            const member = normalizedMembers.find(m => m.id.toString() === memberId);
             setActiveTask({ type: 'member', ...member });
             setDraggedTask({ type: 'member', ...member });
             return;
@@ -396,7 +406,7 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
         // Handle member assignment to tasks
         if (active.id.toString().startsWith('member-')) {
             const memberId = active.id.toString().split('-')[1];
-            const member = project.members?.find(m => m.id.toString() === memberId);
+            const member = normalizedMembers.find(m => m.id.toString() === memberId);
 
             if (!member) {
                 setActiveTask(null);
@@ -728,7 +738,7 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
     }
 
     // Draggable Member Component
-    const DraggableMember = ({ member }: { member: any }) => {
+    const DraggableMember = ({ member, idx }: { member: any; idx: number }) => {
         const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
             id: `member-${member.id}`,
             data: { member, type: 'member' },
@@ -751,7 +761,7 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
             >
                 <Avatar className="h-8 w-8 border">
                     <AvatarImage src={member.avatar} />
-                    <AvatarFallback className="text-sm font-medium">
+                    <AvatarFallback className="text-sm font-medium" style={{ backgroundColor: avatarColors[getColorForIndex(idx)], color: '#fff' }}>
                         {member.name.charAt(0).toUpperCase()}
                     </AvatarFallback>
                 </Avatar>
@@ -796,31 +806,32 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                 className={`p-2 border-l-4 rounded-md transition-all duration-150 group relative cursor-grab active:cursor-grabbing hover:shadow-md hover:scale-[1.02] ${getPriorityColor(task.priority)} ${isDragging ? 'ring-2 ring-blue-500 shadow-lg' : ''} ${isOver ? 'ring-2 ring-green-400 bg-green-50 dark:bg-green-950/20' : ''}`}
                 title={`Drag to calendar (ID: ${task.id}) - Click and drag me! | Right-click to assign`}
                 onClick={(e) => {
-                    // Only open modal if not dragging
-                    if (!isDragInProgress && !recentDragRef.current) {
-                        e.stopPropagation();
-                        setSelectedTaskForDetail(task);
-                        setTaskDetailModalOpen(true);
+                    if (task && task.id) {
+                        setTaskToAssignId(task.id);
+                        setAssignTaskModalOpen(true);
                     }
                 }}
                 onContextMenu={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    setTaskToAssign(task);
+                    setTaskToAssignId(task.id);
                     setAssignTaskModalOpen(true);
                 }}
             >
                 <div className="flex items-start justify-between mb-1 pr-8">
                     <h4 className="font-medium text-xs truncate flex-1">{task.title}</h4>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                        {task.assignees?.slice(0, 2).map((assignee: any) => (
-                            <Avatar key={assignee.id} className="h-4 w-4 border">
-                                <AvatarImage src={assignee.avatar} />
-                                <AvatarFallback className="text-xs">
-                                    {assignee.name.charAt(0).toUpperCase()}
-                                </AvatarFallback>
-                            </Avatar>
-                        ))}
+                        {task.assignees?.slice(0, 2).map((assignee: any, idx: number) => {
+                            const colorIndex = getColorForIndex(idx);
+                            return (
+                                <Avatar key={assignee.id} className="h-4 w-4 border">
+                                    <AvatarImage src={assignee.avatar} />
+                                    <AvatarFallback className="text-xs" style={{ backgroundColor: avatarColors[colorIndex], color: '#fff' }}>
+                                        {assignee.name?.charAt(0).toUpperCase() || '?'}
+                                    </AvatarFallback>
+                                </Avatar>
+                            );
+                        })}
                         {task.assignees?.length > 2 && (
                             <div className="h-4 w-4 rounded-full bg-muted text-xs flex items-center justify-center">
                                 +{task.assignees.length - 2}
@@ -847,7 +858,7 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                     className="absolute top-0 right-0 h-full w-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-l from-background to-transparent hover:bg-muted/50 rounded-r-md"
                     onClick={(e) => {
                         e.stopPropagation();
-                        setTaskToAssign(task);
+                        setTaskToAssignId(task.id);
                         setAssignTaskModalOpen(true);
                     }}
                     title="Assign task"
@@ -903,7 +914,7 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                                     height: '16px', // Slightly larger for better visibility
                                     zIndex: 10 + index // Ensure proper stacking
                                 }}
-                                title={`${task.title} - ${task.priority} priority${task.assignees?.length ? ` | Assigned to: ${task.assignees.map(a => a.name).join(', ')}` : ' | Unassigned'} | Right-click to assign`}
+                                title={`${task.title} - ${task.priority} priority${task.assignees?.length ? ` | Assigned to: ${task.assignees.map((a: any) => a.name).join(', ')}` : ' | Unassigned'} | Right-click to assign`}
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     if (!isDragInProgress && !recentDragRef.current) {
@@ -914,7 +925,7 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                                 onContextMenu={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    setTaskToAssign(task);
+                                    setTaskToAssignId(task.id);
                                     setAssignTaskModalOpen(true);
                                 }}
                             >
@@ -1068,10 +1079,10 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                         onContextMenu={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            setTaskToAssign(currentTask);
+                            setTaskToAssignId(task.id);
                             setAssignTaskModalOpen(true);
                         }}
-                        title={`${currentTask.title} - ${currentTask.priority} priority (${currentTask.duration_days}d) | ${currentTask.assignees?.length ? `Assigned to: ${currentTask.assignees.map(a => a.name).join(', ')}` : 'Unassigned'} | Drag to move, resize handles to extend/shrink | Right-click to assign`}
+                        title={`${currentTask.title} - ${currentTask.priority} priority (${currentTask.duration_days}d) | ${currentTask.assignees?.length ? `Assigned to: ${currentTask.assignees.map((a: any) => a.name).join(', ')}` : 'Unassigned'} | Drag to move, resize handles to extend/shrink | Right-click to assign`}
                     >
                         {/* Task content - only show on first segment */}
                         {segment.isFirst && (
@@ -1135,12 +1146,18 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
     };
 
     // Task Assignment Modal Component
-    const TaskAssignmentModal = ({ task, project, open, onOpenChange }: {
+    const TaskAssignmentModal = ({ task, project, open, onOpenChange, setLocalTaskUpdates }: {
         task: any;
         project: Project;
         open: boolean;
         onOpenChange: (open: boolean) => void;
+        setLocalTaskUpdates: React.Dispatch<React.SetStateAction<{[key: number]: any}>>;
     }) => {
+        useEffect(() => {
+            if (!task && open) {
+                onOpenChange(false);
+            }
+        }, [task, open, onOpenChange]);
         if (!task) return null;
 
         const handleAssigneeToggle = (memberId: number) => {
@@ -1167,7 +1184,15 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                 preserveState: true,
                 preserveScroll: true,
                 onSuccess: () => {
+                    // Close the modal first, then update local task state after a short delay
                     onOpenChange(false);
+                    setTimeout(() => {
+                        setLocalTaskUpdates(prev => {
+                            const updated = { ...prev };
+                            delete updated[task.id];
+                            return updated;
+                        });
+                    }, 200); // 200ms to allow modal to unmount
                 },
                 onError: (errors) => {
                     console.error('Failed to update task assignees:', errors);
@@ -1189,12 +1214,13 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
         };
 
         return (
-            <div className={`fixed inset-0 z-50 ${open ? 'block' : 'hidden'}`}>
+            <div className={`fixed inset-0 z-50 ${open ? 'block' : 'hidden'}`} data-managed-by-react="true">
                 <div className="fixed inset-0 bg-black/50" onClick={handleClose} />
                 <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-background border rounded-lg shadow-lg p-6">
                     <h3 className="text-lg font-semibold mb-4">Assign Task: {task.title}</h3>
                     <div className="space-y-3 max-h-64 overflow-y-auto scrollbar-hide">
-                        {project.members?.map((member) => {
+                        {normalizedMembers.map((member, idx) => {
+                            const colorIndex = getColorForIndex(idx);
                             const isAssigned = task.assignees?.some((a: any) => a.id === member.id);
                             return (
                                 <div
@@ -1206,7 +1232,9 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                                 >
                                     <Avatar className="h-8 w-8">
                                         <AvatarImage src={member.avatar} />
-                                        <AvatarFallback>{member.name.charAt(0).toUpperCase()}</AvatarFallback>
+                                        <AvatarFallback style={{ backgroundColor: avatarColors[colorIndex], color: '#fff' }}>
+                                            {member.name.charAt(0).toUpperCase()}
+                                        </AvatarFallback>
                                     </Avatar>
                                     <div className="flex-1">
                                         <div className="font-medium">{member.name}</div>
@@ -1270,7 +1298,7 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
         };
 
         return (
-            <div className={`fixed inset-0 z-50 ${open ? 'block' : 'hidden'}`}>
+            <div className={`fixed inset-0 z-50 ${open ? 'block' : 'hidden'}`} data-managed-by-react="true">
                 <div className="fixed inset-0 bg-black/50" onClick={() => onOpenChange(false)} />
                 <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-background border rounded-lg shadow-lg p-6">
                     <h3 className="text-lg font-semibold mb-4">Extend Task: {task.title}</h3>
@@ -1305,6 +1333,9 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
     for (let i = 0; i < calendarDays.length; i += 7) {
         weeks.push(calendarDays.slice(i, i + 7));
     }
+
+    const allTasks = getAllProjectTasks();
+    const taskToAssign = allTasks.find(t => t.id === taskToAssignId) || null;
 
     return (
         <DndContext
@@ -1375,10 +1406,10 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                                 Team Members - Drag to assign tasks
                             </h4>
                             <div className="flex flex-wrap gap-2">
-                                {project.members?.map((member) => (
-                                    <DraggableMember key={member.id} member={member} />
+                                {normalizedMembers.map((member, idx) => (
+                                    <DraggableMember key={member.id} member={member} idx={idx} />
                                 ))}
-                                {(!project.members || project.members.length === 0) && (
+                                {(!normalizedMembers || normalizedMembers.length === 0) && (
                                     <div className="text-sm text-muted-foreground">
                                         No team members in this project
                                     </div>
@@ -1411,11 +1442,10 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                                 <CardContent>
                                     <div className="space-y-2 max-h-[880px] overflow-y-auto scrollbar-hide">
                                         {(() => {
-                                            const allTasks = getAllProjectTasks();
-                                            const tasksWithoutDueDate = allTasks.filter(task => !task.due_date);
-                                            const tasksWithDueDate = allTasks.filter(task => task.due_date);
+                                            const tasksWithoutDueDate = getAllProjectTasks().filter(task => !task.due_date);
+                                            const tasksWithDueDate = getAllProjectTasks().filter(task => task.due_date);
 
-                                            if (allTasks.length === 0) {
+                                            if (getAllProjectTasks().length === 0) {
                                                 return (
                                                     <div className="text-center py-8 text-muted-foreground">
                                                         <ListTodo className="h-8 w-8 mx-auto mb-2" />
@@ -1511,18 +1541,22 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                 open={taskCreateModalOpen}
                 onOpenChange={setTaskCreateModalOpen}
                 project={project}
-                members={[...(project.members || []), ...(project.owner ? [project.owner] : [])].filter((m, i, arr) => arr.findIndex(x => x.id === m.id) === i)}
+                members={normalizedMembers}
                 labels={project.boards?.flatMap(board => board.lists?.flatMap(list => list.tasks?.flatMap(task => task.labels || []) || []) || [])?.filter((v, i, a) => v && a.findIndex(t => t.id === v.id) === i) || []}
-                lists={project.boards?.flatMap(board => board.lists || []) || []}
+                tags={[]}
+                sections={[]}
             />
 
             {/* Task Assignment Modal */}
-            <TaskAssignmentModal
-                task={taskToAssign}
-                project={project}
-                open={assignTaskModalOpen}
-                onOpenChange={setAssignTaskModalOpen}
-            />
+            {taskToAssign && (
+                <TaskAssignmentModal
+                    task={taskToAssign}
+                    project={project}
+                    open={assignTaskModalOpen}
+                    onOpenChange={setAssignTaskModalOpen}
+                    setLocalTaskUpdates={setLocalTaskUpdates}
+                />
+            )}
 
             {/* Task Duration Modal */}
             <TaskDurationModal
@@ -1564,14 +1598,17 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                             <div className="flex items-start justify-between mb-2">
                                 <h4 className="font-medium text-sm">{activeTask.title}</h4>
                                 <div className="flex items-center gap-1">
-                                    {activeTask.assignees?.slice(0, 2).map((assignee: any) => (
-                                        <Avatar key={assignee.id} className="h-5 w-5 border">
-                                            <AvatarImage src={assignee.avatar} />
-                                            <AvatarFallback className="text-xs">
-                                                {assignee.name.charAt(0).toUpperCase()}
-                                            </AvatarFallback>
-                                        </Avatar>
-                                    ))}
+                                    {activeTask.assignees?.slice(0, 2).map((assignee: any, idx: number) => {
+                                        const colorIndex = getColorForIndex(idx);
+                                        return (
+                                            <Avatar key={assignee.id} className="h-4 w-4 border">
+                                                <AvatarImage src={assignee.avatar} />
+                                                <AvatarFallback className="text-xs" style={{ backgroundColor: avatarColors[colorIndex], color: '#fff' }}>
+                                                    {assignee.name?.charAt(0).toUpperCase() || '?'}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                        );
+                                    })}
                                 </div>
                             </div>
                             <div className="flex items-center justify-between text-xs text-muted-foreground">

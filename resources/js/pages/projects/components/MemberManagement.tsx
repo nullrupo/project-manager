@@ -20,6 +20,14 @@ interface MemberManagementProps {
     onDeleteMember: (member: any) => void;
 }
 
+// Color palette for avatars
+const avatarColors = ['#F87171', '#FBBF24', '#34D399', '#60A5FA', '#A78BFA', '#F472B6', '#FCD34D', '#6EE7B7', '#818CF8', '#F9A8D4'];
+function getShuffledColors(length: number) {
+    const base = [...avatarColors];
+    const offset = Math.floor(Math.random() * base.length);
+    return base.slice(offset).concat(base.slice(0, offset)).slice(0, length);
+}
+
 export default function MemberManagement({ 
     project, 
     canEdit, 
@@ -27,6 +35,9 @@ export default function MemberManagement({
     onDeleteMember 
 }: MemberManagementProps) {
     const getShortName = useShortName();
+
+    const allMembers = [project.owner, ...(project.members?.filter(m => m.id !== project.owner?.id) || [])].filter(Boolean);
+    const colors = getShuffledColors(allMembers.length);
 
     return (
         <div className="space-y-6">
@@ -77,57 +88,65 @@ export default function MemberManagement({
                             </CardDescription>
                         </div>
                         <Badge variant="outline">
-                            {project.members?.length || 0} member{(project.members?.length || 0) !== 1 ? 's' : ''}
+                            {allMembers.length} member{allMembers.length !== 1 ? 's' : ''}
                         </Badge>
                     </div>
                 </CardHeader>
                 <CardContent>
-                    {project.members && project.members.length > 0 ? (
+                    {allMembers && allMembers.length > 0 ? (
                         <div className="space-y-3">
-                            {project.members.map((member) => (
-                                <div key={member.id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors">
-                                    <div className="flex items-center gap-3">
-                                        <Avatar className="h-10 w-10">
-                                            <AvatarImage src={member.avatar} />
-                                            <AvatarFallback>
-                                                {getShortName(member.name)}
-                                            </AvatarFallback>
-                                        </Avatar>
-                                        <div>
-                                            <h4 className="font-medium">{getShortName(member.name)}</h4>
-                                            <p className="text-sm text-muted-foreground">{member.email}</p>
+                            {allMembers.map((member, idx) => {
+                                if (!member) return null;
+                                const color = colors[idx];
+                                const isOwner = member.id === project.owner?.id;
+                                return (
+                                    <div
+                                        key={member.id}
+                                        className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${!isOwner ? 'hover:bg-muted/70 cursor-pointer' : ''}`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <Avatar className="h-10 w-10">
+                                                <AvatarImage src={member.avatar} />
+                                                <AvatarFallback className="text-lg font-semibold" style={{ backgroundColor: color, color: '#fff' }}>
+                                                    {member.name?.charAt(0).toUpperCase() || '?'}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            <div>
+                                                <h4 className="font-medium">{getShortName(member.name)}</h4>
+                                                <p className="text-sm text-muted-foreground">{member.email}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Badge variant="outline" className="text-xs">
+                                                {member.pivot?.role || (isOwner ? 'Owner' : 'Member')}
+                                            </Badge>
+                                            {canEdit && !isOwner && (
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                                            <MoreHorizontal className="h-4 w-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuItem onClick={() => onEditMember(member)}>
+                                                            <Edit className="h-4 w-4 mr-2" />
+                                                            Edit Permissions
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem
+                                                            onClick={() => onDeleteMember(member)}
+                                                            className="text-destructive"
+                                                        >
+                                                            <Trash2 className="h-4 w-4 mr-2" />
+                                                            Remove
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            )}
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <Badge variant="outline" className="text-xs">
-                                            {member.pivot?.role || 'Member'}
-                                        </Badge>
-                                        {canEdit && (
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                                        <MoreHorizontal className="h-4 w-4" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuItem onClick={() => onEditMember(member)}>
-                                                        <Edit className="h-4 w-4 mr-2" />
-                                                        Edit Permissions
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuItem
-                                                        onClick={() => onDeleteMember(member)}
-                                                        className="text-destructive"
-                                                    >
-                                                        <Trash2 className="h-4 w-4 mr-2" />
-                                                        Remove
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     ) : (
                         <div className="text-center py-8 text-muted-foreground">

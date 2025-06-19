@@ -99,6 +99,7 @@ export const useTaskOperations = (project: Project, currentView?: string, curren
             if (data.success) {
                 console.log('✅ Task moved successfully in database');
                 // Don't reload - the optimistic update already shows the change
+                router.reload(); // Ensure project data is refreshed for all views
             } else {
                 console.error('❌ Move failed:', data);
                 // Revert optimistic update by reloading

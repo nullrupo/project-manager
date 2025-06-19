@@ -10,21 +10,32 @@ export const cleanupModalOverlays = () => {
     // Remove any stale custom modal overlays
     const customOverlays = document.querySelectorAll('.fixed.inset-0.z-50');
     customOverlays.forEach(overlay => {
-        // Only remove if it's a modal overlay (has backdrop-blur or bg-black)
-        if (overlay.classList.contains('bg-black') ||
-            overlay.querySelector('.bg-black\\/50') ||
-            overlay.querySelector('[class*="backdrop-blur"]')) {
-            overlay.remove();
+        const el = overlay as HTMLElement;
+        // Skip overlays that are likely managed by React (e.g., have a React root or data attributes)
+        if ((el.hasAttribute('data-reactroot') || el.closest('[data-reactroot]')) || el.getAttribute('data-managed-by-react') === 'true') {
+            return;
+        }
+        // Only remove if it's a modal overlay (has backdrop-blur or bg-black) and still in DOM
+        if ((el.classList.contains('bg-black') ||
+            el.querySelector('.bg-black\\/50') ||
+            el.querySelector('[class*="backdrop-blur"]')) &&
+            document.body.contains(el)) {
+            // el.remove(); // Disabled to prevent React DOM conflicts
         }
     });
 
     // Also clean up any orphaned modal containers
-    const modalContainers = document.querySelectorAll('[class*="fixed"][class*="inset-0"][class*="z-50"]');
-    modalContainers.forEach(container => {
-        if (container.style.visibility === 'hidden' ||
-            container.classList.contains('invisible') ||
-            container.classList.contains('opacity-0')) {
-            container.remove();
+    const modalContainers = Array.from(document.querySelectorAll('[class*="fixed"][class*="inset-0"][class*="z-50"]')).map(el => el as HTMLElement);
+    modalContainers.forEach(el => {
+        // Skip containers likely managed by React
+        if ((el.hasAttribute('data-reactroot') || el.closest('[data-reactroot]')) || el.getAttribute('data-managed-by-react') === 'true') {
+            return;
+        }
+        if ((el.style.visibility === 'hidden' ||
+            el.classList.contains('invisible') ||
+            el.classList.contains('opacity-0')) &&
+            document.body.contains(el)) {
+            // el.remove(); // Disabled to prevent React DOM conflicts
         }
     });
 
@@ -58,16 +69,25 @@ export const cleanupRadixOverlays = () => {
     const staleOverlays = document.querySelectorAll('[data-radix-dialog-overlay]');
     staleOverlays.forEach(overlay => {
         const parent = overlay.parentNode;
-        if (parent && parent !== document.body) {
-            parent.removeChild(overlay);
+        // Skip overlays likely managed by React
+        if ((overlay.hasAttribute('data-reactroot') || overlay.closest('[data-reactroot]')) || overlay.getAttribute('data-managed-by-react') === 'true') {
+            return;
+        }
+        if (parent && parent !== document.body && parent.contains(overlay)) {
+            // parent.removeChild(overlay); // Disabled to prevent React DOM conflicts
         }
     });
 
     // Also clean up any stale portal containers
     const stalePortals = document.querySelectorAll('[data-radix-portal]');
     stalePortals.forEach(portal => {
-        if (portal.children.length === 0) {
-            portal.remove();
+        const el = portal as HTMLElement;
+        // Skip portals likely managed by React
+        if ((el.hasAttribute('data-reactroot') || el.closest('[data-reactroot]')) || el.getAttribute('data-managed-by-react') === 'true') {
+            return;
+        }
+        if (el.children.length === 0 && document.body.contains(el)) {
+            // el.remove(); // Disabled to prevent React DOM conflicts
         }
     });
 
@@ -199,7 +219,7 @@ export const forceCleanupAllOverlays = () => {
             element.hasAttribute('data-radix-dialog-overlay') ||
             element.hasAttribute('data-radix-portal')) {
             console.log('Removing stuck overlay:', element);
-            element.remove();
+            // element.remove(); // Disabled to prevent React DOM conflicts
         }
     });
 
@@ -378,4 +398,27 @@ if (typeof window !== 'undefined') {
     (window as any).debugPointerEvents = debugPointerEvents;
     (window as any).fixPointerEvents = fixPointerEvents;
     (window as any).forceCleanupAllOverlays = forceCleanupAllOverlays;
+}
+
+// Improved automatic overlay cleanup: only remove overlays not managed by React
+const overlayCleanupTimeouts = new WeakMap<Element, ReturnType<typeof setTimeout>>();
+export const improvedOverlayCleanup = () => {
+    document.querySelectorAll('.fixed.inset-0.z-50:not([data-managed-by-react="true"])').forEach(el => {
+        // Remove overlays not managed by React after a short grace period
+        if (!overlayCleanupTimeouts.has(el)) {
+            const timeout = setTimeout(() => {
+                el.remove();
+                overlayCleanupTimeouts.delete(el);
+                // Optionally, log for debugging
+                // console.log('Removed non-React overlay:', el);
+            }, 500);
+            overlayCleanupTimeouts.set(el, timeout);
+        }
+    });
+};
+
+// Set up MutationObserver for automatic cleanup
+if (typeof window !== 'undefined' && typeof MutationObserver !== 'undefined') {
+    const observer = new MutationObserver(improvedOverlayCleanup);
+    observer.observe(document.body, { childList: true, subtree: true });
 }

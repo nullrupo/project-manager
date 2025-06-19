@@ -20,6 +20,7 @@ import ProjectHeader from './components/ProjectHeader';
 import ViewSwitcher from './components/ViewSwitcher';
 import TaskModals from './components/TaskModals';
 import TaskCreateModal from '@/components/project/TaskCreateModal';
+import ProjectMemberListModal from './components/ProjectMemberListModal';
 
 // Import hooks
 import { useProjectState } from './hooks/useProjectState';
@@ -103,6 +104,9 @@ export default function ProjectShow({ project }: ProjectShowProps) {
         }
     };
 
+    const [memberListModalOpen, setMemberListModalOpen] = useState(false);
+    const [inviteModalOpen, setInviteModalOpen] = useState(false);
+
     return (
         <AppLayout>
             <Head title={`${project.name} - Project`} />
@@ -113,6 +117,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                 canEdit={canEdit}
                 onInviteMember={handleInviteMember}
                 onOpenDetails={handleOpenDetails}
+                onOpenMembers={() => setMemberListModalOpen(true)}
             />
 
             {/* View Switcher */}
@@ -191,10 +196,16 @@ export default function ProjectShow({ project }: ProjectShowProps) {
             />
 
             {/* Member Management Modals */}
+            <ProjectMemberListModal
+                project={project}
+                open={memberListModalOpen}
+                onOpenChange={setMemberListModalOpen}
+                onInvite={() => setInviteModalOpen(true)}
+            />
             <InviteMemberModal
                 project={project}
-                open={state.inviteModalOpen}
-                onOpenChange={state.setInviteModalOpen}
+                open={inviteModalOpen}
+                onOpenChange={setInviteModalOpen}
             />
 
             <ConfirmDialog

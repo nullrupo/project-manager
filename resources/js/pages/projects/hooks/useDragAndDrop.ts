@@ -275,6 +275,7 @@ export const useDragAndDrop = (
 
                 // Create optimistic update function with proper insertion logic
                 const optimisticUpdate = () => {
+                    // Patch the lists state in real time for both board and list views
                     const newLists = state.lists.map((list: any) => ({ ...list, tasks: [...(list.tasks || [])] }));
 
                     // Find source and target lists
@@ -327,6 +328,7 @@ export const useDragAndDrop = (
                         task.position = index;
                     });
 
+                    // Patch the shared lists state for both board and list views
                     state.setLists(newLists);
                 };
 
@@ -413,61 +415,63 @@ export const useDragAndDrop = (
         const activeId = active.id;
         const overId = over.id;
 
-        // Handle task reordering (simplified like board view)
-        if (activeId.startsWith('list-task-')) {
+        // Only allow reordering within the same section/status (like board column)
+        if (activeId.startsWith('list-task-') && overId.startsWith('list-task-')) {
             const taskId = parseInt(activeId.replace('list-task-', ''));
+            const overTaskId = parseInt(overId.replace('list-task-', ''));
 
-            // Only handle task-to-task reordering for instant feedback
-            if (overId.startsWith('list-task-')) {
-                const overTaskId = parseInt(overId.replace('list-task-', ''));
+            if (taskId !== overTaskId) {
+                // Find the section containing both tasks
+                const sections = getOrganizedTasks(project, listViewMode);
+                let section = null;
+                let sourceIndex = -1;
+                let targetIndex = -1;
 
-                if (taskId !== overTaskId) {
-                    // Find the sections and tasks
-                    const sections = getOrganizedTasks(project, listViewMode);
-                    let sourceSection = null;
-                    let targetSection = null;
-                    let sourceTask = null;
-                    let targetTask = null;
-
-                    // Find source and target tasks and their sections
-                    for (const section of sections) {
-                        const foundSource = section.tasks.find((t: any) => t.id === taskId);
-                        const foundTarget = section.tasks.find((t: any) => t.id === overTaskId);
-
-                        if (foundSource) {
-                            sourceSection = section;
-                            sourceTask = foundSource;
-                        }
-                        if (foundTarget) {
-                            targetSection = section;
-                            targetTask = foundTarget;
-                        }
+                for (const sec of sections) {
+                    const taskIds = sec.tasks.map((t: any) => t.id);
+                    sourceIndex = taskIds.indexOf(taskId);
+                    targetIndex = taskIds.indexOf(overTaskId);
+                    if (sourceIndex !== -1 && targetIndex !== -1) {
+                        section = sec;
+                        break;
                     }
+                }
 
-                    if (sourceTask && targetTask && sourceSection && targetSection) {
-                        // Simple reordering logic like board view
-                        const allTasks = [...targetSection.tasks];
-                        const sourceIndex = allTasks.findIndex((t: any) => t.id === taskId);
-                        const targetIndex = allTasks.findIndex((t: any) => t.id === overTaskId);
+                if (section && sourceIndex !== -1 && targetIndex !== -1) {
+                    const newTasks = [...section.tasks];
+                    const [movedTask] = newTasks.splice(sourceIndex, 1);
 
-                        if (sourceIndex !== -1 && targetIndex !== -1) {
-                            // Remove source task and insert at target position
-                            const [movedTask] = allTasks.splice(sourceIndex, 1);
-                            allTasks.splice(targetIndex, 0, movedTask);
-
-                            // Prepare position updates for immediate response
-                            const updates = allTasks.map((task: any, index: number) => ({
-                                id: task.id,
-                                position: index,
-                                list_id: task.list_id,
-                                section_id: targetSection.type === 'section' && targetSection.id !== 'no-section' ? parseInt(targetSection.id) : null,
-                                status: targetSection.type === 'status' ? targetSection.id : task.status
-                            }));
-
-                            // Update immediately for responsive feedback
-                            updateTaskPositions(updates);
-                        }
+                    // Determine correct insertion index based on drag direction
+                    let insertAt = targetIndex;
+                    if (sourceIndex < targetIndex) {
+                        // Dragging down: insert after the target
+                        insertAt = targetIndex + 1;
                     }
+                    newTasks.splice(insertAt, 0, movedTask);
+
+                    // Prepare position updates for immediate response
+                    const updates = newTasks.map((task: any, index: number) => {
+                        // Update status/section_id in real time for the moved task
+                        let updatedTask = { ...task };
+                        if (task.id === movedTask.id) {
+                            if (section.type === 'status') {
+                                updatedTask.status = section.id;
+                            }
+                            if (section.type === 'section' && section.id !== 'no-section') {
+                                updatedTask.section_id = parseInt(section.id);
+                            }
+                        }
+                        return {
+                            id: updatedTask.id,
+                            position: index,
+                            list_id: updatedTask.list_id,
+                            section_id: section.type === 'section' && section.id !== 'no-section' ? parseInt(section.id) : null,
+                            status: section.type === 'status' ? section.id : updatedTask.status
+                        };
+                    });
+
+                    // Update immediately for responsive feedback
+                    updateTaskPositions(updates);
                 }
             }
         }

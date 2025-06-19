@@ -95,9 +95,14 @@ interface SortableTaskProps {
     dragFeedback?: any; // Drag feedback state for ring colors
 }
 
-
-
-
+const avatarColors = ['#F87171', '#FBBF24', '#34D399', '#60A5FA', '#A78BFA', '#F472B6', '#FCD34D', '#6EE7B7', '#818CF8', '#F9A8D4'];
+function getColorForIndex(index: number, prevColorIndex: number = -1) {
+    let colorIndex = index % avatarColors.length;
+    if (colorIndex === prevColorIndex) {
+        colorIndex = (colorIndex + 1) % avatarColors.length;
+    }
+    return colorIndex;
+}
 
 // Sortable List Component
 export const SortableList = ({ list, children, project, onDeleteList, onEditList, onCreateTask, dragFeedback, isResizable = false, width = 240, onWidthChange, boardStyle }: SortableListProps) => {
@@ -568,14 +573,17 @@ export const SortableTask = ({ task, project, onViewTask, onEditTask, onTaskClic
                 {task.assignees && task.assignees.length > 0 && (
                     <div className="flex items-center gap-1">
                         <div className="flex -space-x-1">
-                            {task.assignees.slice(0, 3).map((assignee) => (
-                                <Avatar key={assignee.id} className="h-6 w-6 border-2 border-background shadow-md ring-1 ring-border/20 transition-transform hover:scale-110">
-                                    <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${assignee.name}`} />
-                                    <AvatarFallback className="text-xs font-medium bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900 dark:to-purple-900">
-                                        {assignee.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                                    </AvatarFallback>
-                                </Avatar>
-                            ))}
+                            {task.assignees.slice(0, 3).map((assignee: any, idx: number) => {
+                                const colorIndex = getColorForIndex(idx);
+                                return (
+                                    <Avatar key={assignee.id} className="h-6 w-6 border-2 border-background shadow-md ring-1 ring-border/20 transition-transform hover:scale-110">
+                                        <AvatarImage src={assignee.avatar} />
+                                        <AvatarFallback className="text-xs font-medium" style={{ backgroundColor: avatarColors[colorIndex], color: '#fff' }}>
+                                            {assignee.name?.charAt(0).toUpperCase() || '?'}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                );
+                            })}
                             {task.assignees.length > 3 && (
                                 <div className="h-6 w-6 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 border-2 border-background flex items-center justify-center text-xs text-muted-foreground font-medium shadow-md ring-1 ring-border/20">
                                     +{task.assignees.length - 3}

@@ -16,6 +16,16 @@ interface TeamProps {
     ownedProjects: Project[];
 }
 
+// Color palette for avatars
+const avatarColors = ['#F87171', '#FBBF24', '#34D399', '#60A5FA', '#A78BFA', '#F472B6', '#FCD34D', '#6EE7B7', '#818CF8', '#F9A8D4'];
+function getColorForIndex(index: number, prevColorIndex: number = -1) {
+    let colorIndex = index % avatarColors.length;
+    if (colorIndex === prevColorIndex) {
+        colorIndex = (colorIndex + 1) % avatarColors.length;
+    }
+    return colorIndex;
+}
+
 export default function Team({ team = [], ownedProjects = [] }: TeamProps) {
     const isMobile = useMobileDetection();
     const getShortName = useShortName();
@@ -66,83 +76,86 @@ export default function Team({ team = [], ownedProjects = [] }: TeamProps) {
 
                 <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3">
                     {team.length > 0 ? (
-                        team.map(member => (
-                            <Card key={member.id} className="flex flex-col h-full gap-2 py-3">
-                                <CardHeader className="pb-0 pt-0 px-3">
-                                    <div className="flex flex-col items-center text-center space-y-1">
-                                        <Avatar className="h-8 w-8">
-                                            <AvatarImage src={member.avatar} alt={member.name} />
-                                            <AvatarFallback className="text-xs font-semibold">
-                                                {getShortName(member.name)}
-                                            </AvatarFallback>
-                                        </Avatar>
-                                        <div>
-                                            <CardTitle className="text-xs leading-tight">
-                                                {member.name} ({getShortName(member.name)})
-                                            </CardTitle>
-                                            <div className="text-xs text-muted-foreground mt-0.5 min-h-[0.75rem]">
-                                                {formatRoleDepartment(member.role, member.department) || ''}
+                        team.map((member, idx) => {
+                            const colorIndex = getColorForIndex(idx);
+                            return (
+                                <Card key={member.id} className="flex flex-col h-full gap-2 py-3">
+                                    <CardHeader className="pb-0 pt-0 px-3">
+                                        <div className="flex flex-col items-center text-center space-y-1">
+                                            <Avatar className="h-8 w-8 overflow-hidden rounded-full">
+                                                <AvatarImage src={member.avatar} alt={member.name} />
+                                                <AvatarFallback className="rounded-lg text-white" style={{ backgroundColor: avatarColors[colorIndex] }}>
+                                                    {member.name?.charAt(0).toUpperCase() || '?'}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            <div>
+                                                <CardTitle className="text-xs leading-tight">
+                                                    {member.name} ({getShortName(member.name)})
+                                                </CardTitle>
+                                                <div className="text-xs text-muted-foreground mt-0.5 min-h-[0.75rem]">
+                                                    {formatRoleDepartment(member.role, member.department) || ''}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="flex-grow space-y-1 py-0 px-3">
-                                    {/* Email with button */}
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xs text-muted-foreground truncate flex-1 mr-1">
-                                            {member.email}
-                                        </span>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => handleEmailClick(member.email)}
-                                            className="shrink-0 h-4 w-4 p-0"
-                                        >
-                                            <Mail className="h-2.5 w-2.5" />
-                                        </Button>
-                                    </div>
+                                    </CardHeader>
+                                    <CardContent className="flex-grow space-y-1 py-0 px-3">
+                                        {/* Email with button */}
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs text-muted-foreground truncate flex-1 mr-1">
+                                                {member.email}
+                                            </span>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => handleEmailClick(member.email)}
+                                                className="shrink-0 h-4 w-4 p-0"
+                                            >
+                                                <Mail className="h-2.5 w-2.5" />
+                                            </Button>
+                                        </div>
 
-                                    {/* Phone with button */}
-                                    <div className="flex items-center justify-between min-h-[1rem]">
-                                        {member.phone ? (
-                                            <>
-                                                <span className="text-xs text-muted-foreground truncate flex-1 mr-1">
-                                                    {formatPhoneNumber(member.phone)}
-                                                </span>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => handlePhoneClick(member.phone)}
-                                                    className="shrink-0 h-4 w-4 p-0"
-                                                    disabled={!isMobile}
-                                                    title={isMobile ? 'Call' : 'Calling only available on mobile devices'}
-                                                >
-                                                    <Phone className="h-2.5 w-2.5" />
-                                                </Button>
-                                            </>
+                                        {/* Phone with button */}
+                                        <div className="flex items-center justify-between min-h-[1rem]">
+                                            {member.phone ? (
+                                                <>
+                                                    <span className="text-xs text-muted-foreground truncate flex-1 mr-1">
+                                                        {formatPhoneNumber(member.phone)}
+                                                    </span>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => handlePhoneClick(member.phone)}
+                                                        className="shrink-0 h-4 w-4 p-0"
+                                                        disabled={!isMobile}
+                                                        title={isMobile ? 'Call' : 'Calling only available on mobile devices'}
+                                                    >
+                                                        <Phone className="h-2.5 w-2.5" />
+                                                    </Button>
+                                                </>
+                                            ) : (
+                                                <div className="w-full"></div>
+                                            )}
+                                        </div>
+                                    </CardContent>
+                                    <CardFooter className="mt-auto pt-0 pb-0 px-3">
+                                        {/* Invite to project button (only show if user has owned projects) */}
+                                        {ownedProjects.length > 0 ? (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="w-full h-5 text-xs"
+                                                onClick={() => handleInviteToProjects(member)}
+                                            >
+                                                <UserPlus className="h-2.5 w-2.5 mr-1" />
+                                                Invite
+                                            </Button>
                                         ) : (
-                                            <div className="w-full"></div>
+                                            <div className="w-full min-h-[1.25rem]"></div>
                                         )}
-                                    </div>
-                                </CardContent>
-                                <CardFooter className="mt-auto pt-0 pb-0 px-3">
-                                    {/* Invite to project button (only show if user has owned projects) */}
-                                    {ownedProjects.length > 0 ? (
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="w-full h-5 text-xs"
-                                            onClick={() => handleInviteToProjects(member)}
-                                        >
-                                            <UserPlus className="h-2.5 w-2.5 mr-1" />
-                                            Invite
-                                        </Button>
-                                    ) : (
-                                        <div className="w-full min-h-[1.25rem]"></div>
-                                    )}
-                                </CardFooter>
-                            </Card>
-                        ))
+                                    </CardFooter>
+                                </Card>
+                            );
+                        })
                     ) : (
                         <div className="col-span-full flex flex-col items-center justify-center p-12 text-center">
                             <div className="rounded-full bg-muted p-3 mb-4">

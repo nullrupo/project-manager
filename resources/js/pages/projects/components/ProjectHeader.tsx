@@ -17,13 +17,25 @@ interface ProjectHeaderProps {
     canEdit: boolean;
     onInviteMember: () => void;
     onOpenDetails: () => void;
+    onOpenMembers: () => void;
+}
+
+// Color palette for avatars
+const avatarColors = ['#F87171', '#FBBF24', '#34D399', '#60A5FA', '#A78BFA', '#F472B6', '#FCD34D', '#6EE7B7', '#818CF8', '#F9A8D4'];
+function getColorForIndex(index: number, prevColorIndex: number = -1) {
+    let colorIndex = index % avatarColors.length;
+    if (colorIndex === prevColorIndex) {
+        colorIndex = (colorIndex + 1) % avatarColors.length;
+    }
+    return colorIndex;
 }
 
 export default function ProjectHeader({ 
     project, 
     canEdit, 
     onInviteMember, 
-    onOpenDetails 
+    onOpenDetails, 
+    onOpenMembers 
 }: ProjectHeaderProps) {
     const getShortName = useShortName();
 
@@ -31,7 +43,8 @@ export default function ProjectHeader({
         return <Shield className="h-5 w-5 text-orange-500" />;
     };
 
-
+    // Compute allMembers as owner + unique members (excluding duplicates)
+    const allMembers = [project.owner, ...(project.members?.filter(m => m.id !== project.owner?.id) || [])].filter(Boolean);
 
     return (
         <Card className="border-0 shadow-none bg-transparent">
@@ -61,39 +74,41 @@ export default function ProjectHeader({
                         {/* Team Members Preview */}
                         <div className="flex items-center gap-2">
                             <div className="flex -space-x-2">
-                                {project.members?.slice(0, 3).map((member) => (
-                                    <Avatar key={member.id} className="h-8 w-8 border-2 border-background">
-                                        <AvatarImage src={member.avatar} />
-                                        <AvatarFallback className="text-xs">
-                                            {getShortName(member.name)}
-                                        </AvatarFallback>
-                                    </Avatar>
-                                ))}
-                                {project.members && project.members.length > 3 && (
-                                    <div className="h-8 w-8 rounded-full bg-muted border-2 border-background flex items-center justify-center">
+                                {allMembers.slice(0, 3).map((member, idx) => {
+                                    if (!member) return null;
+                                    const colorIndex = getColorForIndex(idx);
+                                    return (
+                                        <Avatar
+                                            key={member.id}
+                                            className={`h-8 w-8 border-2 border-white shadow-sm ring-1 ring-black/10 bg-background object-cover ${idx !== 0 ? 'ml-1 -ml-2' : ''}`}
+                                            style={{ zIndex: 10 - idx }}
+                                        >
+                                            <AvatarImage src={member.avatar} className="object-cover w-full h-full rounded-full" />
+                                            <AvatarFallback className="text-xs" style={{ backgroundColor: avatarColors[colorIndex], color: '#fff' }}>
+                                                {member.name?.charAt(0).toUpperCase() || '?'}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                    );
+                                })}
+                                {allMembers.length > 3 && (
+                                    <div className="h-8 w-8 rounded-full bg-muted border-2 border-white shadow-sm flex items-center justify-center ml-1 -ml-2" style={{ zIndex: 6 }}>
                                         <span className="text-xs font-medium text-muted-foreground">
-                                            +{project.members.length - 3}
+                                            +{allMembers.length - 3}
                                         </span>
                                     </div>
                                 )}
                             </div>
-                            <span className="text-sm text-muted-foreground">
-                                {project.members?.length || 0} member{(project.members?.length || 0) !== 1 ? 's' : ''}
-                            </span>
-                        </div>
-
-                        {/* Action Buttons */}
-                        {canEdit && (
                             <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={onInviteMember}
-                                className="shadow-sm hover:shadow-md"
+                                className="shadow-sm hover:shadow-md flex items-center gap-1"
+                                onClick={onOpenMembers}
+                                title="View and manage members"
                             >
-                                <UserPlus className="h-4 w-4 mr-2" />
-                                Invite
+                                <Users className="h-4 w-4 mr-1" />
+                                {allMembers.length} member{allMembers.length !== 1 ? 's' : ''}
                             </Button>
-                        )}
+                        </div>
 
                         <Button
                             variant="outline"
