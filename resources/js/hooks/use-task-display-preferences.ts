@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { usePage } from '@inertiajs/react';
-import { SharedData } from '@/types/project-manager';
+import { useAuth } from '../app';
 import { route } from 'ziggy-js';
 import { fetchWithCsrf } from '@/utils/csrf';
 
@@ -16,8 +15,8 @@ export interface TaskDisplayPreferences {
 }
 
 export function useTaskDisplayPreferences() {
-    const { auth } = usePage<SharedData>().props;
-    const userPreferences = auth.user?.task_display_preferences;
+    const { user, isAuthenticated } = useAuth();
+    const userPreferences = user?.task_display_preferences;
 
     // Default preferences when none exist
     const defaultPreferences: TaskDisplayPreferences = {
@@ -72,10 +71,10 @@ export function useTaskDisplayPreferences() {
 
     // Load preferences on mount if not available from props
     useEffect(() => {
-        if (!userPreferences) {
+        if (!userPreferences && isAuthenticated) {
             loadPreferences();
         }
-    }, [userPreferences]);
+    }, [userPreferences, isAuthenticated]);
 
     return {
         preferences,
@@ -87,8 +86,8 @@ export function useTaskDisplayPreferences() {
 
 // Page-specific task display preferences hook
 export function usePageTaskDisplayPreferences(pageKey: string) {
-    const { auth } = usePage<SharedData>().props;
-    const globalPreferences = auth.user?.task_display_preferences;
+    const { user, isAuthenticated } = useAuth();
+    const globalPreferences = user?.task_display_preferences;
 
     // Default preferences when none exist
     const defaultPreferences: TaskDisplayPreferences = {

@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { usePage } from '@inertiajs/react';
-import { SharedData } from '@/types/project-manager';
+import { useAuth } from '../app';
 
 export interface TaskDisplayPreferences {
     show_urgency: boolean;
@@ -26,8 +25,8 @@ interface TaskDisplayPreferencesProviderProps {
 }
 
 export function TaskDisplayPreferencesProvider({ children }: TaskDisplayPreferencesProviderProps) {
-    const { auth } = usePage<SharedData>().props;
-    const globalPreferences = auth.user?.task_display_preferences;
+    const { user, isAuthenticated } = useAuth();
+    const globalPreferences = isAuthenticated ? user?.task_display_preferences : undefined;
 
     // Default preferences when none exist
     const defaultPreferences: TaskDisplayPreferences = {

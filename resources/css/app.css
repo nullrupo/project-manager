@@ -343,8 +343,12 @@ nav:not(:hover) {
 }
 
 /* Smooth transitions for theme switching */
-* {
-    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+html, body, #app, main, .card, .sidebar {
+    transition: background-color 0.3s cubic-bezier(.4,0,.2,1), color 0.3s cubic-bezier(.4,0,.2,1), border-color 0.3s cubic-bezier(.4,0,.2,1);
+    will-change: background-color, color, border-color;
+}
+:root, .dark {
+    transition: background-color 0.3s, color 0.3s, border-color 0.3s;
 }
 
 /* Custom scrollbar styling */

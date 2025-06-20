@@ -1,6 +1,7 @@
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Transition } from '@headlessui/react';
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
+import { useAuth } from '../../app';
 import { FormEventHandler } from 'react';
 
 import DeleteUser from '@/components/delete-user';
@@ -18,11 +19,11 @@ type ProfileForm = {
 }
 
 export default function Profile({ mustVerifyEmail, status }: { mustVerifyEmail: boolean; status?: string }) {
-    const { auth } = usePage<SharedData>().props;
+    const { user, isAuthenticated } = useAuth();
 
     const { data, setData, patch, errors, processing, recentlySuccessful } = useForm<Required<ProfileForm>>({
-        name: auth.user.name,
-        email: auth.user.email,
+        name: user.name,
+        email: user.email,
     });
 
     const submit: FormEventHandler = (e) => {
@@ -75,7 +76,7 @@ export default function Profile({ mustVerifyEmail, status }: { mustVerifyEmail: 
                             <InputError className="mt-2" message={errors.email} />
                         </div>
 
-                        {mustVerifyEmail && auth.user.email_verified_at === null && (
+                        {mustVerifyEmail && user.email_verified_at === null && (
                             <div>
                                 <p className="text-muted-foreground -mt-4 text-sm">
                                     Your email address is unverified.{' '}

@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Project } from '@/types/project-manager';
-import { Link, router, usePage, useForm } from '@inertiajs/react';
+import { Link, router, useForm } from '@inertiajs/react';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { type SharedData } from '@/types';
 import InputError from '@/components/input-error';
@@ -25,6 +25,7 @@ import {
     X,
     LoaderCircle
 } from 'lucide-react';
+import { useAuth } from '../../../app';
 
 interface ProjectDetailsModalProps {
     project: Project;
@@ -35,10 +36,10 @@ interface ProjectDetailsModalProps {
 export default function ProjectDetailsModal({ project, open, onOpenChange }: ProjectDetailsModalProps) {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
-    const { auth } = usePage<SharedData>().props;
+    const { user, isAuthenticated } = useAuth();
 
     // Check if current user is the project owner
-    const isProjectOwner = auth.user.id === project.owner_id;
+    const isProjectOwner = user.id === project.owner_id;
 
     // Form for editing project
     const { data, setData, put, processing, errors, reset } = useForm({

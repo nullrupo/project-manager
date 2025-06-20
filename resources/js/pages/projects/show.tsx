@@ -1,7 +1,7 @@
 import AppLayout from '@/layouts/app-layout';
 import { type SharedData } from '@/types';
 import { Project } from '@/types/project-manager';
-import { Head, usePage, router } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -27,13 +27,14 @@ import { useProjectState } from './hooks/useProjectState';
 import { useTaskOperations } from './hooks/useTaskOperations';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
 import { useGlobalTaskInspector } from '@/contexts/GlobalTaskInspectorContext';
+import { useAuth } from '../../app';
 
 interface ProjectShowProps {
     project: Project;
 }
 
 export default function ProjectShow({ project }: ProjectShowProps) {
-    const { auth } = usePage<SharedData>().props;
+    const { user, isAuthenticated } = useAuth();
     const canEdit = project.can_edit;
 
     // Use custom hooks

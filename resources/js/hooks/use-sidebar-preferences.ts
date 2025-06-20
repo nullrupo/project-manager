@@ -1,10 +1,11 @@
 import { useState, useCallback, useEffect } from 'react';
-import { router, usePage } from '@inertiajs/react';
-import { type SidebarPreferences, type SharedData, type NavGroup, type NavItem, type CustomNavGroup } from '@/types';
+import { router } from '@inertiajs/react';
+import { useAuth } from '../app';
+import { type SidebarPreferences, type NavGroup, type NavItem, type CustomNavGroup } from '@/types';
 
 export function useSidebarPreferences() {
-    const { auth } = usePage<SharedData>().props;
-    const userPreferences = auth.user?.sidebar_preferences;
+    const { user, isAuthenticated } = useAuth();
+    const userPreferences = isAuthenticated ? user?.sidebar_preferences : undefined;
 
     // Default preferences when none exist
     const defaultPreferences = {
@@ -13,8 +14,6 @@ export function useSidebarPreferences() {
         group_order: [],
         hidden_items: []
     };
-
-
 
     const [collapsedGroups, setCollapsedGroups] = useState<string[]>(() => []);
     const [localCollapsedGroups, setLocalCollapsedGroups] = useState<string[]>(() => []);
