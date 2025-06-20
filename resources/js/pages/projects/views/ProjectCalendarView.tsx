@@ -821,8 +821,9 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                 <div className="flex items-start justify-between mb-1 pr-8">
                     <h4 className="font-medium text-xs truncate flex-1">{task.title}</h4>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                        {task.assignees?.slice(0, 2).map((assignee: any, idx: number) => {
-                            const colorIndex = getColorForIndex(idx);
+                        {task.assignees?.slice(0, 2).map((assignee: any) => {
+                            const memberIndex = normalizedMembers.findIndex(m => m.id === assignee.id);
+                            const colorIndex = getColorForIndex(memberIndex);
                             return (
                                 <Avatar key={assignee.id} className="h-4 w-4 border">
                                     <AvatarImage src={assignee.avatar} />
@@ -1099,14 +1100,19 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
 
                                 {/* Hover view - shows assignee info */}
                                 <div className="hidden group-hover:flex items-center gap-1 flex-1 min-w-0">
-                                    {currentTask.assignees?.[0] && (
-                                        <Avatar className="h-4 w-4 flex-shrink-0 border border-white/20">
-                                            <AvatarImage src={currentTask.assignees[0].avatar} />
-                                            <AvatarFallback className="text-xs font-medium">
-                                                {currentTask.assignees[0].name.charAt(0).toUpperCase()}
-                                            </AvatarFallback>
-                                        </Avatar>
-                                    )}
+                                    {currentTask.assignees?.[0] && (() => {
+                                        const assignee = currentTask.assignees[0];
+                                        const memberIndex = normalizedMembers.findIndex(m => m.id === assignee.id);
+                                        const colorIndex = getColorForIndex(memberIndex);
+                                        return (
+                                            <Avatar className="h-4 w-4 flex-shrink-0 border border-white/20">
+                                                <AvatarImage src={assignee.avatar} />
+                                                <AvatarFallback className="text-xs font-medium" style={{ backgroundColor: avatarColors[colorIndex], color: '#fff' }}>
+                                                    {assignee.name.charAt(0).toUpperCase()}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                        );
+                                    })()}
                                     <div className="flex-1 min-w-0">
                                         <div className="font-medium truncate text-xs">
                                             {currentTask.title}
