@@ -106,6 +106,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('projects/{project}/sections/{section}', [SectionController::class, 'update'])->name('sections.update');
     Route::delete('projects/{project}/sections/{section}', [SectionController::class, 'destroy'])->name('sections.destroy');
     Route::post('projects/{project}/sections/reorder', [SectionController::class, 'reorder'])->name('sections.reorder');
+    Route::post('sections/{section}/move', [SectionController::class, 'move'])->name('sections.move');
 
     // Checklist item routes
     Route::post('tasks/{task}/checklist-items', [ChecklistItemController::class, 'store'])->name('checklist-items.store');
@@ -192,6 +193,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ]);
     });
 
+    // Admin routes
+    Route::middleware(['admin'])->prefix('admin')->name('admin.')->group(function () {
+        // User management routes
+        Route::resource('users', \App\Http\Controllers\Admin\UserManagementController::class);
+        Route::get('users/list', [\App\Http\Controllers\Admin\UserManagementController::class, 'list'])->name('users.list');
+        
+        // Department management routes
+        Route::resource('departments', \App\Http\Controllers\Admin\DepartmentController::class);
+        Route::get('departments/list', [\App\Http\Controllers\Admin\DepartmentController::class, 'list'])->name('departments.list');
+    });
 
 });
 

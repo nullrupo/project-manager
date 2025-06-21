@@ -135,11 +135,11 @@ export default function ListTaskItem({
             <div
                 ref={combinedRef}
                 style={style}
-                className={`group relative bg-card border rounded-lg p-3 cursor-grab hover:shadow-md transition-all duration-200 ml-4 ${
+                className={`group relative bg-card border rounded-lg p-3 cursor-grab transition-all duration-200 ml-4 ${
                     task.status === 'done' ? 'opacity-60' : ''
                 } ${isSelected
                     ? 'ring-2 ring-primary/40 border-primary/40'
-                    : 'border-border hover:border-primary/30'
+                    : 'border-border'
                 } ${
                     isDragging ? 'shadow-xl scale-105 opacity-90 cursor-grabbing' : 'active:cursor-grabbing'
                 } ${isSameSectionDrag ? 'ring-4 ring-purple-500 ring-opacity-75 border-purple-500' : ''}`}
@@ -175,26 +175,6 @@ export default function ListTaskItem({
                             <Users className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
                         </Button>
                     )}
-
-                    {/* View button - always available */}
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0 bg-background/90 backdrop-blur-sm hover:bg-green-50 dark:hover:bg-green-950/50 hover:scale-110 transition-all duration-200 rounded-full shadow-sm border border-border/50"
-                        onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            if (onViewTask) {
-                                onViewTask(task);
-                            } else {
-                                onTaskClick(task, e);
-                            }
-                        }}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        title="View task details"
-                    >
-                        <Eye className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
-                    </Button>
                 </div>
 
                 {/* Enhanced assignee and priority indicators */}

@@ -72,6 +72,8 @@ export interface User {
     phone?: string;
     role?: string;
     department?: string;
+    department_id?: number;
+    discord_id?: string;
     avatar?: string;
     email_verified_at: string | null;
     is_admin?: boolean;
@@ -96,6 +98,16 @@ export interface User {
         can_comment: boolean;
     };
     [key: string]: unknown; // This allows for additional properties...
+}
+
+export interface Department {
+    id: number;
+    name: string;
+    description?: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+    users_count?: number;
 }
 
 export interface RecentActivity {

@@ -876,14 +876,14 @@ export default function InboxPage({ tasks = [], users = [], projects = [], tags 
                                     return (
                                         <div
                                             key={task.id}
-                                            className={`group flex items-start gap-3 p-3 rounded-lg border border-border transition-all duration-200 cursor-pointer bg-white dark:bg-gray-800 hover:shadow-md ${
+                                            className={`group flex items-start gap-3 p-2 rounded-lg border border-border transition-all duration-200 cursor-pointer bg-white dark:bg-gray-800 ${
                                                 task.status === 'done' ? 'opacity-60' : ''
                                             } ${isOverdue
                                                 ? 'border-red-300'
                                                 : ''
                                             } ${isSelected
                                                 ? 'ring-2 ring-primary/30 border-primary/30'
-                                                : 'hover:border-primary/20'
+                                                : ''
                                             }`}
                                             data-task-clickable
                                             onClick={(e) => {

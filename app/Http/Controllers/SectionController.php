@@ -110,4 +110,37 @@ class SectionController extends Controller
 
         return back()->with('success', 'Sections reordered successfully.');
     }
+
+    /**
+     * Move a section (and its tasks) to another project.
+     */
+    public function move(Request $request, Section $section)
+    {
+        $user = Auth::user();
+        $targetProjectId = $request->input('target_project_id');
+        $targetProject = Project::findOrFail($targetProjectId);
+
+        // Only allow if user can manage tasks in both source and target projects
+        $sourceProject = $section->project;
+        if (!ProjectPermissionService::can($sourceProject, 'can_manage_tasks') || !ProjectPermissionService::can($targetProject, 'can_manage_tasks')) {
+            abort(403, 'You do not have permission to move sections between these projects.');
+        }
+
+        // Get the highest position in the target project
+        $maxPosition = $targetProject->sections()->max('position') ?? -1;
+
+        // Move the section
+        $section->project_id = $targetProject->id;
+        $section->position = $maxPosition + 1;
+        $section->save();
+
+        // Move all tasks in the section to the new project and section
+        foreach ($section->tasks as $task) {
+            $task->project_id = $targetProject->id;
+            $task->section_id = $section->id;
+            $task->save();
+        }
+
+        return response()->json(['success' => true, 'message' => 'Section moved successfully.']);
+    }
 }

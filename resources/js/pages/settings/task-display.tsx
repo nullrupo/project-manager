@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Head } from '@inertiajs/react';
 import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings-layout';
@@ -40,12 +40,12 @@ const sampleTask: Task = {
         { id: 3, title: 'Third checklist item', is_completed: true, task_id: 1, position: 3, created_at: '', updated_at: '' },
     ],
     assignees: [
-        { id: 1, name: 'John Doe', email: 'john@example.com' },
-        { id: 2, name: 'Jane Smith', email: 'jane@example.com' },
+        { id: 1, name: 'John Doe', email: 'john@example.com', email_verified_at: new Date().toISOString(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+        { id: 2, name: 'Jane Smith', email: 'jane@example.com', email_verified_at: new Date().toISOString(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
     ],
 };
 
-export default function TaskDisplaySettings() {
+function TaskDisplaySettingsContent() {
     const { preferences, updatePreferences, isLoading } = useTaskDisplayPreferences();
 
     const handleSwitchChange = (field: keyof TaskDisplayPreferences, value: boolean) => {
@@ -114,91 +114,84 @@ export default function TaskDisplaySettings() {
     ];
 
     if (isLoading) {
-        return (
-            <AppLayout>
-                <Head title="Task Display Settings" />
-                <SettingsLayout>
-                    <div className="space-y-6">
-                        <HeadingSmall
-                            title="Task Display Settings"
-                            description="Customize what information is shown on tasks throughout the application"
-                        />
-                        <div>Loading...</div>
-                    </div>
-                </SettingsLayout>
-            </AppLayout>
-        );
+        return <div>Loading...</div>;
     }
 
+    return (
+        <div className="space-y-6">
+            <HeadingSmall
+                title="Task Display Settings"
+                description="Customize what information is shown on tasks throughout the application"
+            />
+
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                {/* Settings Groups */}
+                <div className="xl:col-span-2 space-y-6">
+                    {preferenceGroups.map((group) => (
+                        <Card key={group.title}>
+                            <CardHeader>
+                                <CardTitle className="text-lg">{group.title}</CardTitle>
+                                <CardDescription>
+                                    {group.description}
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                {group.options.map((option) => (
+                                    <div key={option.key} className="flex items-start space-x-3 p-3 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors">
+                                        <Switch
+                                            id={option.key}
+                                            checked={preferences[option.key]}
+                                            onCheckedChange={(value) => handleSwitchChange(option.key, value)}
+                                        />
+                                        <div className="grid gap-1.5 leading-none flex-1">
+                                            <Label
+                                                htmlFor={option.key}
+                                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                            >
+                                                {option.label}
+                                            </Label>
+                                            <p className="text-xs text-muted-foreground">
+                                                {option.description}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+
+                {/* Preview */}
+                <div className="xl:col-span-1">
+                    <Card className="sticky top-6">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Eye className="h-5 w-5" />
+                                Live Preview
+                            </CardTitle>
+                            <CardDescription>
+                                See how tasks will appear with your current settings
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="border rounded-lg p-4 bg-muted/10">
+                                <div className="text-xs text-muted-foreground mb-2 font-medium">Sample Task Preview:</div>
+                                <TaskDisplay task={sampleTask} />
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+export default function TaskDisplaySettings() {
     return (
         <AppLayout>
             <Head title="Task Display Settings" />
             <SettingsLayout>
-                <div className="space-y-6">
-                    <HeadingSmall
-                        title="Task Display Settings"
-                        description="Customize what information is shown on tasks throughout the application"
-                    />
-
-                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                        {/* Settings Groups */}
-                        <div className="xl:col-span-2 space-y-6">
-                            {preferenceGroups.map((group) => (
-                                <Card key={group.title}>
-                                    <CardHeader>
-                                        <CardTitle className="text-lg">{group.title}</CardTitle>
-                                        <CardDescription>
-                                            {group.description}
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="space-y-4">
-                                        {group.options.map((option) => (
-                                            <div key={option.key} className="flex items-start space-x-3 p-3 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors">
-                                                <Switch
-                                                    id={option.key}
-                                                    checked={preferences[option.key]}
-                                                    onCheckedChange={(value) => handleSwitchChange(option.key, value)}
-                                                />
-                                                <div className="grid gap-1.5 leading-none flex-1">
-                                                    <Label
-                                                        htmlFor={option.key}
-                                                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                                                    >
-                                                        {option.label}
-                                                    </Label>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {option.description}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </CardContent>
-                                </Card>
-                            ))}
-                        </div>
-
-                        {/* Preview */}
-                        <div className="xl:col-span-1">
-                            <Card className="sticky top-6">
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Eye className="h-5 w-5" />
-                                        Live Preview
-                                    </CardTitle>
-                                    <CardDescription>
-                                        See how tasks will appear with your current settings
-                                    </CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="border rounded-lg p-4 bg-muted/10">
-                                        <div className="text-xs text-muted-foreground mb-2 font-medium">Sample Task Preview:</div>
-                                        <TaskDisplay task={sampleTask} />
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </div>
-                    </div>
-                </div>
+                <TaskDisplaySettingsContent />
             </SettingsLayout>
         </AppLayout>
     );

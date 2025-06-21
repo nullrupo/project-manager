@@ -11,6 +11,8 @@ export interface Project {
     is_archived: boolean;
     created_at: string;
     updated_at: string;
+    tasks_count?: number;
+    all_projects?: any[];
     owner?: User;
     members?: User[];
     boards?: Board[];
@@ -27,6 +29,7 @@ export interface Project {
         can_view_project: boolean;
         can_comment: boolean;
     };
+    comments?: Comment[];
 }
 
 export interface Board {
@@ -51,6 +54,7 @@ export interface Board {
     lists?: TaskList[];
     can_edit?: boolean;
     can_manage_tasks?: boolean;
+    comments?: Comment[];
 }
 
 export interface TaskList {

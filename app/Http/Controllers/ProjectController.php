@@ -181,8 +181,12 @@ class ProjectController extends Controller
         $project->user_role = ProjectPermissionService::getUserRole($project, $user);
         $project->user_permissions = ProjectPermissionService::getUserPermissions($project, $user);
 
+        // Get all projects for the dropdown (id, name)
+        $allProjects = Project::select(['id', 'name'])->orderBy('name')->get();
+
         return Inertia::render('projects/show', [
             'project' => $project,
+            'all_projects' => $allProjects,
         ]);
     }
 

@@ -33,7 +33,7 @@ return new class extends Migration
         // Insert default short name format setting
         DB::table('settings')->insert([
             'key' => 'short_name_format',
-            'value' => 'first_last_initial',
+            'value' => 'last_initial_first',
             'type' => 'string',
             'description' => 'Format for displaying user short names. Options: first_last_initial, last_initial_first',
             'is_public' => true,

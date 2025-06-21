@@ -17,6 +17,8 @@ import { router } from '@inertiajs/react';
 import { BulkActionsPanel } from '@/components/BulkActionsPanel';
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 
 interface ProjectListViewProps {
     project: Project;
@@ -328,6 +330,64 @@ export default function ProjectListView({
         }
     };
 
+    // Section drag-and-drop state
+    const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null);
+    const [sectionOrder, setSectionOrder] = useState(sections.map((s: any) => s.id));
+
+    useEffect(() => {
+        setSectionOrder(sections.map((s: any) => s.id));
+    }, [sections]);
+
+    const handleSectionDragStart = (event: any) => {
+        setDraggedSectionId(event.active.id);
+    };
+
+    const handleSectionDragEnd = (event: any) => {
+        setDraggedSectionId(null);
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+        const oldIndex = sectionOrder.indexOf(active.id);
+        const newIndex = sectionOrder.indexOf(over.id);
+        if (oldIndex === -1 || newIndex === -1) return;
+        const newOrder = [...sectionOrder];
+        newOrder.splice(oldIndex, 1);
+        newOrder.splice(newIndex, 0, active.id);
+        setSectionOrder(newOrder);
+        // Call backend to persist order
+        router.post(route('sections.reorder', { project: project.id }), {
+            section_ids: newOrder
+        }, { preserveScroll: true });
+    };
+
+    // Move Section Modal state
+    const [moveSectionModalOpen, setMoveSectionModalOpen] = useState(false);
+    const [sectionToMove, setSectionToMove] = useState<any>(null);
+    const [targetProjectId, setTargetProjectId] = useState<string>('');
+
+    // All projects for dropdown (excluding current)
+    const allProjects = useMemo(() => {
+        return project.all_projects?.filter((p: any) => p.id !== project.id) || [];
+    }, [project]);
+
+    const handleMoveSection = (section: any) => {
+        setSectionToMove(section);
+        setMoveSectionModalOpen(true);
+    };
+
+    const confirmMoveSection = () => {
+        if (!sectionToMove || !targetProjectId) return;
+        router.post(route('sections.move', { section: sectionToMove.id }), {
+            target_project_id: targetProjectId
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setMoveSectionModalOpen(false);
+                setSectionToMove(null);
+                setTargetProjectId('');
+            }
+        });
+    };
+
     return (
         <div
             className="flex h-[calc(100vh-200px)] mt-0"
@@ -462,202 +522,155 @@ export default function ProjectListView({
                                 <DndContext
                                     sensors={sensors}
                                     collisionDetection={closestCenter}
-                                    onDragStart={onDragStart}
-                                    onDragOver={onDragOver}
-                                    onDragEnd={onDragEnd}
-                                    modifiers={[restrictToWindowEdges]}
+                                    onDragStart={handleSectionDragStart}
+                                    onDragEnd={handleSectionDragEnd}
                                 >
-                                    <div
-                                        className="space-y-4"
-                                        ref={taskListRef}
-                                        onClick={(e) => {
-                                            // Click away functionality - deselect all tasks if clicking on empty space
-                                            if (e.target === e.currentTarget) {
-                                                state.setSelectedTasks(new Set());
-                                                state.setCurrentFocusedTaskId(null);
-                                                state.setShowBulkActions(false);
-                                            }
-                                        }}
-                                    >
-                                    {sections.map((section) => {
-                                        const isCollapsed = state.collapsedSections.has(section.id);
-                                        const taskIds = section.tasks.map((task: any) => `list-task-${task.id}`);
-
-                                        // Section-level drag detection for pulse effects
-                                        const isSectionTargeted = state.listDragFeedback?.isTaskDrag &&
-                                            state.listDragFeedback?.draggedTaskSectionId === section.id &&
-                                            section.tasks?.some((task: any) => `list-task-${task.id}` === state.listDragFeedback?.overId);
-
-                                        return (
-                                            <div key={section.id} className={`space-y-2 transition-all duration-300 ${
-                                                isSectionTargeted ? 'bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-950/20 dark:to-purple-900/30 border-2 border-purple-300 dark:border-purple-600 rounded-lg p-2 shadow-lg shadow-purple-200/20 dark:shadow-purple-900/20' : ''
-                                            }`}>
-                                                {/* Section Header */}
-                                                <div
-                                                    className="flex items-center justify-between p-2 bg-muted/30 rounded-md border border-dashed border-muted-foreground/30 hover:bg-muted/50 transition-colors cursor-pointer"
-                                                    onClick={() => handleSectionToggle(section.id)}
-                                                >
-                                                    <div className="flex items-center gap-2">
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            className="h-6 w-6 p-0"
+                                    <SortableContext items={sectionOrder} strategy={verticalListSortingStrategy}>
+                                        <div className="space-y-4" ref={taskListRef}>
+                                            {sectionOrder.map(sectionId => {
+                                                const section = sections.find((s: any) => s.id === sectionId);
+                                                if (!section) return null;
+                                                const isCollapsed = state.collapsedSections.has(section.id);
+                                                const taskIds = section.tasks.map((task: any) => `list-task-${task.id}`);
+                                                // Section-level drag detection for pulse effects
+                                                const isSectionTargeted = state.listDragFeedback?.isTaskDrag &&
+                                                    state.listDragFeedback?.draggedTaskSectionId === section.id &&
+                                                    section.tasks?.some((task: any) => `list-task-${task.id}` === state.listDragFeedback?.overId);
+                                                return (
+                                                    <div key={section.id} className={`space-y-2 transition-all duration-300 ${
+                                                        isSectionTargeted ? 'bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-950/20 dark:to-purple-900/30 border-2 border-purple-300 dark:border-purple-600 rounded-lg p-2 shadow-lg shadow-purple-200/20 dark:shadow-purple-900/20' : ''
+                                                    }`}>
+                                                        {/* Section Header */}
+                                                        <div
+                                                            className="flex items-center justify-between p-2 bg-muted/30 rounded-md border border-dashed border-muted-foreground/30 hover:bg-muted/50 transition-colors cursor-pointer"
+                                                            onClick={() => handleSectionToggle(section.id)}
                                                         >
-                                                            {isCollapsed ? (
-                                                                <ChevronRight className="h-4 w-4" />
-                                                            ) : (
-                                                                <ChevronDown className="h-4 w-4" />
-                                                            )}
-                                                        </Button>
-                                                        <h3 className="font-semibold text-foreground">
-                                                            {section.name}
-                                                        </h3>
-                                                        <span className="text-sm text-muted-foreground">
-                                                            ({section.tasks.length})
-                                                        </span>
-                                                    </div>
-                                                    {project.can_manage_tasks && (
-                                                        <div className="flex items-center gap-1">
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleCreateTask(
-                                                                        state.listViewMode === 'sections' ? section.id : undefined,
-                                                                        state.listViewMode === 'status' ? section.id : undefined
-                                                                    );
-                                                                }}
-                                                                title="Add Task"
-                                                            >
-                                                                <Plus className="h-4 w-4" />
-                                                            </Button>
-                                                            {section.type === 'section' && (
-                                                                <>
-                                                                    <Button
-                                                                        variant="ghost"
-                                                                        size="sm"
-                                                                        className="opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            onEditSection(section);
-                                                                        }}
-                                                                    >
-                                                                        Edit
-                                                                    </Button>
-                                                                    <Button
-                                                                        variant="ghost"
-                                                                        size="sm"
-                                                                        className="text-red-600 hover:text-red-700 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            onDeleteSection(section);
-                                                                        }}
-                                                                    >
-                                                                        Delete
-                                                                    </Button>
-                                                                </>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                {/* Section Tasks */}
-                                                {!isCollapsed && (
-                                                    <SortableContext
-                                                        items={taskIds}
-                                                        strategy={verticalListSortingStrategy}
-                                                    >
-                                                        <div className="space-y-2">
-                                                            {section.tasks && section.tasks.length > 0 ? (
-                                                                section.tasks.map((task: any) => (
-                                                                    <ListTaskItem
-                                                                        key={task.id}
-                                                                        task={task}
-                                                                        project={project}
-                                                                        sectionId={section.id}
-                                                                        onTaskClick={handleTaskClick}
-                                                                        onEditTask={onEditTask}
-                                                                        onViewTask={onViewTask}
-                                                                        onAssignTask={onAssignTask}
-                                                                        currentView={state.activeView}
-                                                                        isSelected={state.selectedTasks.has(task.id)}
-                                                                        onToggleSelection={toggleTaskSelection}
-                                                                        currentBoardId={state.currentBoardId}
-                                                                        dragFeedback={state.listDragFeedback}
-                                                                    />
-                                                                ))
-                                                            ) : (
-                                                                <div className="text-center py-6 text-muted-foreground text-sm ml-4">
-                                                                    No tasks in this section yet.
-                                                                </div>
-                                                            )}
-                                                            {/* Quick Add for this section */}
+                                                            <div className="flex items-center gap-2">
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    className="h-6 w-6 p-0"
+                                                                >
+                                                                    {isCollapsed ? (
+                                                                        <ChevronRight className="h-4 w-4" />
+                                                                    ) : (
+                                                                        <ChevronDown className="h-4 w-4" />
+                                                                    )}
+                                                                </Button>
+                                                                <h3 className="font-semibold text-foreground">
+                                                                    {section.name}
+                                                                </h3>
+                                                                <span className="text-sm text-muted-foreground">
+                                                                    ({section.tasks.length})
+                                                                </span>
+                                                            </div>
                                                             {project.can_manage_tasks && (
-                                                                <div className="mt-2">
-                                                                    <QuickAddTask
-                                                                        project={project}
-                                                                        sectionId={section.id}
-                                                                        status={state.listViewMode === 'status' ? section.id : 'to_do'}
-                                                                        placeholder={`Add task to ${section.name}...`}
-                                                                        className="border-dashed"
-                                                                    />
-                                                                </div>
-                                                            )}
-
-                                                            {section.tasks.length === 0 && (
-                                                                <div className="text-center py-8 text-muted-foreground">
-                                                                    <p className="mb-4">No tasks in this section</p>
+                                                                <div className="flex items-center gap-1">
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleCreateTask(
+                                                                                state.listViewMode === 'sections' ? section.id : undefined,
+                                                                                state.listViewMode === 'status' ? section.id : undefined
+                                                                            );
+                                                                        }}
+                                                                        title="Add Task"
+                                                                    >
+                                                                        <Plus className="h-4 w-4" />
+                                                                    </Button>
+                                                                    {section.type === 'section' && (
+                                                                        <>
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="sm"
+                                                                                className="opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    onEditSection(section);
+                                                                                }}
+                                                                            >
+                                                                                Edit
+                                                                            </Button>
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="sm"
+                                                                                className="text-red-600 hover:text-red-700 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    onDeleteSection(section);
+                                                                                }}
+                                                                            >
+                                                                                Delete
+                                                                            </Button>
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="sm"
+                                                                                className="opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    handleMoveSection(section);
+                                                                                }}
+                                                                            >
+                                                                                Move
+                                                                            </Button>
+                                                                        </>
+                                                                    )}
                                                                 </div>
                                                             )}
                                                         </div>
-                                                    </SortableContext>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-
-                                    {/* Show helpful message when no tasks exist at all */}
-                                    {sections.length === 0 && state.listViewMode === 'status' && (
-                                        <div className="text-center py-16 bg-gradient-to-br from-muted/20 to-muted/40 rounded-xl border-2 border-dashed border-muted-foreground/30">
-                                            <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                                                <ListTodo className="h-10 w-10 text-green-500" />
-                                            </div>
-                                            <h3 className="text-xl font-semibold text-foreground mb-2">
-                                                No Tasks Yet
-                                            </h3>
-                                            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                                                Start by creating your first task using the quick-add form above.
-                                            </p>
+                                                        {/* Section Tasks */}
+                                                        {!isCollapsed && (
+                                                            <SortableContext
+                                                                items={taskIds}
+                                                                strategy={verticalListSortingStrategy}
+                                                            >
+                                                                <div className="space-y-2">
+                                                                    {section.tasks && section.tasks.length > 0 ? (
+                                                                        section.tasks.map((task: any) => (
+                                                                            <ListTaskItem
+                                                                                key={task.id}
+                                                                                task={task}
+                                                                                project={project}
+                                                                                sectionId={section.id}
+                                                                                onTaskClick={handleTaskClick}
+                                                                                onEditTask={onEditTask}
+                                                                                onViewTask={onViewTask}
+                                                                                onAssignTask={onAssignTask}
+                                                                                currentView={state.activeView}
+                                                                                isSelected={state.selectedTasks.has(task.id)}
+                                                                                onToggleSelection={toggleTaskSelection}
+                                                                                currentBoardId={state.currentBoardId}
+                                                                                dragFeedback={state.listDragFeedback}
+                                                                            />
+                                                                        ))
+                                                                    ) : (
+                                                                        <div className="text-center py-6 text-muted-foreground text-sm ml-4">
+                                                                            No tasks in this section yet.
+                                                                        </div>
+                                                                    )}
+                                                                    {/* Quick Add for this section */}
+                                                                    {project.can_manage_tasks && (
+                                                                        <div className="mt-2">
+                                                                            <QuickAddTask
+                                                                                project={project}
+                                                                                sectionId={section.id}
+                                                                                status={state.listViewMode === 'status' ? section.id : 'to_do'}
+                                                                                placeholder={`Add task to ${section.name}...`}
+                                                                                className="border-dashed"
+                                                                            />
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </SortableContext>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
-                                    )}
-
-                                    {sections.length === 0 && state.listViewMode === 'sections' && (
-                                        <div className="text-center py-16 bg-gradient-to-br from-muted/20 to-muted/40 rounded-xl border-2 border-dashed border-muted-foreground/30">
-                                            <div className="w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                                                <Layers className="h-10 w-10 text-blue-500" />
-                                            </div>
-                                            <h3 className="text-xl font-semibold text-foreground mb-2">
-                                                No Sections Yet
-                                            </h3>
-                                            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                                                Create sections to organize your tasks into logical groups and improve your workflow.
-                                                <br />
-                                                <span className="text-sm">Or use the quick-add above to create tasks without sections.</span>
-                                            </p>
-                                            {project.can_manage_tasks && (
-                                                <div className="flex gap-2 justify-center">
-                                                    <Button onClick={onCreateSection}>
-                                                        <Plus className="h-4 w-4 mr-2" />
-                                                        Create Section
-                                                    </Button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                    </div>
-
+                                    </SortableContext>
                                     {/* Drag Overlay for smooth visual feedback */}
                                     <DragOverlay>
                                         {state.listActiveItem?.type === 'task' && state.listActiveItem.task && (
@@ -703,7 +716,33 @@ export default function ProjectListView({
                 isProcessing={isProcessing}
             />
 
-
+            {/* Move Section Modal */}
+            <Dialog open={moveSectionModalOpen} onOpenChange={setMoveSectionModalOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Move Section to Another Project</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Target Project</label>
+                            <Select value={targetProjectId} onValueChange={setTargetProjectId}>
+                                <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Select a project..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {allProjects.map((p: any) => (
+                                        <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setMoveSectionModalOpen(false)}>Cancel</Button>
+                        <Button onClick={confirmMoveSection} disabled={!targetProjectId}>Move</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

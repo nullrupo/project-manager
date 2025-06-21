@@ -31,9 +31,10 @@ import { useAuth } from '../../app';
 
 interface ProjectShowProps {
     project: Project;
+    all_projects: Project[];
 }
 
-export default function ProjectShow({ project }: ProjectShowProps) {
+export default function ProjectShow({ project, all_projects }: ProjectShowProps) {
     const { user, isAuthenticated } = useAuth();
     const canEdit = project.can_edit;
 
@@ -131,7 +132,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
             {/* View Content */}
             {state.activeView === 'list' && (
                 <ProjectListView
-                    project={project}
+                    project={{ ...project, all_projects: all_projects as any }}
                     state={state}
                     sensors={dragAndDrop.sensors}
                     onDragStart={dragAndDrop.handleListDragStart}

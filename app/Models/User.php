@@ -6,6 +6,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -24,7 +25,8 @@ class User extends Authenticatable
         'email',
         'phone',
         'role',
-        'department',
+        'department_id',
+        'discord_id',
         'password',
         'is_admin',
         'sidebar_preferences',
@@ -57,6 +59,14 @@ class User extends Authenticatable
             'inbox_preferences' => 'array',
             'task_display_preferences' => 'array',
         ];
+    }
+
+    /**
+     * Get the department the user belongs to.
+     */
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class);
     }
 
     /**

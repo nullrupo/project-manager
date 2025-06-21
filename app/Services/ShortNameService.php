@@ -25,12 +25,12 @@ class ShortNameService
             return $words[0];
         }
 
-        $format = Setting::get('short_name_format', 'first_last_initial');
+        $format = Setting::get('short_name_format', 'last_initial_first');
 
         return match ($format) {
             'last_initial_first' => self::generateLastInitialFirst($words),
             'first_last_initial' => self::generateFirstLastInitial($words),
-            default => self::generateFirstLastInitial($words),
+            default => self::generateLastInitialFirst($words),
         };
     }
 
@@ -45,7 +45,7 @@ class ShortNameService
             return $lastName;
         }
 
-        $initials = implode('', array_map(fn($word) => strtoupper($word[0]), $words));
+        $initials = implode('', array_map(fn($word) => mb_strtoupper(mb_substr($word, 0, 1)), $words));
         
         return "{$lastName} {$initials}";
     }
@@ -61,7 +61,7 @@ class ShortNameService
             return $firstName;
         }
 
-        $initials = implode('', array_map(fn($word) => strtoupper($word[0]), $words));
+        $initials = implode('', array_map(fn($word) => mb_strtoupper(mb_substr($word, 0, 1)), $words));
         
         return "{$firstName} {$initials}";
     }
@@ -78,11 +78,11 @@ class ShortNameService
         }
         
         if (count($words) === 1) {
-            return strtoupper($words[0][0]);
+            return mb_strtoupper(mb_substr($words[0], 0, 1));
         }
 
-        $firstInitial = strtoupper($words[0][0]);
-        $lastInitial = strtoupper($words[count($words) - 1][0]);
+        $firstInitial = mb_strtoupper(mb_substr($words[0], 0, 1));
+        $lastInitial = mb_strtoupper(mb_substr($words[count($words) - 1], 0, 1));
 
         return $firstInitial . $lastInitial;
     }
