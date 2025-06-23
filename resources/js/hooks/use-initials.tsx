@@ -26,7 +26,7 @@ export function useShortName() {
         if (words.length === 0) return '';
         if (words.length === 1) return words[0];
 
-        const format = settings?.short_name_format || 'first_last_initial';
+        const format = settings?.short_name_format || 'last_initial_first';
 
         if (format === 'last_initial_first') {
             // "Quoc NT" for "Nguyen Trong Quoc"

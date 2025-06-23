@@ -54,6 +54,7 @@ class Setting extends Model
         );
 
         Cache::forget("setting.{$key}");
+        Cache::forget('settings.public');
     }
 
     /**
