@@ -11,6 +11,7 @@ import { Project, Task } from '@/types/project-manager';
 import { CalendarDays, Clock, Edit, MessageSquare, Tag, Trash2, User, Eye } from 'lucide-react';
 import { useShortName } from '@/hooks/use-initials';
 import TaskChecklist from '@/components/task-checklist';
+import { useTaskOperations } from '@/pages/projects/hooks/useTaskOperations';
 
 interface TaskViewModalProps {
     open: boolean;
@@ -31,6 +32,8 @@ export default function TaskViewModal({
         content: '',
     });
     const getShortName = useShortName();
+    const { deleteTask } = useTaskOperations(project);
+    const [deleting, setDeleting] = useState(false);
 
     const submitComment = (e: React.FormEvent) => {
         e.preventDefault();
@@ -55,6 +58,14 @@ export default function TaskViewModal({
             case 'done': return 'bg-green-100 text-green-800 border-green-200';
             default: return 'bg-gray-100 text-gray-800 border-gray-200';
         }
+    };
+
+    const handleDelete = async () => {
+        if (!window.confirm('Are you sure you want to delete this task? This action cannot be undone.')) return;
+        setDeleting(true);
+        await deleteTask(task.id);
+        setDeleting(false);
+        onOpenChange(false);
     };
 
     return (
@@ -101,6 +112,16 @@ export default function TaskViewModal({
                         >
                             <MessageSquare className="h-4 w-4" />
                             Add Comment
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            size="sm"
+                            className="flex items-center gap-2"
+                            onClick={handleDelete}
+                            disabled={deleting}
+                        >
+                            <Trash2 className="h-4 w-4" />
+                            Delete Task
                         </Button>
                     </div>
                 </DialogHeader>

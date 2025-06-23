@@ -96,35 +96,6 @@ class ProjectController extends Controller
             $board->lists()->create($list);
         }
 
-        // Create "First Task" in the "To Do" list using logic similar to moving an inbox task to a project
-        $todoList = $board->lists()->where('name', 'To Do')->first();
-        $position = 1;
-        if ($todoList) {
-            $position = $todoList->tasks()->max('position') + 1;
-        }
-        // Find default section if exists
-        $sectionId = null;
-        if ($project->sections()->count() > 0) {
-            $defaultSection = $project->sections()->orderBy('position')->first();
-            if ($defaultSection) {
-                $sectionId = $defaultSection->id;
-            }
-        }
-        if ($todoList) {
-            $todoList->tasks()->create([
-                'title' => 'First Task',
-                'description' => 'This is your first task. Edit or delete it to get started!',
-                'priority' => 'medium',
-                'status' => 'to_do',
-                'position' => $position,
-                'created_by' => auth()->id(),
-                'project_id' => $project->id,
-                'list_id' => $todoList->id,
-                'section_id' => $sectionId,
-                'is_inbox' => false,
-            ]);
-        }
-
         return redirect()->route('projects.show', $project)
             ->with('success', 'Project created successfully.');
     }

@@ -35,6 +35,14 @@ interface ProjectShowProps {
 }
 
 export default function ProjectShow({ project, all_projects }: ProjectShowProps) {
+    return (
+        <AppLayout>
+            <ProjectShowContent project={project} all_projects={all_projects} />
+        </AppLayout>
+    );
+}
+
+function ProjectShowContent({ project, all_projects }: ProjectShowProps) {
     const { user, isAuthenticated } = useAuth();
     const canEdit = project.can_edit;
 
@@ -84,7 +92,7 @@ export default function ProjectShow({ project, all_projects }: ProjectShowProps)
     // Task creation handler
     const handleCreateTask = (sectionId?: string, status?: string) => {
         // Set the default section and status for the modal
-        state.setTaskCreateDefaultSection(sectionId === 'no-section' ? null : sectionId);
+        state.setTaskCreateDefaultSection(sectionId === 'no-section' ? null : sectionId ?? null);
         state.setTaskCreateDefaultStatus(status || 'to_do');
         state.setTaskCreateModalOpen(true);
     };
@@ -110,7 +118,7 @@ export default function ProjectShow({ project, all_projects }: ProjectShowProps)
     const [inviteModalOpen, setInviteModalOpen] = useState(false);
 
     return (
-        <AppLayout>
+        <>
             <Head title={`${project.name} - Project`} />
 
             {/* Project Header */}
@@ -132,7 +140,7 @@ export default function ProjectShow({ project, all_projects }: ProjectShowProps)
             {/* View Content */}
             {state.activeView === 'list' && (
                 <ProjectListView
-                    project={{ ...project, all_projects: all_projects as any }}
+                    project={project}
                     state={state}
                     sensors={dragAndDrop.sensors}
                     onDragStart={dragAndDrop.handleListDragStart}
@@ -200,13 +208,13 @@ export default function ProjectShow({ project, all_projects }: ProjectShowProps)
             {/* Member Management Modals */}
             <ProjectMemberListModal
                 project={project}
-                open={memberListModalOpen}
+                open={!!memberListModalOpen}
                 onOpenChange={setMemberListModalOpen}
                 onInvite={() => setInviteModalOpen(true)}
             />
             <InviteMemberModal
                 project={project}
-                open={inviteModalOpen}
+                open={!!inviteModalOpen}
                 onOpenChange={setInviteModalOpen}
             />
 
@@ -224,7 +232,7 @@ export default function ProjectShow({ project, all_projects }: ProjectShowProps)
             <MemberPermissionModal
                 project={project}
                 member={state.editingMember}
-                open={state.permissionModalOpen}
+                open={!!state.permissionModalOpen}
                 onOpenChange={state.setPermissionModalOpen}
             />
 
@@ -268,6 +276,6 @@ export default function ProjectShow({ project, all_projects }: ProjectShowProps)
                     />
                 </DialogContent>
             </Dialog>
-        </AppLayout>
+        </>
     );
 }

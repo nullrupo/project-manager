@@ -31,7 +31,18 @@ export const useAuth = () => {
 
 // --- Auth Provider Component ---
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-    const { auth } = usePage<SharedData>().props;
+    const { auth, ...rest } = usePage<SharedData>().props;
+    if (typeof window !== 'undefined' && window.console) {
+        // eslint-disable-next-line no-console
+        console.log('Inertia page props:', { auth, ...rest });
+    }
+    if (typeof auth === 'undefined') {
+        if (typeof window !== 'undefined' && window.console) {
+            // eslint-disable-next-line no-console
+            console.error('AuthProvider: Missing "auth" prop in Inertia page props. This is a backend or middleware issue.');
+        }
+        throw new Error('AuthProvider: Missing "auth" prop in Inertia page props. This is a backend or middleware issue.');
+    }
     const value = {
         user: auth?.user ?? null,
         isAuthenticated: !!auth?.user,

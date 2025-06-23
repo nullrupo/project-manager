@@ -5,13 +5,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, CheckCircle2, Save, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Save, X, Trash2 } from 'lucide-react';
 import { router } from '@inertiajs/react';
 import TaskChecklist from '@/components/task-checklist';
 import { TagSelector } from '@/components/tag/TagSelector';
 import { LabelSelector } from '@/components/label/LabelSelector';
 import { useTags } from '@/hooks/useTags';
 import { Tag, Label as LabelType } from '@/types/project-manager';
+import { useTaskOperations } from '@/pages/projects/hooks/useTaskOperations';
 
 interface TaskInspectorProps {
     task: any;
@@ -47,6 +48,10 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
     const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+
+    // Add useTaskOperations for delete
+    const { deleteTask } = useTaskOperations(project, undefined, undefined);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     // Sync taskData with inspectorTask when it changes
     useEffect(() => {
@@ -393,8 +398,6 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
                     />
                 </div>
 
-
-
                 {/* Assignees */}
                 {inspectorTask.assignees && inspectorTask.assignees.length > 0 && (
                     <div className="space-y-2">
@@ -447,12 +450,12 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
                 </div>
             </div>
 
-            {/* Manual Save Button */}
-            <div className="p-4 border-t bg-muted/20">
+            {/* Manual Save Button and Delete Button */}
+            <div className="p-4 border-t bg-muted/20 flex gap-2">
                 <Button
                     onClick={handleManualSave}
                     disabled={!hasUnsavedChanges || saveState === 'saving'}
-                    className="w-full"
+                    className="flex-1"
                     variant={hasUnsavedChanges ? "default" : "outline"}
                 >
                     {saveState === 'saving' ? (
@@ -467,7 +470,39 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
                         </>
                     )}
                 </Button>
+                <Button
+                    variant="destructive"
+                    className="flex-none"
+                    onClick={() => setShowDeleteConfirm(true)}
+                    title="Delete task"
+                >
+                    <Trash2 className="h-4 w-4" />
+                </Button>
             </div>
+            {/* Delete confirmation dialog */}
+            {showDeleteConfirm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                    <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg p-6 w-80 flex flex-col items-center gap-4">
+                        <Trash2 className="h-8 w-8 text-red-600" />
+                        <p className="text-center">Are you sure you want to delete this task?</p>
+                        <div className="flex gap-2 mt-2">
+                            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+                                Cancel
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                onClick={() => {
+                                    setShowDeleteConfirm(false);
+                                    deleteTask(inspectorTask.id);
+                                    onClose();
+                                }}
+                            >
+                                Delete
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }), (prevProps, nextProps) => {

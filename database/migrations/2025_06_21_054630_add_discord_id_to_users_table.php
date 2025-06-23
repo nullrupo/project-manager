@@ -14,15 +14,6 @@ return new class extends Migration
         Schema::table('users', function (Blueprint $table) {
             $table->string('discord_id')->nullable()->after('department');
         });
-
-        // Update department column to be a foreign key
-        Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn('department');
-        });
-
-        Schema::table('users', function (Blueprint $table) {
-            $table->foreignId('department_id')->nullable()->after('role')->constrained('departments')->onDelete('set null');
-        });
     }
 
     /**
@@ -31,9 +22,6 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->dropForeign(['department_id']);
-            $table->dropColumn('department_id');
-            $table->string('department')->nullable()->after('role');
             $table->dropColumn('discord_id');
         });
     }

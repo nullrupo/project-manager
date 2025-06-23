@@ -55,14 +55,16 @@ export default function ProjectListView({
 }: ProjectListViewProps) {
     const { tags } = useTags();
     const taskListRef = useRef<HTMLDivElement>(null);
-
-    // Cleanup state
     const [isCleaningUp, setIsCleaningUp] = useState(false);
-
+    const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null);
     const sections = getOrganizedTasks(project, state.listViewMode);
     const allTasks = getAllTasksFromSections(sections);
+    const [moveSectionModalOpen, setMoveSectionModalOpen] = useState(false);
+    const [sectionToMove, setSectionToMove] = useState<any>(null);
+    const [targetProjectId, setTargetProjectId] = useState<string>('');
+    const [isProcessing, setIsProcessing] = useState(false);
 
-    // Calculate cleanup-eligible tasks (completed tasks)
+    // Cleanup state
     const cleanupEligibleTasks = useMemo(() => {
         return allTasks.filter(task => task.status === 'done');
     }, [allTasks]);
@@ -74,17 +76,19 @@ export default function ProjectListView({
     // Clear selection when tasks change if focused task no longer exists
     useEffect(() => {
         if (allTasks.length === 0) {
-            // Clear selection when no tasks
-            state.setSelectedTasks(new Set());
-            state.setCurrentFocusedTaskId(null);
-            state.setLastSelectedTaskId(null);
+            if (state.selectedTasks.size !== 0 || state.currentFocusedTaskId !== null || state.lastSelectedTaskId !== null) {
+                state.setSelectedTasks(new Set());
+                state.setCurrentFocusedTaskId(null);
+                state.setLastSelectedTaskId(null);
+            }
         } else if (state.currentFocusedTaskId && !allTasks.find(t => t.id === state.currentFocusedTaskId)) {
-            // If focused task no longer exists, clear selection
-            state.setSelectedTasks(new Set());
-            state.setCurrentFocusedTaskId(null);
-            state.setLastSelectedTaskId(null);
+            if (state.selectedTasks.size !== 0 || state.currentFocusedTaskId !== null || state.lastSelectedTaskId !== null) {
+                state.setSelectedTasks(new Set());
+                state.setCurrentFocusedTaskId(null);
+                state.setLastSelectedTaskId(null);
+            }
         }
-    }, [allTasks, state.currentFocusedTaskId]);
+    }, [allTasks, state.currentFocusedTaskId, state.selectedTasks, state.lastSelectedTaskId]);
 
     // Clear selection when switching view modes
     useEffect(() => {
@@ -197,8 +201,6 @@ export default function ProjectListView({
     };
 
     // Custom batch operations for project tasks (need project parameter)
-    const [isProcessing, setIsProcessing] = useState(false);
-
     const getSelectedTasksCompletionState = useCallback(() => {
         const selectedTasksList = allTasks.filter(task => state.selectedTasks.has(task.id));
         const completedCount = selectedTasksList.filter(task => task.status === 'done').length;
@@ -293,8 +295,6 @@ export default function ProjectListView({
         }
     }, [state.selectedTasks, project.id, isProcessing]);
 
-
-
     // Perform cleanup of completed tasks
     const performCleanup = () => {
         if (isCleaningUp) return; // Prevent double-clicks
@@ -330,14 +330,6 @@ export default function ProjectListView({
         }
     };
 
-    // Section drag-and-drop state
-    const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null);
-    const [sectionOrder, setSectionOrder] = useState(sections.map((s: any) => s.id));
-
-    useEffect(() => {
-        setSectionOrder(sections.map((s: any) => s.id));
-    }, [sections]);
-
     const handleSectionDragStart = (event: any) => {
         setDraggedSectionId(event.active.id);
     };
@@ -346,23 +338,17 @@ export default function ProjectListView({
         setDraggedSectionId(null);
         const { active, over } = event;
         if (!over || active.id === over.id) return;
-        const oldIndex = sectionOrder.indexOf(active.id);
-        const newIndex = sectionOrder.indexOf(over.id);
+        const oldIndex = sections.findIndex((s: any) => s.id === active.id);
+        const newIndex = sections.findIndex((s: any) => s.id === over.id);
         if (oldIndex === -1 || newIndex === -1) return;
-        const newOrder = [...sectionOrder];
+        const newOrder = [...sections];
         newOrder.splice(oldIndex, 1);
-        newOrder.splice(newIndex, 0, active.id);
-        setSectionOrder(newOrder);
+        newOrder.splice(newIndex, 0, sections[oldIndex]);
         // Call backend to persist order
         router.post(route('sections.reorder', { project: project.id }), {
-            section_ids: newOrder
+            section_ids: newOrder.map((s: any) => s.id)
         }, { preserveScroll: true });
     };
-
-    // Move Section Modal state
-    const [moveSectionModalOpen, setMoveSectionModalOpen] = useState(false);
-    const [sectionToMove, setSectionToMove] = useState<any>(null);
-    const [targetProjectId, setTargetProjectId] = useState<string>('');
 
     // All projects for dropdown (excluding current)
     const allProjects = useMemo(() => {
@@ -387,6 +373,18 @@ export default function ProjectListView({
             }
         });
     };
+
+    // Now handle the empty state after all hooks
+    if (sections.length === 0) {
+        return (
+            <div className="text-center py-16 flex flex-col items-center gap-4">
+                <p className="text-muted-foreground">No sections or tasks in this project yet.</p>
+                <Button onClick={() => onCreateTask ? onCreateTask() : state.setTaskCreateModalOpen(true)}>
+                    <Plus className="h-4 w-4 mr-2" /> Add Task
+                </Button>
+            </div>
+        );
+    }
 
     return (
         <div
@@ -525,11 +523,9 @@ export default function ProjectListView({
                                     onDragStart={handleSectionDragStart}
                                     onDragEnd={handleSectionDragEnd}
                                 >
-                                    <SortableContext items={sectionOrder} strategy={verticalListSortingStrategy}>
+                                    <SortableContext items={sections.map((s: any) => s.id)} strategy={verticalListSortingStrategy}>
                                         <div className="space-y-4" ref={taskListRef}>
-                                            {sectionOrder.map(sectionId => {
-                                                const section = sections.find((s: any) => s.id === sectionId);
-                                                if (!section) return null;
+                                            {sections.map((section: any) => {
                                                 const isCollapsed = state.collapsedSections.has(section.id);
                                                 const taskIds = section.tasks.map((task: any) => `list-task-${task.id}`);
                                                 // Section-level drag detection for pulse effects

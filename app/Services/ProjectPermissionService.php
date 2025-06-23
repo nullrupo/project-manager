@@ -75,8 +75,8 @@ class ProjectPermissionService
      */
     public static function hasPermission(Project $project, User $user, string $permission): bool
     {
-        // Project owner always has all permissions
-        if ($project->owner_id === $user->id) {
+        // Project owner or admin always has all permissions
+        if ($project->owner_id === $user->id || $user->is_admin) {
             return true;
         }
 
@@ -100,7 +100,10 @@ class ProjectPermissionService
         if (!$user) {
             return false;
         }
-
+        // Admins always have all permissions
+        if ($user->is_admin) {
+            return true;
+        }
         return self::hasPermission($project, $user, $permission);
     }
 
@@ -112,7 +115,9 @@ class ProjectPermissionService
         if ($project->owner_id === $user->id) {
             return 'owner';
         }
-
+        if ($user->is_admin) {
+            return 'admin';
+        }
         $membership = $project->members()->where('user_id', $user->id)->first();
         return $membership ? $membership->pivot->role : null;
     }
@@ -122,16 +127,13 @@ class ProjectPermissionService
      */
     public static function getUserPermissions(Project $project, User $user): array
     {
-        if ($project->owner_id === $user->id) {
+        if ($project->owner_id === $user->id || $user->is_admin) {
             return self::getDefaultPermissions('owner');
         }
-
         $membership = $project->members()->where('user_id', $user->id)->first();
-
         if (!$membership) {
             return [];
         }
-
         return [
             'can_manage_members' => (bool) $membership->pivot->can_manage_members,
             'can_manage_boards' => (bool) $membership->pivot->can_manage_boards,

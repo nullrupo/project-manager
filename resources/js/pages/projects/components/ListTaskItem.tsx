@@ -175,6 +175,17 @@ export default function ListTaskItem({
                             <Users className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
                         </Button>
                     )}
+                    {/* Delete button */}
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 bg-background/90 backdrop-blur-sm hover:bg-red-50 dark:hover:bg-red-950/50 hover:scale-110 transition-all duration-200 rounded-full shadow-sm border border-border/50"
+                        onClick={handleDeleteTask}
+                        onMouseDown={e => e.stopPropagation()}
+                        title="Delete task"
+                    >
+                        <Trash2 className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
+                    </Button>
                 </div>
 
                 {/* Enhanced assignee and priority indicators */}
