@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import { Project } from '@/types/project-manager';
 import { useShortName } from '@/hooks/use-initials';
+import { useAppearance } from '@/hooks/use-appearance';
+import { Link } from '@inertiajs/react';
 
 interface ProjectHeaderProps {
     project: Project;
@@ -38,6 +40,7 @@ export default function ProjectHeader({
     onOpenMembers 
 }: ProjectHeaderProps) {
     const getShortName = useShortName();
+    const { projectDetailsDisplay } = useAppearance();
 
     const getProjectIcon = () => {
         return <Shield className="h-5 w-5 text-orange-500" />;
@@ -58,7 +61,7 @@ export default function ProjectHeader({
                             </CardTitle>
                         </div>
                         
-                        <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
+                        <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-muted-foreground">
                             <div className="flex items-center gap-2">
                                 <Crown className="h-4 w-4" />
                                 <span>Owner: {getShortName(project.owner?.name || 'Unknown')}</span>
@@ -67,6 +70,27 @@ export default function ProjectHeader({
                                 <Clock className="h-4 w-4" />
                                 <span>Created: {new Date(project.created_at).toLocaleDateString()}</span>
                             </div>
+                            {/* Details link or button, based on appearance setting */}
+                            {projectDetailsDisplay === 'button' ? (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={onOpenDetails}
+                                    className="shadow-sm hover:shadow-md ml-2"
+                                >
+                                    <Settings className="h-4 w-4 mr-2" />
+                                    Details
+                                </Button>
+                            ) : (
+                                <Link
+                                    href={route('projects.show', project.id)}
+                                    className="inline-flex items-center px-3 py-1.5 rounded-md border border-border text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 bg-white dark:bg-neutral-800 shadow-sm hover:shadow-md transition-colors ml-2"
+                                    title="Project Details"
+                                >
+                                    <Settings className="h-4 w-4 mr-2" />
+                                    Details
+                                </Link>
+                            )}
                         </div>
                     </div>
                     
@@ -109,16 +133,6 @@ export default function ProjectHeader({
                                 {allMembers.length} member{allMembers.length !== 1 ? 's' : ''}
                             </Button>
                         </div>
-
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={onOpenDetails}
-                            className="shadow-sm hover:shadow-md"
-                        >
-                            <Settings className="h-4 w-4 mr-2" />
-                            Details
-                        </Button>
                     </div>
                 </div>
             </CardHeader>

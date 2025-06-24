@@ -197,7 +197,7 @@ export function AppSidebar() {
             <SidebarHeader>
                 <div className="p-4">
                     <div className={`flex items-center ${collapsed ? 'justify-center' : ''}`}>
-                        <Link href={route('dashboard')} prefetch className={`flex items-center transition-all duration-300 ease-in-out hover:scale-105 ${collapsed ? '' : 'w-full'}`}>
+                        <Link href={route('dashboard')} prefetch className={`flex items-center transition-all duration-300 ease-in-out ${collapsed ? '' : 'w-full'}`}>
                             <AppLogo collapsed={collapsed} />
                         </Link>
                     </div>
@@ -225,7 +225,7 @@ export function AppSidebar() {
                                     <Link
                                         href={item.href}
                                         prefetch
-                                        className={`nav-item flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-out relative overflow-hidden text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground hover:shadow-sm hover:scale-[1.02] ${collapsed ? 'justify-center px-2 py-2 w-12 h-12 mx-auto' : 'px-3 py-2.5'}`}
+                                        className={`nav-item flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-out relative overflow-hidden text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground hover:shadow-sm ${collapsed ? 'justify-center px-2 py-2 w-12 h-12 mx-auto' : 'px-3 py-2.5'}`}
                                     >
                                         {item.icon && (
                                             <item.icon className="flex-shrink-0 h-5 w-5 transition-transform duration-200 ease-out" />
@@ -255,7 +255,7 @@ export function AppSidebar() {
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className={`h-6 w-6 text-sidebar-foreground/30 hover:text-sidebar-foreground hover:bg-sidebar-accent/30 hover:shadow-md hover:scale-110 transition-all duration-300 ease-in-out rounded ${customizationMode ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}`}
+                                className={`h-6 w-6 text-sidebar-foreground/30 hover:text-sidebar-foreground hover:bg-sidebar-accent/30 hover:shadow-md transition-all duration-300 ease-in-out rounded ${customizationMode ? 'bg-sidebar-accent text-sidebar-accent-foreground' : ''}`}
                                 onClick={() => setCustomizationMode(!customizationMode)}
                                 title={customizationMode ? 'Exit customization mode' : 'Enter customization mode'}
                             >
@@ -265,7 +265,7 @@ export function AppSidebar() {
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-6 w-6 text-sidebar-foreground/30 hover:text-sidebar-foreground hover:bg-sidebar-accent/30 hover:shadow-md hover:scale-110 transition-all duration-300 ease-in-out rounded"
+                                className="h-6 w-6 text-sidebar-foreground/30 hover:text-sidebar-foreground hover:bg-sidebar-accent/30 hover:shadow-md transition-all duration-300 ease-in-out rounded"
                                 onClick={toggleSidebar}
                             >
                                 {collapsed ? (

@@ -231,11 +231,14 @@
     @apply transition-all duration-200 ease-out;
 }
 
-.btn:hover, .button:hover, button:hover, [role="button"]:hover {
-    @apply scale-[1.01];
-    filter: brightness(1.05);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+/*
+button:hover,
+[data-slot="button"]:hover,
+.btn:hover {
+    transform: scale(1.02) !important;
+    transition: all 0.2s ease !important;
 }
+*/
 
 .dark .btn:hover, .dark .button:hover, .dark button:hover, .dark [role="button"]:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
@@ -306,7 +309,10 @@ a:hover,
 button:hover,
 [data-slot="button"]:hover,
 .btn:hover {
-    pointer-events: auto !important;
+    filter: brightness(1.15) !important;
+    box-shadow: 0 0 0 2px var(--color-primary, #3b82f6), 0 4px 16px rgba(59, 130, 246, 0.15) !important;
+    background-color: color-mix(in srgb, var(--primary) 10%, transparent) !important;
+    transition: box-shadow 0.2s, filter 0.2s, background-color 0.2s !important;
 }
 
 /* Ensure modal buttons work properly */
@@ -498,18 +504,10 @@ button,
     transition: all 0.2s ease !important;
 }
 
-button:hover,
-[data-slot="button"]:hover,
-.btn:hover {
-    transform: scale(1.02) !important;
-    transition: all 0.2s ease !important;
-}
-
 /* Specific fixes for modal buttons */
 .modal button:hover,
 [data-radix-dialog-content] button:hover {
     background-color: var(--accent) !important;
-    transform: scale(1.02) !important;
 }
 
 /* Ghost button hover effects */
@@ -531,5 +529,4 @@ button[data-variant="ghost"]:hover,
 button:hover,
 [data-slot="button"]:hover {
     opacity: 0.9 !important;
-    transform: scale(1.02) !important;
 }

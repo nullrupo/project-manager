@@ -803,7 +803,7 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                 style={style}
                 {...listeners}
                 {...attributes}
-                className={`p-2 border-l-4 rounded-md transition-all duration-150 group relative cursor-grab active:cursor-grabbing hover:shadow-md hover:scale-[1.02] ${getPriorityColor(task.priority)} ${isDragging ? 'ring-2 ring-blue-500 shadow-lg' : ''} ${isOver ? 'ring-2 ring-green-400 bg-green-50 dark:bg-green-950/20' : ''}`}
+                className={`p-2 border-l-4 rounded-md transition-all duration-150 group relative cursor-grab active:cursor-grabbing hover:shadow-md ${getPriorityColor(task.priority)} ${isDragging ? 'ring-2 ring-blue-500 shadow-lg' : ''} ${isOver ? 'ring-2 ring-green-400 bg-green-50 dark:bg-green-950/20' : ''}`}
                 title={`Drag to calendar (ID: ${task.id}) - Click and drag me! | Right-click to assign`}
                 onClick={(e) => {
                     if (task && task.id) {
@@ -1342,7 +1342,7 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
             onDragCancel={handleDragCancel}
         >
             <Card className="rounded-t-none border-t-0">
-                <CardHeader className="pb-4">
+                <CardHeader className="pb-2">
                     <div className="flex justify-between items-center">
                         <div>
                             <CardTitle className="flex items-center gap-2">

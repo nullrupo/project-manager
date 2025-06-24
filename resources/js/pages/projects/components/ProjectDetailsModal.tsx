@@ -39,7 +39,7 @@ export default function ProjectDetailsModal({ project, open, onOpenChange }: Pro
     const { user, isAuthenticated } = useAuth();
 
     // Check if current user is the project owner
-    const isProjectOwner = user.id === project.owner_id;
+    const isProjectOwner = user && user.id === project.owner_id;
 
     // Form for editing project
     const { data, setData, put, processing, errors, reset } = useForm({
@@ -50,6 +50,7 @@ export default function ProjectDetailsModal({ project, open, onOpenChange }: Pro
         requires_review: project.requires_review || false,
         default_reviewer_id: project.default_reviewer_id?.toString() || 'none',
         enable_multiple_boards: project.enable_multiple_boards || false,
+        is_archived: project.is_archived || false,
     });
 
     // Get project members for reviewer selection
@@ -178,11 +179,21 @@ export default function ProjectDetailsModal({ project, open, onOpenChange }: Pro
                                         </div>
                                         <InputError message={errors.background_color} />
                                     </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="archived">Archived</Label>
+                                        <Checkbox
+                                            id="archived"
+                                            checked={!!data.is_archived}
+                                            onCheckedChange={checked => setData('is_archived', !!checked)}
+                                        />
+                                    </div>
                                 </div>
                             ) : (
                                 <div>
-                                    <div className="mb-2">
+                                    <div className="mb-2 flex items-center gap-2">
                                         <h3 className="text-lg font-semibold">{project.name}</h3>
+                                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${project.is_team_project ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>{project.is_team_project ? 'Team' : 'Personal'}</span>
                                     </div>
                                     {project.description && (
                                         <p className="text-muted-foreground">{project.description}</p>

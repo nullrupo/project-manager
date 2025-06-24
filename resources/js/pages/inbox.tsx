@@ -175,8 +175,6 @@ export default function InboxPage({ tasks = [], users = [], projects = [], tags 
     const [currentFocusedTaskId, setCurrentFocusedTaskId] = useState<number | null>(null);
     const taskListRef = useRef<HTMLDivElement>(null);
 
-
-
     // Auto-focus the quick add input when component mounts
     useEffect(() => {
         if (quickAddInputRef.current) {
@@ -201,8 +199,6 @@ export default function InboxPage({ tasks = [], users = [], projects = [], tags 
                 console.error('Failed to load inbox preferences:', error);
             });
     }, []);
-
-
 
     // Calculate cleanup-eligible tasks
     const cleanupEligibleTasks = useMemo(() => {
@@ -824,80 +820,65 @@ export default function InboxPage({ tasks = [], users = [], projects = [], tags 
                 </div>
 
                 {/* Quick Add Form - Separate container */}
-                <Card>
-                    <CardContent className="pt-3 pb-3">
-                        <form onSubmit={handleQuickAdd} className="flex gap-2">
-                            <div className="flex-1">
-                                <Input
-                                    ref={quickAddInputRef}
-                                    placeholder="Quick add a task..."
-                                    value={quickAddTitle}
-                                    onChange={(e) => setQuickAddTitle(e.target.value)}
-                                    disabled={isQuickAdding}
-                                />
-                            </div>
-                            <Button type="submit" disabled={!quickAddTitle.trim() || isQuickAdding}>
-                                {isQuickAdding ? (
-                                    <>
-                                        <Clock className="h-4 w-4 mr-2 animate-spin" />
-                                        Adding...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Plus className="h-4 w-4 mr-2" />
-                                        Add Task
-                                    </>
-                                )}
-                            </Button>
-                        </form>
-                    </CardContent>
-                </Card>
+                <div className="mb-4">
+                    <form onSubmit={handleQuickAdd} className="flex gap-2">
+                        <div className="flex-1">
+                            <Input
+                                ref={quickAddInputRef}
+                                placeholder="Quick add a task..."
+                                value={quickAddTitle}
+                                onChange={(e) => setQuickAddTitle(e.target.value)}
+                                disabled={isQuickAdding}
+                            />
+                        </div>
+                        <Button type="submit" disabled={!quickAddTitle.trim() || isQuickAdding}>
+                            {isQuickAdding ? (
+                                <>
+                                    <Clock className="h-4 w-4 mr-2 animate-spin" />
+                                    Adding...
+                                </>
+                            ) : (
+                                <>
+                                    <Plus className="h-4 w-4 mr-2" />
+                                    Add Task
+                                </>
+                            )}
+                        </Button>
+                    </form>
+                </div>
 
                 {/* Task List */}
-                <Card>
-                    <CardContent className="pt-3 pb-3">
-                        {sortedTasks.length > 0 ? (
-                            <div
-                                className="space-y-2"
-                                ref={taskListRef}
-                                onClick={(e) => {
-                                    // Click away functionality - deselect all tasks if clicking on empty space
-                                    if (e.target === e.currentTarget) {
-                                        setSelectedTasks(new Set());
-                                        setCurrentFocusedTaskId(null);
-                                        setShowBulkActions(false);
-                                    }
-                                }}
-                            >
-                                {sortedTasks.map((task) => {
-                                    const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'done';
-                                    const isSelected = selectedTasks.has(task.id);
-
-                                    return (
-                                        <div
-                                            key={task.id}
-                                            className={`group flex items-start gap-3 p-2 rounded-lg border border-border cursor-pointer bg-white dark:bg-gray-800 ${
-                                                task.status === 'done' ? 'opacity-60' : ''
-                                            } ${isOverdue
-                                                ? 'border-red-300'
-                                                : ''
-                                            } ${isSelected
-                                                ? 'ring-2 ring-primary/30 border-primary/30'
-                                                : ''
-                                            }`}
-                                            data-task-clickable
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                if (e.ctrlKey || e.metaKey || e.shiftKey) {
-                                                    // Multi-select behavior with modifier keys
-                                                    toggleTaskSelection(task.id, e);
-                                                } else {
-                                                    // Single click opens inspector
-                                                    openInspector(task);
-                                                }
-                                            }}
-                                            onDoubleClick={() => editTask(task)}
-                                        >
+                <div className="mb-4">
+                    {sortedTasks.length > 0 ? (
+                        <div className="space-y-2" ref={taskListRef} onClick={(e) => {
+                            if (e.target === e.currentTarget) {
+                                setSelectedTasks(new Set());
+                                setCurrentFocusedTaskId(null);
+                                setShowBulkActions(false);
+                            }
+                        }}>
+                            {sortedTasks.map((task) => {
+                                const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'done';
+                                const isSelected = selectedTasks.has(task.id);
+                                return (
+                                    <Card
+                                        key={task.id}
+                                        data-slot="card"
+                                        className={`group flex items-start gap-3 p-2 rounded-lg border border-border cursor-pointer bg-white dark:bg-gray-800 ${
+                                            task.status === 'done' ? 'opacity-60' : ''
+                                        } ${isOverdue ? 'border-red-300' : ''} ${isSelected ? 'ring-2 ring-primary/30 border-primary/30' : ''}`}
+                                        style={{ transition: 'none' }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (e.ctrlKey || e.metaKey || e.shiftKey) {
+                                                toggleTaskSelection(task.id, e);
+                                            } else {
+                                                openInspector(task);
+                                            }
+                                        }}
+                                        onDoubleClick={() => editTask(task)}
+                                    >
+                                        <CardContent className="flex items-start gap-3 p-0">
                                             <Checkbox
                                                 checked={task.status === 'done'}
                                                 onCheckedChange={(checked) => {
@@ -907,13 +888,8 @@ export default function InboxPage({ tasks = [], users = [], projects = [], tags 
                                                 onClick={(e) => e.stopPropagation()}
                                                 className="mt-1"
                                             />
-
                                             <div className="flex-1 min-w-0">
-                                                <TaskDisplay
-                                                    task={task}
-                                                    compact
-                                                    pageKey="inbox"
-                                                />
+                                                <TaskDisplay task={task} compact pageKey="inbox" />
                                                 {task.project && (
                                                     <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
                                                         <FolderOpen className="h-3 w-3" />
@@ -924,7 +900,6 @@ export default function InboxPage({ tasks = [], users = [], projects = [], tags 
                                                     </div>
                                                 )}
                                             </div>
-
                                             <div className="flex items-center gap-1 ml-2">
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
@@ -963,115 +938,141 @@ export default function InboxPage({ tasks = [], users = [], projects = [], tags 
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
                                             </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        ) : (
-                            <div className="text-center py-12">
-                                <Inbox className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                                <p className="text-muted-foreground">
-                                    No inbox tasks found. Use the quick add form above to create your first task.
-                                </p>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-            </div>
+                                        </CardContent>
+                                    </Card>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="text-center py-12">
+                            <Inbox className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                            <p className="text-muted-foreground">
+                                No inbox tasks found. Use the quick add form above to create your first task.
+                            </p>
+                        </div>
+                    )}
+                </div>
 
-            {/* Bulk Actions Panel */}
-            <BulkActionsPanel
-                selectedTasks={selectedTasks}
-                onClearSelection={() => {
-                    setSelectedTasks(new Set());
-                    setShowBulkActions(false);
-                }}
-                onToggleCompletion={() => bulkToggleCompletion({ preserveSelection: true })}
-                onDelete={() => bulkDelete({ preserveSelection: true })}
-                onMoveToProject={() => {
-                    // For bulk move, we'll use the first selected task as reference
-                    const firstSelectedTask = tasks.find(t => selectedTasks.has(t.id));
-                    if (firstSelectedTask) {
-                        setTaskToMove(firstSelectedTask);
-                        setSelectedProjectId('');
-                        setIsMoveDialogOpen(true);
-                    }
-                }}
-                getCompletionState={getSelectedTasksCompletionState}
-                showMoveToProject={projects.length > 0}
-                isProcessing={isProcessing}
-            />
+                {/* Move to Project Dialog */}
+                <Dialog open={isMoveDialogOpen} onOpenChange={setIsMoveDialogOpen}>
+                    <DialogContent className="sm:max-w-[400px]">
+                        <DialogHeader>
+                            <DialogTitle>Move Task{selectedTasks.size > 0 ? 's' : ''} to Project</DialogTitle>
+                            <DialogDescription>
+                                {selectedTasks.size > 0
+                                    ? `Select a project to move ${selectedTasks.size} selected task${selectedTasks.size !== 1 ? 's' : ''} to. The tasks will be added to the project's default board.`
+                                    : `Select a project to move "${taskToMove?.title || ''}" to. The task will be added to the project's default board.`
+                                }
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <label htmlFor="project-select" className="text-sm font-medium">Project</label>
+                                <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select a project" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {projects.map((project) => (
+                                            <SelectItem key={project.id} value={project.id.toString()}>
+                                                <div className="flex items-center gap-2">
+                                                    <FolderOpen className="h-4 w-4" />
+                                                    <span>{project.name}</span>
+                                                    <Badge variant="secondary" className="text-xs">
+                                                        {project.key}
+                                                    </Badge>
+                                                </div>
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button type="button" variant="outline" onClick={() => setIsMoveDialogOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={moveTaskToProject}
+                                disabled={!selectedProjectId}
+                                className="bg-blue-600 hover:bg-blue-700"
+                            >
+                                <ArrowRight className="h-4 w-4 mr-2" />
+                                Move Task
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
 
-            {/* Edit Task Dialog */}
-            {editingTask && (
-                <Dialog open={!!editingTask} onOpenChange={(open) => !open && setEditingTask(null)}>
+                {/* Create Task Dialog */}
+                <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                     <DialogContent className="sm:max-w-[500px]">
                         <DialogHeader>
-                            <DialogTitle>Edit Task</DialogTitle>
+                            <DialogTitle>Create New Task</DialogTitle>
                         </DialogHeader>
-                        <form onSubmit={onSubmit} className="space-y-4">
+                        <form onSubmit={handleCreateTask} className="space-y-4">
                             <div className="space-y-4">
                                 {/* 1. Title */}
                                 <div className="space-y-2">
-                                    <label htmlFor="edit-title" className="text-sm font-medium">Title</label>
+                                    <label htmlFor="create-title" className="text-sm font-medium">Title</label>
                                     <Input
-                                        id="edit-title"
+                                        id="create-title"
                                         placeholder="Task title"
-                                        value={title}
-                                        onChange={(e) => setTitle(e.target.value)}
+                                        value={createTaskData.title}
+                                        onChange={(e) => setCreateTaskData(prev => ({ ...prev, title: e.target.value }))}
                                         required
                                     />
                                 </div>
 
                                 {/* 2. Description */}
                                 <div className="space-y-2">
-                                    <label htmlFor="edit-description" className="text-sm font-medium">Description</label>
+                                    <label htmlFor="create-description" className="text-sm font-medium">Description</label>
                                     <Textarea
-                                        id="edit-description"
+                                        id="create-description"
                                         placeholder="Task description"
-                                        value={description}
-                                        onChange={(e) => setDescription(e.target.value)}
+                                        value={createTaskData.description}
+                                        onChange={(e) => setCreateTaskData(prev => ({ ...prev, description: e.target.value }))}
                                     />
                                 </div>
 
                                 {/* 3. Project */}
                                 <div className="space-y-2">
-                                    <label htmlFor="edit-project" className="text-sm font-medium">Project</label>
+                                    <label htmlFor="create-project" className="text-sm font-medium">Project</label>
                                     <div className="relative">
                                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                         <Input
-                                            ref={editProjectSearchRef}
+                                            ref={projectSearchRef}
                                             placeholder="Search projects..."
-                                            value={editProjectSearchQuery}
+                                            value={projectSearchQuery}
                                             onChange={(e) => {
-                                                setEditProjectSearchQuery(e.target.value);
-                                                setShowEditProjectDropdown(e.target.value.length > 0);
+                                                setProjectSearchQuery(e.target.value);
+                                                setShowProjectDropdown(e.target.value.length > 0);
                                             }}
-                                            onFocus={() => setShowEditProjectDropdown(editProjectSearchQuery.length > 0 || filteredEditProjects.length > 0)}
-                                            onBlur={() => setTimeout(() => setShowEditProjectDropdown(false), 200)}
+                                            onFocus={() => setShowProjectDropdown(projectSearchQuery.length > 0 || filteredProjects.length > 0)}
+                                            onBlur={() => setTimeout(() => setShowProjectDropdown(false), 200)}
                                             className="pl-10"
                                         />
-                                        {editSelectedProject && (
+                                        {selectedProject && (
                                             <Button
                                                 type="button"
                                                 variant="ghost"
                                                 size="sm"
                                                 className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
-                                                onClick={clearEditProjectSelection}
+                                                onClick={clearProjectSelection}
                                             >
                                                 <X className="h-3 w-3" />
                                             </Button>
                                         )}
 
                                         {/* Project Dropdown */}
-                                        {showEditProjectDropdown && filteredEditProjects.length > 0 && (
+                                        {showProjectDropdown && filteredProjects.length > 0 && (
                                             <div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-auto">
-                                                {filteredEditProjects.slice(0, 10).map((project) => (
+                                                {filteredProjects.slice(0, 10).map((project) => (
                                                     <button
                                                         key={project.id}
                                                         type="button"
                                                         className="w-full px-3 py-2 text-left hover:bg-muted flex items-center gap-2 border-b last:border-b-0"
-                                                        onClick={() => handleEditProjectSelect(project)}
+                                                        onClick={() => handleProjectSelect(project)}
                                                     >
                                                         <FolderOpen className="h-4 w-4 text-muted-foreground" />
                                                         <span className="flex-1">{project.name}</span>
@@ -1081,10 +1082,10 @@ export default function InboxPage({ tasks = [], users = [], projects = [], tags 
                                         )}
 
                                         {/* Selected Project Display */}
-                                        {editSelectedProject && (
+                                        {selectedProject && (
                                             <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
                                                 <FolderOpen className="h-4 w-4" />
-                                                <span>Selected: <strong>{editSelectedProject.name}</strong></span>
+                                                <span>Selected: <strong>{selectedProject.name}</strong></span>
                                             </div>
                                         )}
                                     </div>
@@ -1092,300 +1093,100 @@ export default function InboxPage({ tasks = [], users = [], projects = [], tags 
 
                                 {/* 4. Priority */}
                                 <div className="space-y-2">
-                                    <label htmlFor="edit-priority" className="text-sm font-medium">Priority</label>
+                                    <label htmlFor="create-priority" className="text-sm font-medium">Priority</label>
                                     <select
-                                        id="edit-priority"
+                                        id="create-priority"
                                         className="w-full rounded-md border border-input bg-background px-3 py-2"
-                                        value={priority}
-                                        onChange={(e) => setPriority(e.target.value)}
+                                        value={createTaskData.priority}
+                                        onChange={(e) => setCreateTaskData(prev => ({ ...prev, priority: e.target.value as 'low' | 'medium' | 'high' }))}
                                     >
                                         <option value="low">Low</option>
                                         <option value="medium">Medium</option>
                                         <option value="high">High</option>
-                                        <option value="urgent">Urgent</option>
                                     </select>
                                 </div>
 
                                 {/* 5. Due Date */}
                                 <div className="space-y-2">
-                                    <label htmlFor="edit-due-date" className="text-sm font-medium">Due Date</label>
+                                    <label htmlFor="create-due-date" className="text-sm font-medium">Due Date</label>
                                     <Input
-                                        id="edit-due-date"
+                                        id="create-due-date"
                                         type="date"
                                         className="w-full"
-                                        value={dueDate || ''}
-                                        onChange={(e) => setDueDate(e.target.value || null)}
+                                        value={createTaskData.due_date || ''}
+                                        onChange={(e) => setCreateTaskData(prev => ({ ...prev, due_date: e.target.value || null }))}
                                         onKeyDown={(e) => {
                                             // Fix tab navigation for date input
                                             if (e.key === 'Tab' && !e.shiftKey) {
                                                 e.preventDefault();
-                                                // Focus the next field (assignee - not implemented in edit dialog yet)
-                                                // For now, just let it tab to the next available element
-                                                const nextElement = e.currentTarget.parentElement?.parentElement?.nextElementSibling?.querySelector('input, select, button') as HTMLElement;
-                                                if (nextElement) {
-                                                    nextElement.focus();
-                                                }
+                                                // Focus the next field (assignee select trigger)
+                                                setTimeout(() => {
+                                                    const assigneeSelect = document.querySelector('#create-assignees-trigger') as HTMLElement;
+                                                    if (assigneeSelect) {
+                                                        assigneeSelect.focus();
+                                                    } else {
+                                                        // Fallback to any select trigger in the dialog
+                                                        const fallbackSelect = document.querySelector('[data-radix-select-trigger]') as HTMLElement;
+                                                        if (fallbackSelect) {
+                                                            fallbackSelect.focus();
+                                                        }
+                                                    }
+                                                }, 0);
                                             }
                                         }}
                                     />
                                 </div>
 
-                                {/* 6. Assignee - Note: Not implemented in edit dialog yet, but keeping structure consistent */}
-                                {/* This would be added here if assignee editing is needed in the future */}
+                                {/* 6. Assignee */}
+                                <div className="space-y-2">
+                                    <label htmlFor="create-assignees" className="text-sm font-medium">Assignee</label>
+                                    <Select
+                                        value={createTaskData.assignee_ids.length > 0 ? createTaskData.assignee_ids[0].toString() : 'no-assignee'}
+                                        onValueChange={(value) => setCreateTaskData(prev => ({ ...prev, assignee_ids: value === 'no-assignee' ? [] : [parseInt(value)] }))}
+                                    >
+                                        <SelectTrigger id="create-assignees-trigger">
+                                            <SelectValue placeholder="Select an assignee" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="no-assignee">No assignee</SelectItem>
+                                            {users.map((user) => (
+                                                <SelectItem key={user.id} value={user.id.toString()}>
+                                                    {getShortName(user.name)}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* 7. Tags */}
+                                <TagSelector
+                                    selectedTags={tags.filter(tag => createTaskData.tag_ids.includes(tag.id))}
+                                    availableTags={tags}
+                                    onTagsChange={handleTagsChange}
+                                    onCreateTag={handleCreateTag}
+                                    placeholder="Select personal tags..."
+                                />
                             </div>
 
                             <DialogFooter>
-                                <Button type="button" variant="outline" onClick={() => setEditingTask(null)}>
+                                <Button type="button" variant="outline" onClick={closeCreateDialog}>
                                     Cancel
                                 </Button>
-                                <Button type="submit">
-                                    Update Task
+                                <Button type="submit" disabled={isCreatingTask}>
+                                    {isCreatingTask ? (
+                                        <>
+                                            <Clock className="h-4 w-4 mr-2 animate-spin" />
+                                            Creating...
+                                        </>
+                                    ) : (
+                                        'Create Task'
+                                    )}
                                 </Button>
                             </DialogFooter>
                         </form>
                     </DialogContent>
                 </Dialog>
-            )}
-
-            {/* Move to Project Dialog */}
-            <Dialog open={isMoveDialogOpen} onOpenChange={setIsMoveDialogOpen}>
-                <DialogContent className="sm:max-w-[400px]">
-                    <DialogHeader>
-                        <DialogTitle>Move Task{selectedTasks.size > 0 ? 's' : ''} to Project</DialogTitle>
-                        <DialogDescription>
-                            {selectedTasks.size > 0
-                                ? `Select a project to move ${selectedTasks.size} selected task${selectedTasks.size !== 1 ? 's' : ''} to. The tasks will be added to the project's default board.`
-                                : `Select a project to move "${taskToMove?.title || ''}" to. The task will be added to the project's default board.`
-                            }
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                        <div className="space-y-2">
-                            <label htmlFor="project-select" className="text-sm font-medium">Project</label>
-                            <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select a project" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {projects.map((project) => (
-                                        <SelectItem key={project.id} value={project.id.toString()}>
-                                            <div className="flex items-center gap-2">
-                                                <FolderOpen className="h-4 w-4" />
-                                                <span>{project.name}</span>
-                                                <Badge variant="secondary" className="text-xs">
-                                                    {project.key}
-                                                </Badge>
-                                            </div>
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-                    <DialogFooter>
-                        <Button type="button" variant="outline" onClick={() => setIsMoveDialogOpen(false)}>
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={moveTaskToProject}
-                            disabled={!selectedProjectId}
-                            className="bg-blue-600 hover:bg-blue-700"
-                        >
-                            <ArrowRight className="h-4 w-4 mr-2" />
-                            Move Task
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-
-
-
-
-            {/* Create Task Dialog */}
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                <DialogContent className="sm:max-w-[500px]">
-                    <DialogHeader>
-                        <DialogTitle>Create New Task</DialogTitle>
-                    </DialogHeader>
-                    <form onSubmit={handleCreateTask} className="space-y-4">
-                        <div className="space-y-4">
-                            {/* 1. Title */}
-                            <div className="space-y-2">
-                                <label htmlFor="create-title" className="text-sm font-medium">Title</label>
-                                <Input
-                                    id="create-title"
-                                    placeholder="Task title"
-                                    value={createTaskData.title}
-                                    onChange={(e) => setCreateTaskData(prev => ({ ...prev, title: e.target.value }))}
-                                    required
-                                />
-                            </div>
-
-                            {/* 2. Description */}
-                            <div className="space-y-2">
-                                <label htmlFor="create-description" className="text-sm font-medium">Description</label>
-                                <Textarea
-                                    id="create-description"
-                                    placeholder="Task description"
-                                    value={createTaskData.description}
-                                    onChange={(e) => setCreateTaskData(prev => ({ ...prev, description: e.target.value }))}
-                                />
-                            </div>
-
-                            {/* 3. Project */}
-                            <div className="space-y-2">
-                                <label htmlFor="create-project" className="text-sm font-medium">Project</label>
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        ref={projectSearchRef}
-                                        placeholder="Search projects..."
-                                        value={projectSearchQuery}
-                                        onChange={(e) => {
-                                            setProjectSearchQuery(e.target.value);
-                                            setShowProjectDropdown(e.target.value.length > 0);
-                                        }}
-                                        onFocus={() => setShowProjectDropdown(projectSearchQuery.length > 0 || filteredProjects.length > 0)}
-                                        onBlur={() => setTimeout(() => setShowProjectDropdown(false), 200)}
-                                        className="pl-10"
-                                    />
-                                    {selectedProject && (
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
-                                            onClick={clearProjectSelection}
-                                        >
-                                            <X className="h-3 w-3" />
-                                        </Button>
-                                    )}
-
-                                    {/* Project Dropdown */}
-                                    {showProjectDropdown && filteredProjects.length > 0 && (
-                                        <div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-auto">
-                                            {filteredProjects.slice(0, 10).map((project) => (
-                                                <button
-                                                    key={project.id}
-                                                    type="button"
-                                                    className="w-full px-3 py-2 text-left hover:bg-muted flex items-center gap-2 border-b last:border-b-0"
-                                                    onClick={() => handleProjectSelect(project)}
-                                                >
-                                                    <FolderOpen className="h-4 w-4 text-muted-foreground" />
-                                                    <span className="flex-1">{project.name}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    {/* Selected Project Display */}
-                                    {selectedProject && (
-                                        <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
-                                            <FolderOpen className="h-4 w-4" />
-                                            <span>Selected: <strong>{selectedProject.name}</strong></span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* 4. Priority */}
-                            <div className="space-y-2">
-                                <label htmlFor="create-priority" className="text-sm font-medium">Priority</label>
-                                <select
-                                    id="create-priority"
-                                    className="w-full rounded-md border border-input bg-background px-3 py-2"
-                                    value={createTaskData.priority}
-                                    onChange={(e) => setCreateTaskData(prev => ({ ...prev, priority: e.target.value as 'low' | 'medium' | 'high' }))}
-                                >
-                                    <option value="low">Low</option>
-                                    <option value="medium">Medium</option>
-                                    <option value="high">High</option>
-                                </select>
-                            </div>
-
-                            {/* 5. Due Date */}
-                            <div className="space-y-2">
-                                <label htmlFor="create-due-date" className="text-sm font-medium">Due Date</label>
-                                <Input
-                                    id="create-due-date"
-                                    type="date"
-                                    className="w-full"
-                                    value={createTaskData.due_date || ''}
-                                    onChange={(e) => setCreateTaskData(prev => ({ ...prev, due_date: e.target.value || null }))}
-                                    onKeyDown={(e) => {
-                                        // Fix tab navigation for date input
-                                        if (e.key === 'Tab' && !e.shiftKey) {
-                                            e.preventDefault();
-                                            // Focus the next field (assignee select trigger)
-                                            setTimeout(() => {
-                                                const assigneeSelect = document.querySelector('#create-assignees-trigger') as HTMLElement;
-                                                if (assigneeSelect) {
-                                                    assigneeSelect.focus();
-                                                } else {
-                                                    // Fallback to any select trigger in the dialog
-                                                    const fallbackSelect = document.querySelector('[data-radix-select-trigger]') as HTMLElement;
-                                                    if (fallbackSelect) {
-                                                        fallbackSelect.focus();
-                                                    }
-                                                }
-                                            }, 0);
-                                        }
-                                    }}
-                                />
-                            </div>
-
-                            {/* 6. Assignee */}
-                            <div className="space-y-2">
-                                <label htmlFor="create-assignees" className="text-sm font-medium">Assignee</label>
-                                <Select
-                                    value={createTaskData.assignee_ids.length > 0 ? createTaskData.assignee_ids[0].toString() : 'no-assignee'}
-                                    onValueChange={(value) => setCreateTaskData(prev => ({ ...prev, assignee_ids: value === 'no-assignee' ? [] : [parseInt(value)] }))}
-                                >
-                                    <SelectTrigger id="create-assignees-trigger">
-                                        <SelectValue placeholder="Select an assignee" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="no-assignee">No assignee</SelectItem>
-                                        {users.map((user) => (
-                                            <SelectItem key={user.id} value={user.id.toString()}>
-                                                {getShortName(user.name)}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            {/* 7. Tags */}
-                            <TagSelector
-                                selectedTags={tags.filter(tag => createTaskData.tag_ids.includes(tag.id))}
-                                availableTags={tags}
-                                onTagsChange={handleTagsChange}
-                                onCreateTag={handleCreateTag}
-                                placeholder="Select personal tags..."
-                            />
-                        </div>
-
-                        <DialogFooter>
-                            <Button type="button" variant="outline" onClick={closeCreateDialog}>
-                                Cancel
-                            </Button>
-                            <Button type="submit" disabled={isCreatingTask}>
-                                {isCreatingTask ? (
-                                    <>
-                                        <Clock className="h-4 w-4 mr-2 animate-spin" />
-                                        Creating...
-                                    </>
-                                ) : (
-                                    'Create Task'
-                                )}
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
-
-            {/* Cleanup confirmation dialog removed - using immediate cleanup with notifications */}
+            </div>
         </AppLayout>
     );
 }

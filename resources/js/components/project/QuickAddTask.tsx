@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react';
 import { router } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
 import { Plus, Clock } from 'lucide-react';
 import { Project } from '@/types/project-manager';
 
@@ -100,39 +99,39 @@ export default function QuickAddTask({
     };
 
     return (
-        <Card className={className}>
-            <CardContent className="pt-3 pb-3">
-                <form onSubmit={handleSubmit} className="flex gap-2">
-                    <div className="flex-1">
-                        <Input
-                            ref={inputRef}
-                            placeholder={placeholder}
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            disabled={isAdding}
-                            className="border-dashed"
-                        />
-                    </div>
-                    <Button
-                        type="submit"
-                        disabled={!title.trim() || isAdding}
-                        size="sm"
-                    >
-                        {isAdding ? (
-                            <>
-                                <Clock className="h-4 w-4 mr-2 animate-spin" />
-                                Adding...
-                            </>
-                        ) : (
-                            <>
-                                <Plus className="h-4 w-4 mr-2" />
-                                Add
-                            </>
-                        )}
-                    </Button>
-                </form>
-            </CardContent>
-        </Card>
+        <form
+            onSubmit={handleSubmit}
+            className={`flex gap-2 items-center rounded-lg border border-primary/40 bg-white dark:bg-zinc-900 px-4 py-3 shadow-md ${className}`}
+            style={{ minHeight: 48 }}
+        >
+            <div className="flex-1">
+                <Input
+                    ref={inputRef}
+                    placeholder={placeholder}
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    disabled={isAdding}
+                    className="border-2 border-primary/60 focus:border-primary focus:ring-2 focus:ring-primary/30 bg-white dark:bg-zinc-900 text-base"
+                />
+            </div>
+            <Button
+                type="submit"
+                disabled={!title.trim() || isAdding}
+                size="sm"
+            >
+                {isAdding ? (
+                    <>
+                        <Clock className="h-4 w-4 mr-2 animate-spin" />
+                        Adding...
+                    </>
+                ) : (
+                    <>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add
+                    </>
+                )}
+            </Button>
+        </form>
     );
 }

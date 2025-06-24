@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 export type Appearance = 'light' | 'dark' | 'system';
+export type ProjectDetailsDisplay = 'button' | 'hyperlink';
 
 const prefersDark = () => {
     if (typeof window === 'undefined') {
@@ -49,25 +50,30 @@ export function initializeTheme() {
 
 export function useAppearance() {
     const [appearance, setAppearance] = useState<Appearance>('system');
+    const [projectDetailsDisplay, setProjectDetailsDisplay] = useState<ProjectDetailsDisplay>(() => {
+        return (localStorage.getItem('projectDetailsDisplay') as ProjectDetailsDisplay) || 'button';
+    });
 
     const updateAppearance = useCallback((mode: Appearance) => {
         setAppearance(mode);
-
-        // Store in localStorage for client-side persistence...
-        localStorage.setItem('theme', mode); // Use 'theme' key for consistency
-
-        // Store in cookie for SSR...
+        localStorage.setItem('theme', mode);
         setCookie('theme', mode);
-
         applyTheme(mode);
+    }, []);
+
+    const updateProjectDetailsDisplay = useCallback((mode: ProjectDetailsDisplay) => {
+        setProjectDetailsDisplay(mode);
+        localStorage.setItem('projectDetailsDisplay', mode);
+        setCookie('projectDetailsDisplay', mode);
     }, []);
 
     useEffect(() => {
         const savedAppearance = localStorage.getItem('theme') as Appearance | null;
         updateAppearance(savedAppearance || 'system');
-
+        const savedProjectDetailsDisplay = localStorage.getItem('projectDetailsDisplay') as ProjectDetailsDisplay | null;
+        if (savedProjectDetailsDisplay) setProjectDetailsDisplay(savedProjectDetailsDisplay);
         return () => mediaQuery()?.removeEventListener('change', handleSystemThemeChange);
     }, [updateAppearance]);
 
-    return { appearance, updateAppearance } as const;
+    return { appearance, updateAppearance, projectDetailsDisplay, updateProjectDetailsDisplay } as const;
 }

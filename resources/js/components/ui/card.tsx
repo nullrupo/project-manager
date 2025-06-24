@@ -12,7 +12,7 @@ function Card({ className, hoverable = false, ...props }: CardProps) {
       data-slot="card"
       className={cn(
         "bg-card/90 text-card-foreground flex flex-col gap-6 rounded-xl border border-border/50 py-6 shadow-sm backdrop-blur-sm",
-        hoverable && "transition-all duration-200 ease-out hover:shadow-lg hover:scale-[1.01] hover:-translate-y-1",
+        hoverable && "transition-all duration-200 ease-out hover:shadow-lg",
         className
       )}
       {...props}

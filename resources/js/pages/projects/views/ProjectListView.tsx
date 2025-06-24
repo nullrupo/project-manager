@@ -5,7 +5,7 @@ import { DndContext, closestCenter, DragOverlay } from '@dnd-kit/core';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Menu, Plus, ChevronDown, ChevronRight, Layers, ListTodo, Sparkles, Clock, Archive, CheckCircle2 } from 'lucide-react';
+import { Menu, Plus, ChevronDown, ChevronRight, Layers, ListTodo, Sparkles, Clock, Archive, CheckCircle2, Edit } from 'lucide-react';
 import { Project } from '@/types/project-manager';
 import ListTaskItem from '../components/ListTaskItem';
 import { getOrganizedTasks, getAllTasksFromSections, toggleSectionCollapse } from '../utils/projectUtils';
@@ -387,318 +387,287 @@ export default function ProjectListView({
     }
 
     return (
-        <div
-            className="flex h-[calc(100vh-200px)] mt-0"
-            onKeyDown={handleKeyDown}
-            tabIndex={0}
-        >
-            {/* Main List Content */}
-            <div className={`flex-1 ${state.inspectorOpen ? 'mr-0' : ''}`}>
-                <Card className="rounded-t-none border-t-0 h-full">
-                    <CardHeader className="pb-4">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Menu className="h-5 w-5" />
-                                    Task List
-                                </CardTitle>
-                                <CardDescription>
-                                    Hierarchical outline view with inspector panel
-                                </CardDescription>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <TaskDisplayCustomizer pageKey={`project-list-${project.id}`} />
-                                <Separator orientation="vertical" className="h-6" />
-                                {project.can_manage_tasks && (
-                                    <Button
-                                        variant="default"
-                                        size="sm"
-                                        onClick={() => handleCreateTask()}
-                                    >
-                                        <Plus className="h-4 w-4 mr-2" />
-                                        New Task
-                                    </Button>
-                                )}
-                                {state.listViewMode === 'sections' && project.can_manage_tasks && (
+        <Card className="rounded-t-none border-t-0 mt-0">
+            <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <CardTitle className="flex items-center gap-2">
+                            <ListTodo className="h-5 w-5" />
+                            Task List
+                        </CardTitle>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <TaskDisplayCustomizer pageKey={`project-list-${project.id}`} />
+                        <Separator orientation="vertical" className="h-6" />
+                        {project.can_manage_tasks && (
+                            <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => handleCreateTask()}
+                            >
+                                <Plus className="h-4 w-4 mr-2" />
+                                New Task
+                            </Button>
+                        )}
+                        {state.listViewMode === 'sections' && project.can_manage_tasks && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={onCreateSection}
+                            >
+                                <Plus className="h-4 w-4 mr-2" />
+                                Add Section
+                            </Button>
+                        )}
+                        {project.can_manage_tasks && cleanupEligibleTasks.length > 0 && (
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={performCleanup}
+                                            disabled={isCleaningUp}
+                                            className="flex items-center gap-2"
+                                        >
+                                            {isCleaningUp ? (
+                                                <>
+                                                    <Clock className="h-4 w-4 animate-spin" />
+                                                    Cleaning...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Sparkles className="h-4 w-4" />
+                                                    Clean Up ({cleanupEligibleTasks.length})
+                                                </>
+                                            )}
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>Archive all completed tasks in this project</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        )}
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={onCreateSection}
+                                        onClick={() => router.visit(route('projects.archive', project.id))}
+                                        className="flex items-center gap-2"
                                     >
-                                        <Plus className="h-4 w-4 mr-2" />
-                                        Add Section
+                                        <Archive className="h-4 w-4" />
+                                        Archive
                                     </Button>
-                                )}
-
-                                {/* Cleanup button */}
-                                {project.can_manage_tasks && cleanupEligibleTasks.length > 0 && (
-                                    <TooltipProvider>
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={performCleanup}
-                                                    disabled={isCleaningUp}
-                                                    className="flex items-center gap-2"
-                                                >
-                                                    {isCleaningUp ? (
-                                                        <>
-                                                            <Clock className="h-4 w-4 animate-spin" />
-                                                            Cleaning...
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <Sparkles className="h-4 w-4" />
-                                                            Clean Up ({cleanupEligibleTasks.length})
-                                                        </>
-                                                    )}
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                                <p>Archive all completed tasks in this project</p>
-                                            </TooltipContent>
-                                        </Tooltip>
-                                    </TooltipProvider>
-                                )}
-
-                                {/* Archive button */}
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => router.visit(route('projects.archive', project.id))}
-                                                className="flex items-center gap-2"
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>View archived tasks for this project</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                        <Separator orientation="vertical" className="h-6" />
+                        <Button
+                            variant={state.listViewMode === 'sections' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => state.setListViewMode('sections')}
+                        >
+                            <Layers className="h-4 w-4 mr-2" />
+                            Sections
+                        </Button>
+                        <Button
+                            variant={state.listViewMode === 'status' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => state.setListViewMode('status')}
+                        >
+                            <ListTodo className="h-4 w-4 mr-2" />
+                            Status
+                        </Button>
+                    </div>
+                </div>
+                {project.can_manage_tasks && (
+                    <div className="mt-4">
+                        <QuickAddTask
+                            project={project}
+                            sectionId={null}
+                            status="to_do"
+                            placeholder="Quick add a task (no section)..."
+                        />
+                    </div>
+                )}
+            </CardHeader>
+            <CardContent className="flex-1 overflow-y-auto">
+                {project.boards && project.boards.length > 0 ? (
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragStart={handleSectionDragStart}
+                        onDragEnd={handleSectionDragEnd}
+                    >
+                        <SortableContext items={sections.map((s: any) => s.id)} strategy={verticalListSortingStrategy}>
+                            <div className="space-y-6" ref={taskListRef}>
+                                {sections.map((section: any) => {
+                                    const isCollapsed = state.collapsedSections.has(section.id);
+                                    const taskIds = section.tasks.map((task: any) => `list-task-${task.id}`);
+                                    const isSectionTargeted = state.listDragFeedback?.isTaskDrag &&
+                                        state.listDragFeedback?.draggedTaskSectionId === section.id &&
+                                        section.tasks?.some((task: any) => `list-task-${task.id}` === state.listDragFeedback?.overId);
+                                    const isNoSection = section.name === 'No Section';
+                                    return (
+                                        <div key={section.id} className={`space-y-2 ${
+                                            isSectionTargeted ? 'bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-950/20 dark:to-purple-900/30 border-2 border-purple-300 dark:border-purple-600 rounded-lg p-2 shadow-lg shadow-purple-200/20 dark:shadow-purple-900/20' : ''
+                                        }`}>
+                                            {/* Section Header */}
+                                            <div
+                                                className={`flex items-center justify-between p-1 pr-4 bg-muted/30 rounded-md border border-dashed border-muted-foreground/30 transition-colors${isNoSection ? ' whitespace-nowrap h-12' : ''}${isNoSection ? '' : ' cursor-pointer hover:bg-muted/50'}`}
+                                                onClick={() => handleSectionToggle(section.id)}
                                             >
-                                                <Archive className="h-4 w-4" />
-                                                Archive
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                            <p>View archived tasks for this project</p>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
-
-                                <Separator orientation="vertical" className="h-6" />
-                                <Button
-                                    variant={state.listViewMode === 'sections' ? 'default' : 'outline'}
-                                    size="sm"
-                                    onClick={() => state.setListViewMode('sections')}
-                                >
-                                    <Layers className="h-4 w-4 mr-2" />
-                                    Sections
-                                </Button>
-                                <Button
-                                    variant={state.listViewMode === 'status' ? 'default' : 'outline'}
-                                    size="sm"
-                                    onClick={() => state.setListViewMode('status')}
-                                >
-                                    <ListTodo className="h-4 w-4 mr-2" />
-                                    Status
-                                </Button>
-                            </div>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="flex-1 overflow-y-auto">
-                        {project.boards && project.boards.length > 0 ? (
-                            <>
-                                {/* Quick Add Task - Always visible at top */}
-                                {project.can_manage_tasks && (
-                                    <div className="mb-4">
-                                        <QuickAddTask
-                                            project={project}
-                                            sectionId={null}
-                                            status="to_do"
-                                            placeholder="Quick add a task (no section)..."
-                                        />
-                                    </div>
-                                )}
-
-                                <DndContext
-                                    sensors={sensors}
-                                    collisionDetection={closestCenter}
-                                    onDragStart={handleSectionDragStart}
-                                    onDragEnd={handleSectionDragEnd}
-                                >
-                                    <SortableContext items={sections.map((s: any) => s.id)} strategy={verticalListSortingStrategy}>
-                                        <div className="space-y-4" ref={taskListRef}>
-                                            {sections.map((section: any) => {
-                                                const isCollapsed = state.collapsedSections.has(section.id);
-                                                const taskIds = section.tasks.map((task: any) => `list-task-${task.id}`);
-                                                // Section-level drag detection for pulse effects
-                                                const isSectionTargeted = state.listDragFeedback?.isTaskDrag &&
-                                                    state.listDragFeedback?.draggedTaskSectionId === section.id &&
-                                                    section.tasks?.some((task: any) => `list-task-${task.id}` === state.listDragFeedback?.overId);
-                                                return (
-                                                    <div key={section.id} className={`space-y-2 transition-all duration-300 ${
-                                                        isSectionTargeted ? 'bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-950/20 dark:to-purple-900/30 border-2 border-purple-300 dark:border-purple-600 rounded-lg p-2 shadow-lg shadow-purple-200/20 dark:shadow-purple-900/20' : ''
-                                                    }`}>
-                                                        {/* Section Header */}
-                                                        <div
-                                                            className="flex items-center justify-between p-1 bg-muted/30 rounded-md border border-dashed border-muted-foreground/30 hover:bg-muted/50 transition-colors cursor-pointer"
-                                                            onClick={() => handleSectionToggle(section.id)}
+                                                <div className="flex items-center gap-2">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-6 w-6 p-0 w-full h-full"
+                                                    >
+                                                        {isCollapsed ? (
+                                                            <ChevronRight className="h-4 w-4" />
+                                                        ) : (
+                                                            <ChevronDown className="h-4 w-4" />
+                                                        )}
+                                                    </Button>
+                                                    <h3 className={`font-semibold text-foreground${isNoSection ? ' whitespace-nowrap text-base' : ''}`}>
+                                                        {section.name}
+                                                    </h3>
+                                                    <span className="text-sm text-muted-foreground">
+                                                        ({section.tasks.length})
+                                                    </span>
+                                                    {!isNoSection && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="ml-1 px-2 py-1 w-full h-full"
+                                                            onClick={e => { e.stopPropagation(); onEditSection(section); }}
+                                                            title="Edit Section"
                                                         >
-                                                            <div className="flex items-center gap-2">
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="sm"
-                                                                    className="h-6 w-6 p-0"
-                                                                >
-                                                                    {isCollapsed ? (
-                                                                        <ChevronRight className="h-4 w-4" />
-                                                                    ) : (
-                                                                        <ChevronDown className="h-4 w-4" />
-                                                                    )}
-                                                                </Button>
-                                                                <h3 className="font-semibold text-foreground">
-                                                                    {section.name}
-                                                                </h3>
-                                                                <span className="text-sm text-muted-foreground">
-                                                                    ({section.tasks.length})
-                                                                </span>
-                                                            </div>
-                                                            {project.can_manage_tasks && (
-                                                                <div className="flex items-center gap-1">
-                                                                    <Button
-                                                                        variant="ghost"
-                                                                        size="sm"
-                                                                        className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            handleCreateTask(
-                                                                                state.listViewMode === 'sections' ? section.id : undefined,
-                                                                                state.listViewMode === 'status' ? section.id : undefined
-                                                                            );
-                                                                        }}
-                                                                        title="Add Task"
-                                                                    >
-                                                                        <Plus className="h-4 w-4" />
-                                                                    </Button>
-                                                                    {section.type === 'section' && (
-                                                                        <>
-                                                                            <Button
-                                                                                variant="ghost"
-                                                                                size="sm"
-                                                                                className="opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    onEditSection(section);
-                                                                                }}
-                                                                            >
-                                                                                Edit
-                                                                            </Button>
-                                                                            <Button
-                                                                                variant="ghost"
-                                                                                size="sm"
-                                                                                className="text-red-600 hover:text-red-700 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    onDeleteSection(section);
-                                                                                }}
-                                                                            >
-                                                                                Delete
-                                                                            </Button>
-                                                                            <Button
-                                                                                variant="ghost"
-                                                                                size="sm"
-                                                                                className="opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    handleMoveSection(section);
-                                                                                }}
-                                                                            >
-                                                                                Move
-                                                                            </Button>
-                                                                        </>
-                                                                    )}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        {/* Section Tasks */}
-                                                        {!isCollapsed && (
-                                                            <SortableContext
-                                                                items={taskIds}
-                                                                strategy={verticalListSortingStrategy}
-                                                            >
-                                                                <div className="space-y-1">
-                                                                    {section.tasks && section.tasks.length > 0 ? (
-                                                                        section.tasks.map((task: any) => (
-                                                                            <ListTaskItem
-                                                                                key={task.id}
-                                                                                task={task}
-                                                                                project={project}
-                                                                                sectionId={section.id}
-                                                                                onTaskClick={handleTaskClick}
-                                                                                onEditTask={onEditTask}
-                                                                                onViewTask={onViewTask}
-                                                                                onAssignTask={onAssignTask}
-                                                                                currentView={state.activeView}
-                                                                                isSelected={state.selectedTasks.has(task.id)}
-                                                                                onToggleSelection={toggleTaskSelection}
-                                                                                currentBoardId={state.currentBoardId}
-                                                                                dragFeedback={state.listDragFeedback}
-                                                                            />
-                                                                        ))
-                                                                    ) : (
-                                                                        <div className="text-center py-3 text-muted-foreground text-sm ml-4">
-                                                                            No tasks in this section yet.
-                                                                        </div>
-                                                                    )}
-                                                                    {/* Quick Add for this section */}
-                                                                    {project.can_manage_tasks && (
-                                                                        <div className="mt-1">
-                                                                            <QuickAddTask
-                                                                                project={project}
-                                                                                sectionId={section.id}
-                                                                                status={state.listViewMode === 'status' ? section.id : 'to_do'}
-                                                                                placeholder={`Add task to ${section.name}...`}
-                                                                                className="border-dashed"
-                                                                            />
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </SortableContext>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </SortableContext>
-                                    {/* Drag Overlay for smooth visual feedback */}
-                                    <DragOverlay>
-                                        {state.listActiveItem?.type === 'task' && state.listActiveItem.task && (
-                                            <div className="rounded-lg border bg-card p-3 shadow-xl border-2 border-purple-500/50 opacity-95 cursor-grabbing max-w-md">
-                                                <div className="space-y-2">
-                                                    <div className="font-medium text-sm truncate">
-                                                        {state.listActiveItem.task.title}
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                        {state.listActiveItem.task.status === 'done' && (
-                                                            <div className="w-2 h-2 rounded-full bg-green-500" />
-                                                        )}
-                                                        {state.listActiveItem.task.assignees && state.listActiveItem.task.assignees.length > 0 && (
-                                                            <span>{state.listActiveItem.task.assignees[0].name}</span>
-                                                        )}
-                                                    </div>
+                                                            <Edit className="h-4 w-4" />
+                                                        </Button>
+                                                    )}
                                                 </div>
+                                                {project.can_manage_tasks && (
+                                                    <div className="flex items-center gap-1">
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="h-8 w-8 p-0 w-full h-full"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleCreateTask(
+                                                                    state.listViewMode === 'sections' ? section.id : undefined,
+                                                                    state.listViewMode === 'status' ? section.id : undefined
+                                                                );
+                                                            }}
+                                                            title="Add Task"
+                                                        >
+                                                            <Plus className="h-4 w-4" />
+                                                        </Button>
+                                                        {section.type === 'section' && (
+                                                            <>
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className="text-red-600 hover:text-red-700 hover:bg-red-50 w-full h-full"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        onDeleteSection(section);
+                                                                    }}
+                                                                >
+                                                                    Delete
+                                                                </Button>
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className="w-full h-full"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleMoveSection(section);
+                                                                    }}
+                                                                >
+                                                                    Move
+                                                                </Button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
-                                        )}
-                                    </DragOverlay>
-                                </DndContext>
-                            </>
-                        ) : (
-                            <div className="text-center py-16">
-                                <p className="text-muted-foreground">No board available for this project.</p>
+                                            {/* Section Tasks */}
+                                            {!isCollapsed && (
+                                                <SortableContext
+                                                    items={taskIds}
+                                                    strategy={verticalListSortingStrategy}
+                                                >
+                                                    <div className="flex flex-col gap-y-3">
+                                                        {section.tasks.map((task: any) => (
+                                                            <ListTaskItem
+                                                                key={task.id}
+                                                                task={task}
+                                                                project={project}
+                                                                sectionId={section.id}
+                                                                onTaskClick={handleTaskClick}
+                                                                onEditTask={onEditTask}
+                                                                onViewTask={onViewTask}
+                                                                onAssignTask={onAssignTask}
+                                                                isSelected={state.selectedTasks.has(task.id)}
+                                                                onToggleSelection={toggleTaskSelection}
+                                                                currentView={state.listViewMode}
+                                                                currentBoardId={project.boards?.[0]?.id}
+                                                                dragFeedback={state.listDragFeedback}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                    {/* Add bottom QuickAddTask for No Section only */}
+                                                    {isNoSection && (
+                                                        <div className="mt-4">
+                                                            <QuickAddTask
+                                                                project={project}
+                                                                sectionId={null}
+                                                                status="to_do"
+                                                                placeholder="Add task to No Section..."
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </SortableContext>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
-                        )}
-                    </CardContent>
-                </Card>
-            </div>
-
-            {/* Bulk Actions Panel */}
+                        </SortableContext>
+                        <DragOverlay>
+                            {state.listActiveItem?.type === 'task' && state.listActiveItem.task && (
+                                <div className="rounded-lg border bg-card p-3 shadow-xl border-2 border-purple-500/50 opacity-95 cursor-grabbing max-w-md">
+                                    <div className="space-y-2">
+                                        <div className="font-medium text-sm truncate">
+                                            {state.listActiveItem.task.title}
+                                        </div>
+                                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                            {state.listActiveItem.task.status === 'done' && (
+                                                <div className="w-2 h-2 rounded-full bg-green-500" />
+                                            )}
+                                            {state.listActiveItem.task.assignees && state.listActiveItem.task.assignees.length > 0 && (
+                                                <span>{state.listActiveItem.task.assignees[0].name}</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </DragOverlay>
+                    </DndContext>
+                ) : (
+                    <div className="text-center py-16">
+                        <p className="text-muted-foreground">No board available for this project.</p>
+                    </div>
+                )}
+            </CardContent>
             <BulkActionsPanel
                 selectedTasks={state.selectedTasks}
                 onClearSelection={() => {
@@ -711,8 +680,6 @@ export default function ProjectListView({
                 getCompletionState={getSelectedTasksCompletionState}
                 isProcessing={isProcessing}
             />
-
-            {/* Move Section Modal */}
             <Dialog open={moveSectionModalOpen} onOpenChange={setMoveSectionModalOpen}>
                 <DialogContent>
                     <DialogHeader>
@@ -739,6 +706,6 @@ export default function ProjectListView({
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div>
+        </Card>
     );
 }

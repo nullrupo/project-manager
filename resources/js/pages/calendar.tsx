@@ -97,7 +97,7 @@ const CalendarDayComponent = memo(({
                 {day.tasks.slice(0, 3).map((task) => (
                     <button
                         key={task.id}
-                        className={`w-full text-left text-xs p-1 rounded cursor-pointer hover:scale-105 hover:shadow-sm transition-all duration-150 border ${
+                        className={`w-full text-left text-xs p-1 rounded cursor-pointer hover:shadow-sm transition-all duration-150 border ${
                             task.status === 'done' ? 'opacity-80 line-through' : ''
                         } ${getTaskStateColor(task)}`}
                         title={`${task.title} - ${task.project?.name || 'Inbox'} - Due: ${task.due_date ? new Date(task.due_date).toLocaleDateString() : 'No due date'}`}

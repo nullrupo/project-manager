@@ -103,7 +103,7 @@ export default function LabelEdit({ project, label }: LabelEditProps) {
                                             <button
                                                 key={color}
                                                 type="button"
-                                                className="w-8 h-8 rounded-full border border-border/50 transition-transform hover:scale-110"
+                                                className="w-8 h-8 rounded-full border border-border/50"
                                                 style={{ backgroundColor: color }}
                                                 onClick={() => setData('color', color)}
                                             />

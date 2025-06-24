@@ -41,6 +41,7 @@ export default function ProjectEdit({ project, members }: ProjectEditProps) {
         completion_behavior: project.completion_behavior || 'simple',
         requires_review: project.requires_review || false,
         default_reviewer_id: project.default_reviewer_id?.toString() || 'none',
+        type: project.is_archived ? 'archived' : project.is_personal_project ? 'personal' : 'public',
     });
 
     const submit: FormEventHandler = (e) => {
@@ -104,6 +105,21 @@ export default function ProjectEdit({ project, members }: ProjectEditProps) {
                                     />
                                 </div>
                                 <InputError message={errors.background_color} />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="project_type" className="text-sm font-medium">Project Type</Label>
+                                <select
+                                    id="project_type"
+                                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                    value={data.type || (project.is_archived ? 'archived' : project.is_personal_project ? 'personal' : 'public')}
+                                    onChange={e => setData('type', e.target.value)}
+                                >
+                                    <option value="public">Public</option>
+                                    <option value="personal">Personal</option>
+                                    <option value="archived">Archived</option>
+                                </select>
+                                <InputError message={errors.type} />
                             </div>
 
                             <div className="space-y-4 border-t pt-4">

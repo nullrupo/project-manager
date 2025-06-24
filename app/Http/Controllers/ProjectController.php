@@ -232,11 +232,17 @@ class ProjectController extends Controller
             'requires_review' => 'boolean',
             'default_reviewer_id' => 'nullable|string',
             'enable_multiple_boards' => 'boolean',
+            'is_archived' => 'boolean',
         ]);
 
         // Handle the "none" value for default_reviewer_id
         if ($validated['default_reviewer_id'] === 'none' || empty($validated['default_reviewer_id'])) {
             $validated['default_reviewer_id'] = null;
+        }
+
+        // If is_archived is not present, set to false (for unchecked checkbox)
+        if (!$request->has('is_archived')) {
+            $validated['is_archived'] = false;
         }
 
         // Validate that the reviewer exists if provided

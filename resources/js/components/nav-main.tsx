@@ -36,7 +36,7 @@ export function NavMain({ groups = [], items = [], collapsed = false }: NavMainP
                 className={`nav-item flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-out relative overflow-hidden ${
                     active
                         ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm'
-                        : 'text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground hover:shadow-sm hover:scale-[1.02]'
+                        : 'text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground hover:shadow-sm'
                 } ${collapsed ? 'justify-center px-2 py-2 w-12 h-12 mx-auto' : 'px-3 py-2.5'}`}
             >
                 {item.icon && (

@@ -304,7 +304,7 @@ export default function ProjectBoardView({
                 modifiers={[restrictToWindowEdges]}
             >
                 <Card className="rounded-t-none border-t-0 mt-0">
-                    <CardHeader className="pb-4">
+                    <CardHeader className="pb-2">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-4">
                                 <div>
@@ -321,9 +321,6 @@ export default function ProjectBoardView({
                                             />
                                         )}
                                     </CardTitle>
-                                    <CardDescription>
-                                        Organize and manage your tasks
-                                    </CardDescription>
                                 </div>
                             </div>
 
@@ -691,7 +688,7 @@ export default function ProjectBoardView({
                                     className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-200 ${
                                         isAssigned
                                             ? 'bg-primary/10 border border-primary/20 hover:bg-primary/20'
-                                            : 'hover:bg-muted/50 hover:shadow-md hover:scale-[1.02]'
+                                            : 'hover:bg-muted/50 hover:shadow-md'
                                     }`}
                                     onClick={(e) => {
                                         console.log('🖱️ Click detected on member:', member.name, member.id);

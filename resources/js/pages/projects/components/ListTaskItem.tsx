@@ -11,7 +11,7 @@ import {
     DropdownMenuTrigger,
     DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu';
-import { GripVertical, MoreHorizontal, Eye, Trash2, Users } from 'lucide-react';
+import { GripVertical, MoreHorizontal, Eye, Trash2, Users, Edit } from 'lucide-react';
 import { Project } from '@/types/project-manager';
 import { useTaskOperations } from '../hooks/useTaskOperations';
 import { TaskDisplay } from '@/components/task/TaskDisplay';
@@ -148,6 +148,20 @@ export default function ListTaskItem({
                 onClick={handleTaskClick}
                 title="Drag to move task"
             >
+                {/* Priority indicator - now at top right */}
+                {task.priority && task.priority !== 'none' && (
+                    <div className="absolute top-3 right-3 flex items-center z-20">
+                        {task.priority === 'low' && (
+                            <div className="w-3 h-3 rounded-full bg-gradient-to-br from-green-400 to-green-600 shadow-sm ring-2 ring-green-200 dark:ring-green-800" title="Low Priority" />
+                        )}
+                        {task.priority === 'medium' && (
+                            <div className="w-3 h-3 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 shadow-sm ring-2 ring-yellow-200 dark:ring-yellow-800" title="Medium Priority" />
+                        )}
+                        {task.priority === 'high' && (
+                            <div className="w-3 h-3 rounded-full bg-gradient-to-br from-red-400 to-red-600 shadow-sm ring-2 ring-red-200 dark:ring-red-800" title="High Priority" />
+                        )}
+                    </div>
+                )}
                 {/* Invisible drag area - covers entire task except buttons */}
                 <div
                     className="absolute inset-0 z-0 cursor-grab active:cursor-grabbing"
@@ -155,15 +169,42 @@ export default function ListTaskItem({
                     {...listeners}
                     title="Drag to move task"
                 />
-
                 {/* Enhanced action buttons */}
-                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 z-20 flex gap-1.5">
-                    {/* Assign button - only show if onAssignTask is provided and project has members */}
-                    {onAssignTask && project.members && project.members.length > 0 && (
+                <div className="absolute top-3 right-12 z-20 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    {/* Edit button - only visible on hover, outlined */}
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 w-7 p-0 bg-background/90 backdrop-blur-sm hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-all duration-200 rounded-full shadow-sm border border-border/50"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onEditTask(task);
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        title="Edit task"
+                    >
+                        <Edit className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                    </Button>
+                    {/* Delete button - only visible on hover, outlined */}
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 w-7 p-0 bg-background/90 backdrop-blur-sm hover:bg-red-50 dark:hover:bg-red-950/50 transition-all duration-200 rounded-full shadow-sm border border-border/50"
+                        onClick={handleDeleteTask}
+                        onMouseDown={e => e.stopPropagation()}
+                        title="Delete task"
+                    >
+                        <Trash2 className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
+                    </Button>
+                </div>
+                {/* Assign button - always visible if present, placed left of priority icon */}
+                {onAssignTask && project.members && project.members.length > 0 && (
+                    <div className="absolute top-3 right-24 z-20">
                         <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 w-7 p-0 bg-background/90 backdrop-blur-sm hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:scale-110 transition-all duration-200 rounded-full shadow-sm border border-border/50"
+                            className="h-7 w-7 p-0 bg-background/90 backdrop-blur-sm hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-all duration-200 rounded-full shadow-sm border border-border/50"
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -174,68 +215,16 @@ export default function ListTaskItem({
                         >
                             <Users className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
                         </Button>
-                    )}
-                    {/* Delete button */}
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0 bg-background/90 backdrop-blur-sm hover:bg-red-50 dark:hover:bg-red-950/50 hover:scale-110 transition-all duration-200 rounded-full shadow-sm border border-border/50"
-                        onClick={handleDeleteTask}
-                        onMouseDown={e => e.stopPropagation()}
-                        title="Delete task"
-                    >
-                        <Trash2 className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
-                    </Button>
-                </div>
-
-                {/* Enhanced assignee and priority indicators */}
-                <div className="absolute bottom-3 right-3 flex items-center gap-2 z-10">
-                    {/* Assignees */}
-                    {task.assignees && task.assignees.length > 0 && (
-                        <div className="flex items-center gap-1">
-                            <div className="flex -space-x-1">
-                                {task.assignees.slice(0, 3).map((assignee) => (
-                                    <Avatar key={assignee.id} className="h-5 w-5 border-2 border-background shadow-md ring-1 ring-border/20 transition-transform hover:scale-110">
-                                        <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${assignee.name}`} />
-                                        <AvatarFallback className="text-xs font-medium bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900 dark:to-purple-900">
-                                            {assignee.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                                        </AvatarFallback>
-                                    </Avatar>
-                                ))}
-                                {task.assignees.length > 3 && (
-                                    <div className="h-5 w-5 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 border-2 border-background flex items-center justify-center text-xs text-muted-foreground font-medium shadow-md ring-1 ring-border/20">
-                                        +{task.assignees.length - 3}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Priority indicator */}
-                    {task.priority && task.priority !== 'none' && (
-                        <div className="flex items-center">
-                            {task.priority === 'low' && (
-                                <div className="w-3 h-3 rounded-full bg-gradient-to-br from-green-400 to-green-600 shadow-sm ring-2 ring-green-200 dark:ring-green-800" title="Low Priority" />
-                            )}
-                            {task.priority === 'medium' && (
-                                <div className="w-3 h-3 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 shadow-sm ring-2 ring-yellow-200 dark:ring-yellow-800" title="Medium Priority" />
-                            )}
-                            {task.priority === 'high' && (
-                                <div className="w-3 h-3 rounded-full bg-gradient-to-br from-red-400 to-red-600 shadow-sm ring-2 ring-red-200 dark:ring-red-800" title="High Priority" />
-                            )}
-                        </div>
-                    )}
-                </div>
-
+                    </div>
+                )}
                 <div className="flex items-start gap-3 pr-16 pb-8">
                     {/* Enhanced completion checkbox */}
                     <Checkbox
                         checked={task.status === 'done'}
                         onCheckedChange={handleCheckboxChange}
                         onClick={(e) => e.stopPropagation()}
-                        className="mt-1 z-10 h-4 w-4 transition-all duration-200 hover:scale-110"
+                        className="mt-1 z-10 h-4 w-4 transition-all duration-200"
                     />
-
                     {/* Enhanced task content */}
                     <div className="flex-1 min-w-0">
                         <TaskDisplay task={task} compact pageKey={`project-list-${task.project_id}`} />
