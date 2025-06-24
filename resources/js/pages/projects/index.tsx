@@ -62,9 +62,9 @@ export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
             case 'oldest':
                 return filtered.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
             case 'tasks_asc':
-                return filtered.sort((a, b) => (a.tasks_count || 0) - (b.tasks_count || 0));
+                return filtered.sort((a, b) => (a.tasks_count ?? 0) - (b.tasks_count ?? 0));
             case 'tasks_desc':
-                return filtered.sort((a, b) => (b.tasks_count || 0) - (a.tasks_count || 0));
+                return filtered.sort((a, b) => (b.tasks_count ?? 0) - (a.tasks_count ?? 0));
             default:
                 return filtered; // manual sorting
         }
@@ -184,18 +184,18 @@ export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
             ) : (
                 <>
                     {viewMode === 'card' ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {filteredAndSortedProjects.map((project) => (
                                 <Link key={project.id} href={route('projects.show', project.id)} className="block">
-                                    <Card hoverable={true} className="h-full group">
-                                        <CardHeader className="pb-3">
-                                            <div className="flex justify-between items-start">
+                                    <Card hoverable={true} className="h-full group min-h-[170px] p-0 flex flex-col justify-between">
+                                        <CardHeader className="pb-2 pt-3 px-4">
+                                            <div className="flex justify-between items-start gap-2">
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-2 mb-1">
+                                                    <div className="flex items-center gap-1 mb-1">
                                                         <TooltipProvider>
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
-                                                                    <CardTitle className="text-xl truncate cursor-help">
+                                                                    <CardTitle className="text-base truncate cursor-help font-semibold">
                                                                         {project.name}
                                                                     </CardTitle>
                                                                 </TooltipTrigger>
@@ -204,20 +204,17 @@ export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
                                                                 </TooltipContent>
                                                             </Tooltip>
                                                         </TooltipProvider>
-                                                        {/* Project type indicator */}
                                                         {project.is_team_project ? (
-                                                            <Badge variant="outline" className="text-xs">
-                                                                <Users className="h-3 w-3 mr-1" />
-                                                                Team
+                                                            <Badge variant="outline" className="text-[10px] px-1 py-0.5 h-5 flex items-center">
+                                                                <Users className="h-3 w-3 mr-1" />Team
                                                             </Badge>
                                                         ) : (
-                                                            <Badge variant="outline" className="text-xs">
-                                                                <User className="h-3 w-3 mr-1" />
-                                                                Personal
+                                                            <Badge variant="outline" className="text-[10px] px-1 py-0.5 h-5 flex items-center">
+                                                                <User className="h-3 w-3 mr-1" />Personal
                                                             </Badge>
                                                         )}
                                                     </div>
-                                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                    <div className="flex items-center gap-1 text-xs text-muted-foreground min-h-[18px]">
                                                         {project.is_archived && (
                                                             <div className="flex items-center gap-1">
                                                                 <Archive className="h-3 w-3" />
@@ -226,7 +223,7 @@ export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
                                                         )}
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-1">
                                                     <StarButton
                                                         type="project"
                                                         id={project.id}
@@ -236,67 +233,64 @@ export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
                                                     />
                                                     {project.background_color && (
                                                         <div
-                                                            className="w-8 h-8 rounded-lg shadow-sm border"
+                                                            className="w-6 h-6 rounded-md shadow-sm border"
                                                             style={{ backgroundColor: project.background_color }}
                                                         />
                                                     )}
                                                 </div>
                                             </div>
                                         </CardHeader>
-                                        <CardContent className="pb-3">
+                                        <CardContent className="py-1 px-4 flex-1 flex flex-col gap-1 justify-center">
                                             {project.description && (
-                                                <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+                                                <p className="text-xs text-muted-foreground line-clamp-2 mb-1">
                                                     {project.description}
                                                 </p>
                                             )}
-
-                                            {/* Project Owner */}
-                                            <div className="flex items-center gap-2 mb-3">
-                                                <Avatar className="h-6 w-6">
+                                            <div className="flex items-center gap-1 mt-auto">
+                                                <Avatar className="h-5 w-5">
                                                     <AvatarImage src={project.owner?.avatar} />
-                                                    <AvatarFallback className="text-xs">
+                                                    <AvatarFallback className="text-[10px]">
                                                         {project.owner?.name?.charAt(0).toUpperCase() || 'U'}
                                                     </AvatarFallback>
                                                 </Avatar>
-                                                <span className="text-sm text-muted-foreground">
+                                                <span className="text-xs text-muted-foreground">
                                                     {getShortName(project.owner?.name || 'Unknown')}
                                                 </span>
+                                                {project.members && project.members.length > 0 && (
+                                                    <>
+                                                        <span className="mx-1 text-muted-foreground">·</span>
+                                                        <div className="flex -space-x-2">
+                                                            {project.members.slice(0, 3).map((member) => (
+                                                                <Avatar key={member.id} className="h-5 w-5 border-2 border-background">
+                                                                    <AvatarImage src={member.avatar} />
+                                                                    <AvatarFallback className="text-[10px]">
+                                                                        {member.name.charAt(0).toUpperCase()}
+                                                                    </AvatarFallback>
+                                                                </Avatar>
+                                                            ))}
+                                                            {project.members.length > 3 && (
+                                                                <div className="h-5 w-5 rounded-full bg-muted border-2 border-background flex items-center justify-center">
+                                                                    <span className="text-[10px] text-muted-foreground">
+                                                                        +{project.members.length - 3}
+                                                                    </span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <span className="text-xs text-muted-foreground ml-1">
+                                                            {project.members.length}
+                                                        </span>
+                                                    </>
+                                                )}
                                             </div>
-
-                                            {/* Project Members */}
-                                            {project.members && project.members.length > 0 && (
-                                                <div className="flex items-center gap-2">
-                                                    <div className="flex -space-x-2">
-                                                        {project.members.slice(0, 5).map((member, index) => (
-                                                            <Avatar key={member.id} className="h-6 w-6 border-2 border-background">
-                                                                <AvatarImage src={member.avatar} />
-                                                                <AvatarFallback className="text-xs">
-                                                                    {member.name.charAt(0).toUpperCase()}
-                                                                </AvatarFallback>
-                                                            </Avatar>
-                                                        ))}
-                                                        {project.members.length > 5 && (
-                                                            <div className="h-6 w-6 rounded-full bg-muted border-2 border-background flex items-center justify-center">
-                                                                <span className="text-xs text-muted-foreground">
-                                                                    +{project.members.length - 5}
-                                                                </span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <span className="text-xs text-muted-foreground">
-                                                        {project.members.length} member{project.members.length !== 1 ? 's' : ''}
-                                                    </span>
-                                                </div>
-                                            )}
                                         </CardContent>
-                                        <CardFooter className="border-t pt-3">
-                                            <div className="flex items-center justify-between w-full text-xs text-muted-foreground">
+                                        <CardFooter className="border-t py-1 px-4 mt-auto">
+                                            <div className="flex items-center justify-between w-full text-[11px] text-muted-foreground">
                                                 <div className="flex items-center gap-1">
                                                     <CalendarDays className="h-3 w-3" />
                                                     <span>{new Date(project.created_at).toLocaleDateString()}</span>
                                                 </div>
                                                 {project.can_edit && (
-                                                    <Badge variant="outline" className="text-xs">
+                                                    <Badge variant="outline" className="text-[10px] px-1 py-0.5 h-5 flex items-center">
                                                         Owner
                                                     </Badge>
                                                 )}
@@ -311,7 +305,7 @@ export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
                             {filteredAndSortedProjects.map((project) => (
                                 <Link key={project.id} href={route('projects.show', project.id)} className="block">
                                     <Card className="hover:shadow-md transition-shadow">
-                                        <CardContent className="p-4">
+                                        <CardContent className="py-1 px-2">
                                             <div className="flex items-center justify-between">
                                                 <div className="flex items-center gap-4 flex-1">
                                                     <div className="flex items-center gap-2">
@@ -323,7 +317,6 @@ export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
                                                         )}
                                                         <div>
                                                             <h3 className="font-medium">{project.name}</h3>
-                                                            <p className="text-sm text-muted-foreground">{project.key}</p>
                                                         </div>
                                                     </div>
                                                     

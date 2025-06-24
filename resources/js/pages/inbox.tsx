@@ -876,7 +876,7 @@ export default function InboxPage({ tasks = [], users = [], projects = [], tags 
                                     return (
                                         <div
                                             key={task.id}
-                                            className={`group flex items-start gap-3 p-2 rounded-lg border border-border transition-all duration-200 cursor-pointer bg-white dark:bg-gray-800 ${
+                                            className={`group flex items-start gap-3 p-2 rounded-lg border border-border cursor-pointer bg-white dark:bg-gray-800 ${
                                                 task.status === 'done' ? 'opacity-60' : ''
                                             } ${isOverdue
                                                 ? 'border-red-300'

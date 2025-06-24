@@ -20,6 +20,7 @@ interface TaskInspectorProps {
     project?: any;
     availableTags?: Tag[];
     availableLabels?: LabelType[];
+    allProjects?: any[];
 }
 
 // TaskInspector Component (moved outside to prevent recreation on re-renders)
@@ -28,7 +29,8 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
     onClose,
     project,
     availableTags = [],
-    availableLabels = []
+    availableLabels = [],
+    allProjects = []
 }, ref) => {
     if (!inspectorTask) return null;
 
@@ -181,6 +183,18 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
         }
     }), [hasUnsavedChanges, handleManualSave, saveState]);
 
+    const [selectedProject, setSelectedProject] = useState<any>(project || null);
+    const [projectSearchQuery, setProjectSearchQuery] = useState('');
+    useEffect(() => {
+        setSelectedProject(project || null);
+    }, [project]);
+
+    // Filter projects for dropdown
+    const filteredProjects = allProjects.filter(p =>
+        p.name.toLowerCase().includes(projectSearchQuery.toLowerCase()) ||
+        p.key?.toLowerCase().includes(projectSearchQuery.toLowerCase())
+    );
+
     return (
         <div ref={containerRef} className="w-96 border-l bg-background flex flex-col h-full">
             <div className="p-4 border-b">
@@ -228,6 +242,45 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
                         placeholder="Task title..."
                     />
                 </div>
+
+                {/* Project Search (NEW) */}
+                {!inspectorTask.is_inbox && (
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium">Project</label>
+                        <div className="relative">
+                            <Input
+                                value={projectSearchQuery}
+                                onChange={e => setProjectSearchQuery(e.target.value)}
+                                placeholder={selectedProject ? selectedProject.name : 'Search projects...'}
+                                className="pl-10"
+                            />
+                            {/* Dropdown */}
+                            {projectSearchQuery && (
+                                <div className="absolute z-10 bg-white dark:bg-gray-900 border border-border rounded shadow w-full mt-1 max-h-48 overflow-y-auto">
+                                    {filteredProjects.length > 0 ? filteredProjects.map(p => (
+                                        <div
+                                            key={p.id}
+                                            className={`px-3 py-2 cursor-pointer hover:bg-muted/50 ${selectedProject?.id === p.id ? 'bg-muted' : ''}`}
+                                            onClick={() => {
+                                                setSelectedProject(p);
+                                                setProjectSearchQuery(p.name);
+                                            }}
+                                        >
+                                            <span className="font-medium">{p.name}</span>
+                                            {p.key && <span className="ml-2 text-xs text-muted-foreground">{p.key}</span>}
+                                        </div>
+                                    )) : (
+                                        <div className="px-3 py-2 text-muted-foreground text-sm">No projects found</div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        {/* Show current project below search */}
+                        {selectedProject && (
+                            <div className="mt-1 text-xs text-muted-foreground">Current: <span className="font-semibold">{selectedProject.name}</span></div>
+                        )}
+                    </div>
+                )}
 
                 {/* Description */}
                 <div className="space-y-2">

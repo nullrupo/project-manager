@@ -37,6 +37,7 @@ export function GlobalTaskInspector() {
                 onClose={closeInspector}
                 availableTags={availableTags}
                 availableLabels={availableLabels}
+                allProjects={project?.all_projects || []}
             />
         </div>
     );

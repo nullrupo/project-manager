@@ -36,6 +36,7 @@ export interface Project {
     is_favorited?: boolean;
     is_team_project?: boolean;
     is_personal_project?: boolean;
+    tasks_count?: number;
 }
 
 export interface Board {

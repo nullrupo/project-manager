@@ -538,7 +538,7 @@ export default function ProjectListView({
                                                     }`}>
                                                         {/* Section Header */}
                                                         <div
-                                                            className="flex items-center justify-between p-2 bg-muted/30 rounded-md border border-dashed border-muted-foreground/30 hover:bg-muted/50 transition-colors cursor-pointer"
+                                                            className="flex items-center justify-between p-1 bg-muted/30 rounded-md border border-dashed border-muted-foreground/30 hover:bg-muted/50 transition-colors cursor-pointer"
                                                             onClick={() => handleSectionToggle(section.id)}
                                                         >
                                                             <div className="flex items-center gap-2">
@@ -623,7 +623,7 @@ export default function ProjectListView({
                                                                 items={taskIds}
                                                                 strategy={verticalListSortingStrategy}
                                                             >
-                                                                <div className="space-y-2">
+                                                                <div className="space-y-1">
                                                                     {section.tasks && section.tasks.length > 0 ? (
                                                                         section.tasks.map((task: any) => (
                                                                             <ListTaskItem
@@ -643,13 +643,13 @@ export default function ProjectListView({
                                                                             />
                                                                         ))
                                                                     ) : (
-                                                                        <div className="text-center py-6 text-muted-foreground text-sm ml-4">
+                                                                        <div className="text-center py-3 text-muted-foreground text-sm ml-4">
                                                                             No tasks in this section yet.
                                                                         </div>
                                                                     )}
                                                                     {/* Quick Add for this section */}
                                                                     {project.can_manage_tasks && (
-                                                                        <div className="mt-2">
+                                                                        <div className="mt-1">
                                                                             <QuickAddTask
                                                                                 project={project}
                                                                                 sectionId={section.id}
