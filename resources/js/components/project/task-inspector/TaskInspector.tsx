@@ -43,7 +43,9 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
         due_date: '',
         list_id: '',
         tag_ids: [] as number[],
-        label_ids: [] as number[]
+        label_ids: [] as number[],
+        start_date: '',
+        duration_days: 1
     });
 
     // Save state tracking
@@ -75,7 +77,9 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
                 due_date: inspectorTask.due_date ? inspectorTask.due_date.split('T')[0] : '',
                 list_id: inspectorTask.list_id || inspectorTask.list?.id || '',
                 tag_ids: inspectorTask.tags?.map((t: any) => t.id) || [],
-                label_ids: inspectorTask.labels?.map((l: any) => l.id) || []
+                label_ids: inspectorTask.labels?.map((l: any) => l.id) || [],
+                start_date: inspectorTask.start_date ? inspectorTask.start_date.split('T')[0] : '',
+                duration_days: inspectorTask.duration_days || 1
             });
             setHasUnsavedChanges(false);
             setSaveState('idle');
@@ -113,14 +117,14 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
             assignee_ids: inspectorTask.assignees?.map((a: any) => a.id) || [],
             label_ids: taskData.label_ids || [],
             tag_ids: taskData.tag_ids || [],
-            is_archived: inspectorTask.is_archived || false
+            is_archived: inspectorTask.is_archived || false,
+            start_date: taskData.start_date || null,
+            duration_days: taskData.duration_days || 1
         };
 
         // Add project-specific fields only for non-inbox tasks
         if (!isInboxTask) {
             Object.assign(updateData, {
-                start_date: null,
-                duration_days: null,
                 list_id: taskData.list_id || inspectorTask.list_id || inspectorTask.list?.id,
                 reviewer_id: null,
                 section_id: null
@@ -441,15 +445,50 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
                     </div>
                 </div>
 
-                {/* Due Date */}
-                <div className="space-y-2">
-                    <label className="text-sm font-medium">Due Date</label>
-                    <Input
-                        type="date"
-                        value={taskData.due_date}
-                        onChange={(e) => handleFieldChange('due_date', e.target.value)}
-                    />
-                </div>
+                {/* Due Date & Start Date for Multi-day Tasks */}
+                {taskData.duration_days > 1 ? (
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium">Start Date</label>
+                        <Input
+                            type="date"
+                            value={taskData.start_date}
+                            onChange={e => handleFieldChange('start_date', e.target.value)}
+                        />
+                        <label className="text-sm font-medium">Duration (days)</label>
+                        <Input
+                            type="number"
+                            min={1}
+                            value={taskData.duration_days}
+                            onChange={e => handleFieldChange('duration_days', Math.max(1, parseInt(e.target.value) || 1))}
+                        />
+                        <label className="text-sm font-medium">End Date (Due Date)</label>
+                        <Input
+                            type="date"
+                            value={(() => {
+                                if (!taskData.start_date || !taskData.duration_days) return '';
+                                const start = new Date(taskData.start_date);
+                                start.setDate(start.getDate() + taskData.duration_days - 1);
+                                return start.toISOString().split('T')[0];
+                            })()}
+                            disabled
+                        />
+                        <div className="text-xs text-muted-foreground">Covers {taskData.duration_days} days: {taskData.start_date} to {(() => {
+                            if (!taskData.start_date || !taskData.duration_days) return '';
+                            const start = new Date(taskData.start_date);
+                            start.setDate(start.getDate() + taskData.duration_days - 1);
+                            return start.toISOString().split('T')[0];
+                        })()}</div>
+                    </div>
+                ) : (
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium">Due Date</label>
+                        <Input
+                            type="date"
+                            value={taskData.due_date}
+                            onChange={(e) => handleFieldChange('due_date', e.target.value)}
+                        />
+                    </div>
+                )}
 
                 {/* Assignees */}
                 {inspectorTask.assignees && inspectorTask.assignees.length > 0 && (

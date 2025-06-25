@@ -554,49 +554,29 @@ export default function TaskDetailModal({ task, project, open, onOpenChange, ava
                                     )}
 
                                     <div className="space-y-4">
-                                        {/* Due Date */}
-                                        {task.due_date && (
-                                            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border">
-                                                <div className="flex items-center gap-2">
-                                                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                                                    <span className="text-sm font-medium">Due Date</span>
-                                                </div>
-                                                <span className={`text-sm font-medium ${isOverdue ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'}`}>
-                                                    {new Date(task.due_date).toLocaleDateString('en-US', {
-                                                        weekday: 'short',
-                                                        year: 'numeric',
-                                                        month: 'short',
-                                                        day: 'numeric'
-                                                    })}
-                                                </span>
-                                            </div>
-                                        )}
-
-                                        {/* Duration */}
-                                        {task.duration_days && task.duration_days > 1 && (
-                                            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border">
-                                                <div className="flex items-center gap-2">
-                                                    <Timer className="h-4 w-4 text-muted-foreground" />
-                                                    <span className="text-sm font-medium">Duration</span>
-                                                </div>
-                                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                                    {task.duration_days} day{task.duration_days !== 1 ? 's' : ''}
-                                                </span>
-                                            </div>
-                                        )}
-
-                                        {/* Estimate */}
-                                        {task.estimate && (
-                                            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border">
-                                                <div className="flex items-center gap-2">
-                                                    <Clock className="h-4 w-4 text-muted-foreground" />
-                                                    <span className="text-sm font-medium">Estimate</span>
-                                                </div>
-                                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                                    {task.estimate}h
-                                                </span>
-                                            </div>
-                                        )}
+                                        {/* Dates Section */}
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-medium">Start Date</label>
+                                            <div className="text-sm">{task.start_date ? new Date(task.start_date).toLocaleDateString() : '-'}</div>
+                                            {task.duration_days > 1 ? (
+                                                <>
+                                                    <label className="text-sm font-medium">End Date (Due Date)</label>
+                                                    <div className="text-sm">{(() => {
+                                                        if (!task.start_date || !task.duration_days) return '-';
+                                                        const start = new Date(task.start_date);
+                                                        start.setDate(start.getDate() + task.duration_days - 1);
+                                                        return start.toLocaleDateString();
+                                                    })()}</div>
+                                                    <label className="text-sm font-medium">Duration</label>
+                                                    <div className="text-sm">{task.duration_days} days</div>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <label className="text-sm font-medium">Due Date</label>
+                                                    <div className="text-sm">{task.due_date ? new Date(task.due_date).toLocaleDateString() : '-'}</div>
+                                                </>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 

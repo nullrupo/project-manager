@@ -15,6 +15,7 @@ import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useSensor, useSe
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import axios from 'axios';
+import React from 'react';
 
 interface ProjectCalendarViewProps {
     project: Project;
@@ -28,6 +29,12 @@ function getColorForIndex(index: number, prevColorIndex: number = -1) {
         colorIndex = (colorIndex + 1) % avatarColors.length;
     }
     return colorIndex;
+}
+
+// Helper to map JS getDay() to Monday=0, ..., Sunday=6
+function getMondayFirstDayIndex(date: Date) {
+    const day = date.getDay();
+    return day === 0 ? 6 : day - 1;
 }
 
 export default function ProjectCalendarView({ project, state }: ProjectCalendarViewProps) {
@@ -51,6 +58,143 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
 
     // Use ref to track recent drag operations
     const recentDragRef = useRef(false);
+
+    // 1. Add state for hidden days and filter UI
+    const [hiddenDays, setHiddenDays] = useState<{ sat: boolean; sun: boolean }>({ sat: false, sun: false });
+    const visibleDays = [0, 1, 2, 3, 4, 5, 6].filter(
+        d => !(d === 5 && hiddenDays.sat) && !(d === 6 && hiddenDays.sun)
+    ); // 0=Mon, ..., 6=Sun
+    const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const reorderedDayLabels = [dayLabels[0], dayLabels[1], dayLabels[2], dayLabels[3], dayLabels[4], dayLabels[5], dayLabels[6]];
+
+    // Shared priority color function
+    const getPriorityColor = (priority: string) => {
+        switch (priority) {
+            case 'urgent': return 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 border-l-red-500';
+            case 'high': return 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200 border-l-orange-500';
+            case 'medium': return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 border-l-yellow-500';
+            case 'low': return 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 border-l-green-500';
+            default: return 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 border-l-blue-500';
+        }
+    };
+
+    // Calendar utility functions
+    const getDaysInMonth = (date: Date) => {
+        return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+    };
+
+    const getFirstDayOfMonthMonday = (date: Date) => {
+        // Returns 0 for Monday, 6 for Sunday
+        const day = new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+        return (day === 0 ? 6 : day - 1);
+    };
+
+    // Place these at the top of the function body, before generateCalendarDays
+    const getAllProjectTasks = () => {
+        const tasks: any[] = [];
+        project.boards?.forEach(board => {
+            board.lists?.forEach(list => {
+                list.tasks?.forEach(task => {
+                    // Apply local updates if they exist
+                    const updatedTask = localTaskUpdates[task.id]
+                        ? { ...task, ...localTaskUpdates[task.id] }
+                        : task;
+                    tasks.push({
+                        ...updatedTask,
+                        boardName: board.name,
+                        listName: list.name
+                    });
+                });
+            });
+        });
+        return tasks;
+    };
+    const getTasksForDate = (date: Date) => {
+        const dateStr = date.toISOString().split('T')[0];
+        const allTasks = getAllProjectTasks();
+        if (!allTasks || allTasks.length === 0) return [];
+        return allTasks.filter(task => {
+            if (!task || !task.due_date) return false;
+            const taskDueDate = task.due_date.split('T')[0];
+            // Only include single-day tasks that aren't already rendered as strips
+            // Multi-day tasks and tasks with start_date are rendered as strips
+            const isRenderedAsStrip = task.start_date && task.duration_days && task.duration_days >= 1;
+            return taskDueDate === dateStr && !isRenderedAsStrip;
+        });
+    };
+
+    // Utility to always calculate due_date from start_date and duration_days
+    function calculateDueDate(startDate: string, durationDays: number) {
+        const start = new Date(startDate);
+        start.setDate(start.getDate() + durationDays - 1);
+        return start.toISOString().split('T')[0];
+    }
+
+    // Fix week calculation logic
+    const generateCalendarDays = () => {
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        const daysInMonth = getDaysInMonth(currentDate);
+        const firstDay = getFirstDayOfMonthMonday(currentDate); // Use Monday as first day
+        const days = [];
+        // Calculate offset for Monday as first day
+        const offset = firstDay;
+        // Previous month's trailing days
+        if (offset > 0) {
+            const prevMonthYear = month === 0 ? year - 1 : year;
+            const prevMonthIndex = month === 0 ? 11 : month - 1;
+            const daysInPrevMonth = new Date(prevMonthYear, prevMonthIndex + 1, 0).getDate();
+            for (let i = offset - 1; i >= 0; i--) {
+                days.push({
+                    date: new Date(prevMonthYear, prevMonthIndex, daysInPrevMonth - i),
+                    isCurrentMonth: false,
+                    tasks: []
+                });
+            }
+        }
+        // Current month's days
+        for (let day = 1; day <= daysInMonth; day++) {
+            const date = new Date(year, month, day);
+            days.push({
+                date,
+                isCurrentMonth: true,
+                tasks: getTasksForDate(date)
+            });
+        }
+        // Next month's leading days
+        let totalDays = days.length;
+        while (totalDays % 7 !== 0) {
+            const nextMonthYear = month === 11 ? year + 1 : year;
+            const nextMonthIndex = month === 11 ? 0 : month + 1;
+            days.push({
+                date: new Date(nextMonthYear, nextMonthIndex, totalDays - daysInMonth - offset + 1),
+                isCurrentMonth: false,
+                tasks: []
+            });
+            totalDays++;
+        }
+        // Always split into weeks of 7 for robust grid
+        const weeks: any[][] = [];
+        for (let i = 0; i < days.length; i += 7) {
+            weeks.push(days.slice(i, i + 7));
+        }
+        // For each week, filter out hidden days (but keep week grouping)
+        const filteredWeeks: any[][] = weeks.map(week => week.filter(dayObj => visibleDays.includes(getMondayFirstDayIndex(dayObj.date))));
+        return filteredWeeks;
+    };
+
+    // Use the new weeks structure directly
+    const numCols = visibleDays.length;
+    const weeks: any[][] = generateCalendarDays();
+
+    // 1. Add a ref to measure the cell width
+    const cellRef = useRef<HTMLDivElement>(null);
+    const [cellWidth, setCellWidth] = useState(0);
+    useEffect(() => {
+        if (cellRef.current) {
+            setCellWidth(cellRef.current.offsetWidth);
+        }
+    }, [numCols, weeks]);
 
     useEffect(() => {
         setIsMounted(true);
@@ -80,78 +224,6 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
         ...(project.owner ? [project.owner] : [])
     ].filter((m, i, arr) => m && arr.findIndex(x => x.id === m.id) === i);
 
-    // Shared priority color function
-    const getPriorityColor = (priority: string) => {
-        switch (priority) {
-            case 'urgent': return 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 border-l-red-500';
-            case 'high': return 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200 border-l-orange-500';
-            case 'medium': return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 border-l-yellow-500';
-            case 'low': return 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 border-l-green-500';
-            default: return 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 border-l-blue-500';
-        }
-    };
-
-    // Calendar utility functions
-    const getDaysInMonth = (date: Date) => {
-        return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-    };
-
-    const getFirstDayOfMonth = (date: Date) => {
-        return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
-    };
-
-    // Generate calendar days for the current month
-    const generateCalendarDays = () => {
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth();
-        const daysInMonth = getDaysInMonth(currentDate);
-        const firstDay = getFirstDayOfMonth(currentDate);
-
-        const days = [];
-
-        // Previous month's trailing days
-        if (firstDay > 0) {
-            const prevMonthYear = month === 0 ? year - 1 : year;
-            const prevMonthIndex = month === 0 ? 11 : month - 1;
-            const daysInPrevMonth = new Date(prevMonthYear, prevMonthIndex + 1, 0).getDate();
-
-            for (let i = firstDay - 1; i >= 0; i--) {
-                days.push({
-                    date: new Date(prevMonthYear, prevMonthIndex, daysInPrevMonth - i),
-                    isCurrentMonth: false,
-                    tasks: []
-                });
-            }
-        }
-
-        // Current month's days
-        for (let day = 1; day <= daysInMonth; day++) {
-            const date = new Date(year, month, day);
-            days.push({
-                date,
-                isCurrentMonth: true,
-                tasks: getTasksForDate(date)
-            });
-        }
-
-        // Next month's leading days
-        const remainingDays = 42 - days.length; // 6 weeks * 7 days
-        if (remainingDays > 0) {
-            const nextMonthYear = month === 11 ? year + 1 : year;
-            const nextMonthIndex = month === 11 ? 0 : month + 1;
-
-            for (let day = 1; day <= remainingDays; day++) {
-                days.push({
-                    date: new Date(nextMonthYear, nextMonthIndex, day),
-                    isCurrentMonth: false,
-                    tasks: []
-                });
-            }
-        }
-
-        return days;
-    };
-
     const navigateMonth = (direction: 'prev' | 'next') => {
         setCurrentDate(prev => {
             const newDate = new Date(prev);
@@ -174,68 +246,22 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
     };
 
     // Get all tasks from project boards
-    const getAllProjectTasks = () => {
-        const tasks: any[] = [];
-        project.boards?.forEach(board => {
-            board.lists?.forEach(list => {
-                list.tasks?.forEach(task => {
-                    // Apply local updates if they exist
-                    const updatedTask = localTaskUpdates[task.id]
-                        ? { ...task, ...localTaskUpdates[task.id] }
-                        : task;
-
-                    tasks.push({
-                        ...updatedTask,
-                        boardName: board.name,
-                        listName: list.name
-                    });
-                });
-            });
-        });
-        return tasks;
-    };
-
-    // Get tasks for a specific date (only single-day tasks that aren't rendered as strips)
-    const getTasksForDate = (date: Date) => {
-        const dateStr = date.toISOString().split('T')[0];
-        const allTasks = getAllProjectTasks();
-        if (!allTasks || allTasks.length === 0) return [];
-
-        return allTasks.filter(task => {
-            if (!task || !task.due_date) return false;
-
-            const taskDueDate = task.due_date.split('T')[0];
-
-            // Only include single-day tasks that aren't already rendered as strips
-            // Multi-day tasks and tasks with start_date are rendered as strips
-            const isRenderedAsStrip = task.start_date && task.duration_days && task.duration_days >= 1;
-
-            return taskDueDate === dateStr && !isRenderedAsStrip;
-        });
-    };
-
-    // Get all tasks that should be rendered as continuous strips (now includes all tasks)
     const getAllTasksAsStrips = () => {
         const allTasks = getAllProjectTasks();
         if (!allTasks || allTasks.length === 0) return [];
-
-        return allTasks.filter(task => {
-            if (!task || !task.due_date) return false;
-
-            // Ensure all tasks have the required properties for strip rendering
-            const hasStartDate = task.start_date;
-            const hasDuration = task.duration_days && task.duration_days >= 1;
-
-            // If task doesn't have start_date or duration, set defaults
-            if (!hasStartDate) {
-                task.start_date = task.due_date;
-            }
-            if (!hasDuration) {
-                task.duration_days = 1;
-            }
-
-            return true;
-        });
+        return allTasks
+            .filter(task => !!task && (!!task.due_date || !!task.start_date))
+            .map(task => {
+                const start_date = task.start_date || task.due_date;
+                const duration_days = task.duration_days || 1;
+                const due_date = calculateDueDate(start_date, duration_days);
+                return {
+                    ...task,
+                    start_date,
+                    due_date,
+                    duration_days
+                };
+            });
     };
 
     // Calculate row positions for all tasks to prevent overlapping
@@ -485,56 +511,31 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
         // Check if dropped on a calendar day
         if (over.id.toString().startsWith('calendar-day-')) {
             const dateStr = over.id.toString().replace('calendar-day-', '');
-            const newDueDate = new Date(dateStr).toISOString().split('T')[0];
+            const newStartDate = new Date(dateStr).toISOString().split('T')[0];
+            let durationDays = 1;
+            if (task.duration_days) {
+                durationDays = task.duration_days;
+            }
+            const newDueDate = calculateDueDate(newStartDate, durationDays);
 
             setIsUpdatingTask(true);
-
-            // For new tasks (no existing due date), set as single day task
-            // For existing tasks, preserve duration if it exists
-            let startDate = newDueDate;
-            let durationDays = 1;
-            let finalDueDate = newDueDate;
-
-            if (task.start_date && task.duration_days) {
-                // Preserve existing duration
-                durationDays = task.duration_days;
-                startDate = newDueDate;
-
-                // Calculate new due date based on duration
-                const newStartDate = new Date(startDate);
-                const calculatedDueDate = new Date(newStartDate);
-                calculatedDueDate.setDate(calculatedDueDate.getDate() + durationDays - 1);
-                finalDueDate = calculatedDueDate.toISOString().split('T')[0];
-            } else {
-                // Simple single-day task
-                startDate = newDueDate;
-                finalDueDate = newDueDate;
-                durationDays = 1;
-            }
-
-            // Apply optimistic update immediately for real-time feedback
             setLocalTaskUpdates(prev => ({
                 ...prev,
                 [task.id]: {
-                    start_date: startDate,
-                    due_date: finalDueDate,
+                    start_date: newStartDate,
+                    due_date: newDueDate,
                     duration_days: durationDays
                 }
             }));
-
-            // Send update to server to persist changes
             axios.patch(route('tasks.update-due-date', { project: project.id, task: task.id }), {
-                start_date: startDate,
-                due_date: finalDueDate,
+                start_date: newStartDate,
+                due_date: newDueDate,
                 duration_days: durationDays
             })
             .then(response => {
-                console.log('Task date updated successfully on server');
                 setIsUpdatingTask(false);
             })
             .catch(error => {
-                console.error('Failed to update task date on server:', error);
-                // Revert optimistic update on error
                 setLocalTaskUpdates(prev => {
                     const updated = { ...prev };
                     delete updated[task.id];
@@ -557,40 +558,26 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
 
     // Handle task resize
     const handleTaskResize = async (task: any, newDuration: number) => {
-        console.log(`handleTaskResize called: task ${task.id}, newDuration: ${newDuration}`);
-
-        // Get current task data (including any local updates)
         const currentTask = { ...task, ...(localTaskUpdates[task.id] || {}) };
-
-        if (newDuration === currentTask.duration_days) {
-            console.log('Duration unchanged, skipping update');
-            return;
-        }
-
-        // Calculate new due date based on duration
+        if (newDuration === currentTask.duration_days) return;
         const startDate = new Date(currentTask.start_date.split('T')[0]);
-        const newDueDate = new Date(startDate);
-        newDueDate.setDate(startDate.getDate() + newDuration - 1);
-
-        // Apply optimistic update for real-time feedback
+        const newDueDate = calculateDueDate(currentTask.start_date, newDuration);
         setLocalTaskUpdates(prev => ({
             ...prev,
             [task.id]: {
                 ...prev[task.id],
                 duration_days: newDuration,
-                due_date: newDueDate.toISOString().split('T')[0]
+                due_date: newDueDate
             }
         }));
-
-        // Send update to server
         router.put(route('tasks.update', { project: project.id, task: task.id }), {
             title: task.title,
             description: task.description || '',
             priority: task.priority,
             status: task.status,
             estimate: task.estimate,
-            start_date: task.start_date,
-            due_date: newDueDate.toISOString().split('T')[0],
+            start_date: currentTask.start_date,
+            due_date: newDueDate,
             duration_days: newDuration,
             list_id: task.list_id,
             assignee_ids: task.assignees?.map((a: any) => a.id) || [],
@@ -599,24 +586,6 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
         }, {
             preserveState: true,
             preserveScroll: true,
-            onSuccess: () => {
-                console.log('Task duration updated successfully');
-                // Clear local update since server has the latest data
-                setLocalTaskUpdates(prev => {
-                    const updated = { ...prev };
-                    delete updated[task.id];
-                    return updated;
-                });
-            },
-            onError: (errors) => {
-                console.error('Failed to update task duration:', errors);
-                // Revert optimistic update on error
-                setLocalTaskUpdates(prev => {
-                    const updated = { ...prev };
-                    delete updated[task.id];
-                    return updated;
-                });
-            }
         });
     };
 
@@ -871,469 +840,257 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
     };
 
     // Droppable Calendar Day Component
-    const DroppableCalendarDay = ({ day }: { day: any }) => {
-        const dropId = `calendar-day-${day.date.toISOString().split('T')[0]}`;
-        const { setNodeRef, isOver } = useDroppable({
-            id: dropId,
-        });
+    const DroppableCalendarDay = React.forwardRef<HTMLDivElement, { day: any; className?: string }>(
+        ({ day, className = "" }, ref) => {
+            const dropId = `calendar-day-${day.date.toISOString().split('T')[0]}`;
+            const { setNodeRef, isOver } = useDroppable({ id: dropId });
+            const dayTasks = getTasksForDate(day.date);
 
-        const dayTasks = getTasksForDate(day.date);
+            return (
+                <div
+                    ref={node => { setNodeRef(node); if (typeof ref === 'function') ref(node); else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node; }}
+                    className={`min-h-[140px] p-1 border border-border transition-all duration-200 overflow-hidden ${
+                        !day.isCurrentMonth
+                            ? 'bg-muted/20 text-muted-foreground'
+                            : 'bg-background hover:bg-muted/30'
+                    } ${isToday(day.date) ? 'bg-primary/10 border-primary/20' : ''} ${isOver ? 'ring-2 ring-blue-400 bg-blue-100/30 dark:bg-blue-900/20' : ''} ${className}`}
+                >
+                    <div className={`text-sm font-medium mb-1 ${
+                        isToday(day.date) ? 'text-primary' : day.isCurrentMonth ? 'text-foreground' : 'text-muted-foreground'
+                    }`}>
+                        {day.date.getDate()}
+                    </div>
 
-        return (
-            <div
-                ref={setNodeRef}
-                className={`min-h-[140px] p-1 border-r border-b border-border last:border-r-0 transition-all duration-200 overflow-hidden ${
-                    !day.isCurrentMonth
-                        ? 'bg-muted/20 text-muted-foreground'
-                        : 'bg-background hover:bg-muted/30'
-                } ${isToday(day.date) ? 'bg-primary/10 border-primary/20' : ''} ${
-                    isOver ? 'bg-blue-100 dark:bg-blue-950/30 border-blue-300 border-2 border-dashed' : ''
-                }`}
-            >
-                <div className={`text-sm font-medium mb-1 ${
-                    isToday(day.date) ? 'text-primary' : day.isCurrentMonth ? 'text-foreground' : 'text-muted-foreground'
-                }`}>
-                    {day.date.getDate()}
-                </div>
+                    <div className="space-y-0.5 relative">
+                        {/* Show small task strips for this day */}
+                        {dayTasks.slice(0, 4).map((task, index) => {
+                            const { setNodeRef: setTaskDropRef, isOver: isTaskOver } = useDroppable({
+                                id: `day-task-drop-${task.id}`,
+                                data: { task, type: 'task' }
+                            });
 
-                <div className="space-y-0.5 relative">
-                    {/* Show small task strips for this day */}
-                    {dayTasks.slice(0, 4).map((task, index) => {
-                        const { setNodeRef: setTaskDropRef, isOver: isTaskOver } = useDroppable({
-                            id: `day-task-drop-${task.id}`,
-                            data: { task, type: 'task' }
-                        });
+                            const taskDropFeedback = isTaskOver && draggedTask?.type === 'member';
 
-                        const taskDropFeedback = isTaskOver && draggedTask?.type === 'member';
+                            return (
+                                <div
+                                    key={`day-task-${task.id}-${day.date.toISOString()}`}
+                                    ref={setTaskDropRef}
+                                    className={`group relative mb-0.5 rounded-sm border-l-2 cursor-pointer transition-all duration-150 ${getPriorityColor(task.priority)} ${taskDropFeedback ? 'ring-2 ring-green-400 bg-green-50 dark:bg-green-950/20' : ''}`}
+                                    style={{
+                                        height: '16px', // Slightly larger for better visibility
+                                        zIndex: 10 + index // Ensure proper stacking
+                                    }}
+                                    title={`${task.title} - ${task.priority} priority${task.assignees?.length ? ` | Assigned to: ${task.assignees.map((a: any) => a.name).join(', ')}` : ' | Unassigned'} | Right-click to assign`}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (!isDragInProgress && !recentDragRef.current) {
+                                            setSelectedTaskForDetail(task);
+                                            setTaskDetailModalOpen(true);
+                                        }
+                                    }}
+                                    onContextMenu={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setTaskToAssignId(task.id);
+                                        setAssignTaskModalOpen(true);
+                                    }}
+                                >
+                                    {/* Main content - always visible */}
+                                    <div className="flex items-center h-full px-1.5 relative">
+                                        <span className="text-xs truncate flex-1 opacity-90">
+                                            {task.title}
+                                        </span>
 
-                        return (
-                            <div
-                                key={`day-task-${task.id}-${day.date.toISOString()}`}
-                                ref={setTaskDropRef}
-                                className={`group relative mb-0.5 rounded-sm border-l-2 cursor-pointer transition-all duration-150 ${getPriorityColor(task.priority)} ${taskDropFeedback ? 'ring-2 ring-green-400 bg-green-50 dark:bg-green-950/20' : ''}`}
-                                style={{
-                                    height: '16px', // Slightly larger for better visibility
-                                    zIndex: 10 + index // Ensure proper stacking
-                                }}
-                                title={`${task.title} - ${task.priority} priority${task.assignees?.length ? ` | Assigned to: ${task.assignees.map((a: any) => a.name).join(', ')}` : ' | Unassigned'} | Right-click to assign`}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (!isDragInProgress && !recentDragRef.current) {
-                                        setSelectedTaskForDetail(task);
-                                        setTaskDetailModalOpen(true);
-                                    }
-                                }}
-                                onContextMenu={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    setTaskToAssignId(task.id);
-                                    setAssignTaskModalOpen(true);
-                                }}
-                            >
-                                {/* Main content - always visible */}
-                                <div className="flex items-center h-full px-1.5 relative">
-                                    <span className="text-xs truncate flex-1 opacity-90">
-                                        {task.title}
-                                    </span>
-
-                                    {/* Show assignee count if any */}
-                                    {task.assignees?.length > 0 && (
-                                        <div className="flex items-center gap-0.5 ml-1 flex-shrink-0">
-                                            <Users className="h-2 w-2 opacity-60" />
-                                            <span className="text-xs opacity-60">{task.assignees.length}</span>
-                                        </div>
-                                    )}
+                                        {/* Show assignee count if any */}
+                                        {task.assignees?.length > 0 && (
+                                            <div className="flex items-center gap-0.5 ml-1 flex-shrink-0">
+                                                <Users className="h-2 w-2 opacity-60" />
+                                                <span className="text-xs opacity-60">{task.assignees.length}</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
+                            );
+                        })}
+                        {dayTasks.length > 4 && (
+                            <div className="text-xs text-muted-foreground opacity-60 px-1">
+                                +{dayTasks.length - 4} more
                             </div>
-                        );
-                    })}
-                    {dayTasks.length > 4 && (
-                        <div className="text-xs text-muted-foreground opacity-60 px-1">
-                            +{dayTasks.length - 4} more
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
-            </div>
-        );
-    };
+            );
+        }
+    );
 
-    // Task Strip Component (handles both single day and multi-day tasks)
-    const MultiDayTaskStrip = ({ task, calendarDays }: { task: any; calendarDays: any[] }) => {
-        // Use local updates if available for real-time feedback, but preserve taskRow
+    type MultiDayTaskStripProps = { task: any; calendarDays: any[]; numCols: number; cellWidth: number };
+    const MultiDayTaskStrip = ({ task, calendarDays, numCols, cellWidth }: MultiDayTaskStripProps) => {
         const localUpdate = localTaskUpdates[task.id] || {};
         const currentTask = {
             ...task,
             ...localUpdate,
-            // Preserve taskRow from original task assignment
             taskRow: task.taskRow
         };
-
-        // Safety checks - ensure we have valid data
-        if (!currentTask || !currentTask.start_date || !currentTask.due_date || !calendarDays || calendarDays.length === 0) {
+        if (!currentTask || !currentTask.start_date || !currentTask.duration_days || !calendarDays || calendarDays.length === 0) {
             return null;
         }
-
-        // Ensure dates are valid
         const startDateStr = currentTask.start_date.split('T')[0];
-        const dueDateStr = currentTask.due_date.split('T')[0];
-        if (!startDateStr || !dueDateStr) {
+        const duration = currentTask.duration_days;
+        if (!startDateStr || !duration) {
             return null;
         }
-
         const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } = useDraggable({
             id: `multiday-task-${currentTask.id}`,
             data: { task: currentTask, source: 'calendar' },
             disabled: isAnyHandleResizing
         });
-
         const { setNodeRef: setDropRef, isOver } = useDroppable({
             id: `multiday-task-drop-${currentTask.id}`,
             data: { task: currentTask, type: 'task' }
         });
-
-        // Show visual feedback when member is being dragged over
         const showDropFeedback = isOver && draggedTask?.type === 'member';
-
         const style = {
             transform: CSS.Translate.toString(transform),
             opacity: isDragging ? 0.5 : 1,
         };
-
-        // Combine refs for the first segment only
         const setNodeRef = (node: HTMLElement | null) => {
             setDragRef(node);
             setDropRef(node);
         };
-
-        // Calculate task position and span using validated date strings
         const startDate = new Date(startDateStr);
-        const endDate = new Date(dueDateStr);
-
-        // Validate the date objects
+        const endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + duration - 1); // always match duration_days
         if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
             return null;
         }
-
-        // Find start and end positions in the calendar grid
-        const startDayIndex = calendarDays.findIndex(day =>
-            day.date.toISOString().split('T')[0] === startDateStr
-        );
-        const endDayIndex = calendarDays.findIndex(day =>
-            day.date.toISOString().split('T')[0] === dueDateStr
-        );
-
-        if (startDayIndex === -1 || endDayIndex === -1) return null;
-
-        // Calculate grid position
-        const startRow = Math.floor(startDayIndex / 7);
-        const startCol = startDayIndex % 7;
-        const endRow = Math.floor(endDayIndex / 7);
-        const endCol = endDayIndex % 7;
-
-        // Handle tasks that span multiple weeks
-        const taskSegments = [];
-        let currentRow = startRow;
-        let currentStartCol = startCol;
-
-        while (currentRow <= endRow) {
-            const isLastRow = currentRow === endRow;
-            const segmentEndCol = isLastRow ? endCol : 6;
-            const segmentSpan = segmentEndCol - currentStartCol + 1;
-
-            taskSegments.push({
-                row: currentRow,
-                startCol: currentStartCol,
-                span: segmentSpan,
-                isFirst: currentRow === startRow,
-                isLast: isLastRow
-            });
-
-            currentRow++;
-            currentStartCol = 0;
+        // Find all visible days in the task's range (inclusive)
+        const visibleDayIndices: number[] = [];
+        const startDateISO = startDate.toISOString().split('T')[0];
+        const endDateISO = endDate.toISOString().split('T')[0];
+        for (let i = 0; i < calendarDays.length; i++) {
+            const dISO = calendarDays[i].date.toISOString().split('T')[0];
+            if (dISO >= startDateISO && dISO <= endDateISO) {
+                visibleDayIndices.push(i);
+            }
         }
-
+        if (visibleDayIndices.length === 0) return null;
+        // Split into contiguous segments by week
+        const segments: { start: number, end: number }[] = [];
+        let segStart = visibleDayIndices[0];
+        for (let i = 1; i < visibleDayIndices.length; i++) {
+            // If not consecutive or not in the same week, start a new segment
+            const prevIdx = visibleDayIndices[i - 1];
+            const currIdx = visibleDayIndices[i];
+            const prevRow = Math.floor(prevIdx / numCols);
+            const currRow = Math.floor(currIdx / numCols);
+            if (currIdx !== prevIdx + 1 || currRow !== prevRow) {
+                segments.push({ start: segStart, end: prevIdx });
+                segStart = currIdx;
+            }
+        }
+        segments.push({ start: segStart, end: visibleDayIndices[visibleDayIndices.length - 1] });
+        // Render each segment
         return (
             <>
-                {taskSegments.map((segment, index) => (
-                    <div
-                        key={`${currentTask.id}-segment-${index}-${currentTask.start_date}-${currentTask.due_date}`}
-                        ref={index === 0 ? setNodeRef : undefined}
-                        className={`group absolute h-6 ${getPriorityColor(currentTask.priority)} border-l-2 text-xs flex items-center cursor-grab active:cursor-grabbing transition-all duration-150 ease-out shadow-sm ${
-                            segment.isFirst && segment.isLast ? 'rounded' :
-                            segment.isFirst ? 'rounded-l' :
-                            segment.isLast ? 'rounded-r' : ''
-                        } ${isDragging ? 'ring-2 ring-blue-400 shadow-lg scale-105' : 'hover:shadow-md hover:z-30'} ${showDropFeedback && segment.isFirst ? 'ring-2 ring-green-400 bg-green-50 dark:bg-green-950/20' : ''}`}
-                        style={{
-                            top: `${segment.row * 140 + 40 + (currentTask.taskRow || 0) * 22}px`, // Updated for new calendar height
-                            left: `calc(${(segment.startCol / 7) * 100}% + 4px)`, // Add padding from left edge
-                            width: `calc(${(segment.span / 7) * 100}% - 8px)`, // Reduce width to add padding on both sides
-                            ...(index === 0 ? style : {}),
-                            zIndex: 20 + (currentTask.taskRow || 0) // Ensure proper layering
-                        }}
-                        {...(index === 0 && !isAnyHandleResizing ? { ...listeners, ...attributes } : {})}
-                        onClick={(e) => {
-                            if (!isDragging && !isDragInProgress && !recentDragRef.current && !(e.target as HTMLElement).closest('.resize-handle')) {
-                                setSelectedTaskForDetail(task);
-                                setTaskDetailModalOpen(true);
-                            }
-                        }}
-                        onContextMenu={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setTaskToAssignId(task.id);
-                            setAssignTaskModalOpen(true);
-                        }}
-                        title={`${currentTask.title} - ${currentTask.priority} priority (${currentTask.duration_days}d) | ${currentTask.assignees?.length ? `Assigned to: ${currentTask.assignees.map((a: any) => a.name).join(', ')}` : 'Unassigned'} | Drag to move, resize handles to extend/shrink | Right-click to assign`}
-                    >
-                        {/* Task content - only show on first segment */}
-                        {segment.isFirst && (
-                            <div className="flex items-center gap-1 flex-1 min-w-0 px-2 pr-8">
-                                {/* Basic view - always visible */}
-                                <div className="flex items-center gap-1 flex-1 min-w-0 group-hover:hidden">
-                                    <span className="font-medium truncate text-xs">
-                                        {currentTask.title}
-                                    </span>
-                                    {currentTask.duration_days > 1 && (
-                                        <span className="text-xs opacity-60">({currentTask.duration_days}d)</span>
-                                    )}
-                                </div>
-
-                                {/* Hover view - shows assignee info */}
-                                <div className="hidden group-hover:flex items-center gap-1 flex-1 min-w-0">
-                                    {currentTask.assignees?.[0] && (() => {
-                                        const assignee = currentTask.assignees[0];
-                                        const memberIndex = normalizedMembers.findIndex(m => m.id === assignee.id);
-                                        const colorIndex = getColorForIndex(memberIndex);
-                                        return (
-                                            <Avatar className="h-4 w-4 flex-shrink-0 border border-white/20">
-                                                <AvatarImage src={assignee.avatar} />
-                                                <AvatarFallback className="text-xs font-medium" style={{ backgroundColor: avatarColors[colorIndex], color: '#fff' }}>
-                                                    {assignee.name.charAt(0).toUpperCase()}
-                                                </AvatarFallback>
-                                            </Avatar>
-                                        );
-                                    })()}
-                                    <div className="flex-1 min-w-0">
-                                        <div className="font-medium truncate text-xs">
+                {segments.map((segment, index) => {
+                    const row = Math.floor(segment.start / numCols);
+                    const startCol = segment.start % numCols;
+                    const span = segment.end - segment.start + 1;
+                    return (
+                        <div
+                            key={`${currentTask.id}-segment-${index}-${currentTask.start_date}-${currentTask.due_date}`}
+                            ref={index === 0 ? setNodeRef : undefined}
+                            className={`group absolute h-6 ${getPriorityColor(currentTask.priority)} border-l-2 text-xs flex items-center cursor-grab active:cursor-grabbing transition-all duration-150 ease-out shadow-sm ${
+                                segments.length === 1 ? 'rounded' :
+                                index === 0 ? 'rounded-l' :
+                                index === segments.length - 1 ? 'rounded-r' : ''
+                            } ${isDragging ? 'ring-2 ring-blue-400 shadow-lg scale-105' : 'hover:shadow-md hover:z-30'} ${showDropFeedback && index === 0 ? 'ring-2 ring-green-400 bg-green-50 dark:bg-green-950/20' : ''}`}
+                            style={{
+                                top: `${row * 140 + 40 + (currentTask.taskRow || 0) * 22}px`,
+                                left: cellWidth ? startCol * cellWidth + 4 : `calc(${(startCol / numCols) * 100}% + 4px)`,
+                                width: cellWidth ? span * cellWidth - 8 : `calc(${(span / numCols) * 100}% - 8px)`,
+                                ...(index === 0 ? style : {}),
+                                zIndex: 20 + (currentTask.taskRow || 0)
+                            }}
+                            {...(index === 0 && !isAnyHandleResizing ? { ...listeners, ...attributes } : {})}
+                            onClick={(e) => {
+                                if (!isDragging && !isDragInProgress && !recentDragRef.current && !(e.target as HTMLElement).closest('.resize-handle')) {
+                                    setSelectedTaskForDetail(task);
+                                    setTaskDetailModalOpen(true);
+                                }
+                            }}
+                            onContextMenu={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setTaskToAssignId(task.id);
+                                setAssignTaskModalOpen(true);
+                            }}
+                            title={`${currentTask.title} - ${currentTask.priority} (${currentTask.duration_days}d) | ${currentTask.assignees?.length ? `Assigned to: ${currentTask.assignees.map((a: any) => a.name).join(', ')}` : 'Unassigned'} | Drag to move, resize handles to extend/shrink | Right-click to assign`}
+                        >
+                            {/* Task content - only show on first segment */}
+                            {index === 0 && (
+                                <div className="flex items-center gap-1 flex-1 min-w-0 px-2 pr-8">
+                                    <div className="flex items-center gap-1 flex-1 min-w-0 group-hover:hidden">
+                                        <span className="font-medium truncate text-xs">
                                             {currentTask.title}
+                                        </span>
+                                        {currentTask.duration_days > 1 && (
+                                            <span className="text-xs opacity-60">({currentTask.duration_days}d)</span>
+                                        )}
+                                    </div>
+                                    <div className="hidden group-hover:flex items-center gap-1 flex-1 min-w-0">
+                                        {currentTask.assignees?.[0] && (() => {
+                                            const assignee = currentTask.assignees[0];
+                                            const memberIndex = normalizedMembers.findIndex(m => m.id === assignee.id);
+                                            const colorIndex = getColorForIndex(memberIndex);
+                                            return (
+                                                <Avatar className="h-4 w-4 flex-shrink-0 border border-white/20">
+                                                    <AvatarImage src={assignee.avatar} />
+                                                    <AvatarFallback className="text-xs font-medium" style={{ backgroundColor: avatarColors[colorIndex], color: '#fff' }}>
+                                                        {assignee.name.charAt(0).toUpperCase()}
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                            );
+                                        })()}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-medium truncate text-xs">
+                                                {currentTask.title}
+                                            </div>
+                                        </div>
+                                        <div className="text-xs opacity-75 flex items-center gap-1 flex-shrink-0">
+                                            {currentTask.assignees?.length > 1 && (
+                                                <span>+{currentTask.assignees.length - 1}</span>
+                                            )}
+                                            {currentTask.duration_days > 1 && (
+                                                <span>({currentTask.duration_days}d)</span>
+                                            )}
                                         </div>
                                     </div>
-                                    <div className="text-xs opacity-75 flex items-center gap-1 flex-shrink-0">
-                                        {currentTask.assignees?.length > 1 && (
-                                            <span>+{currentTask.assignees.length - 1}</span>
-                                        )}
-                                        {currentTask.duration_days > 1 && (
-                                            <span>({currentTask.duration_days}d)</span>
-                                        )}
-                                    </div>
                                 </div>
-                            </div>
-                        )}
-
-                        {/* Resize handles - only on first and last segments */}
-                        {segment.isFirst && (
-                            <ResizeHandle
-                                task={currentTask}
-                                direction="start"
-                                onResize={(newDuration) => handleTaskResize(task, newDuration)}
-                            />
-                        )}
-                        {segment.isLast && (
-                            <ResizeHandle
-                                task={currentTask}
-                                direction="end"
-                                onResize={(newDuration) => handleTaskResize(task, newDuration)}
-                            />
-                        )}
-                    </div>
-                ))}
+                            )}
+                            {/* Resize handles - only on first and last segments */}
+                            {index === 0 && (
+                                <ResizeHandle
+                                    task={currentTask}
+                                    direction="start"
+                                    onResize={(newDuration) => handleTaskResize(currentTask, newDuration)}
+                                />
+                            )}
+                            {index === segments.length - 1 && (
+                                <ResizeHandle
+                                    task={currentTask}
+                                    direction="end"
+                                    onResize={(newDuration) => handleTaskResize(currentTask, newDuration)}
+                                />
+                            )}
+                        </div>
+                    );
+                })}
             </>
         );
     };
 
-    // Task Assignment Modal Component
-    const TaskAssignmentModal = ({ task, project, open, onOpenChange, setLocalTaskUpdates }: {
-        task: any;
-        project: Project;
-        open: boolean;
-        onOpenChange: (open: boolean) => void;
-        setLocalTaskUpdates: React.Dispatch<React.SetStateAction<{[key: number]: any}>>;
-    }) => {
-        useEffect(() => {
-            if (!task && open) {
-                onOpenChange(false);
-            }
-        }, [task, open, onOpenChange]);
-        if (!task) return null;
-
-        const handleAssigneeToggle = (memberId: number) => {
-            const currentAssignees = task.assignees?.map((a: any) => a.id) || [];
-            const newAssignees = currentAssignees.includes(memberId)
-                ? currentAssignees.filter((id: number) => id !== memberId)
-                : [...currentAssignees, memberId];
-
-            // Update task with new assignees
-            router.put(route('tasks.update', { project: project.id, task: task.id }), {
-                title: task.title,
-                description: task.description || '',
-                priority: task.priority,
-                status: task.status,
-                estimate: task.estimate,
-                due_date: task.due_date,
-                start_date: task.start_date,
-                duration_days: task.duration_days,
-                list_id: task.list_id,
-                assignee_ids: newAssignees,
-                label_ids: task.labels?.map((l: any) => l.id) || [],
-                is_archived: task.is_archived || false,
-            }, {
-                preserveState: true,
-                preserveScroll: true,
-                onSuccess: () => {
-                    // Close the modal first, then update local task state after a short delay
-                    onOpenChange(false);
-                    setTimeout(() => {
-                        setLocalTaskUpdates(prev => {
-                            const updated = { ...prev };
-                            delete updated[task.id];
-                            return updated;
-                        });
-                    }, 200); // 200ms to allow modal to unmount
-                },
-                onError: (errors) => {
-                    console.error('Failed to update task assignees:', errors);
-                }
-            });
-        };
-
-        const handleClose = () => {
-            onOpenChange(false);
-        };
-
-        return (
-            <div className={`fixed inset-0 z-50 ${open ? 'block' : 'hidden'}`}>
-                <div className="fixed inset-0 bg-black/50" onClick={handleClose} />
-                <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-background border rounded-lg shadow-lg p-6">
-                    <h3 className="text-lg font-semibold mb-4">Assign Task: {task.title}</h3>
-                    <div className="space-y-3 max-h-64 overflow-y-auto scrollbar-hide">
-                        {normalizedMembers.map((member, idx) => {
-                            const colorIndex = getColorForIndex(idx);
-                            const isAssigned = task.assignees?.some((a: any) => a.id === member.id);
-                            return (
-                                <div
-                                    key={member.id}
-                                    className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${
-                                        isAssigned ? 'bg-primary/10 border border-primary/20' : 'hover:bg-muted/50'
-                                    }`}
-                                    onClick={() => handleAssigneeToggle(member.id)}
-                                >
-                                    <Avatar className="h-8 w-8">
-                                        <AvatarImage src={member.avatar} />
-                                        <AvatarFallback style={{ backgroundColor: avatarColors[colorIndex], color: '#fff' }}>
-                                            {member.name.charAt(0).toUpperCase()}
-                                        </AvatarFallback>
-                                    </Avatar>
-                                    <div className="flex-1">
-                                        <div className="font-medium">{member.name}</div>
-                                        <div className="text-sm text-muted-foreground">{member.email}</div>
-                                    </div>
-                                    {isAssigned && <CheckCircle2 className="h-5 w-5 text-primary" />}
-                                </div>
-                            );
-                        })}
-                    </div>
-                    <div className="flex justify-end gap-2 mt-4">
-                        <Button variant="outline" onClick={() => onOpenChange(false)}>
-                            Close
-                        </Button>
-                    </div>
-                </div>
-            </div>
-        );
-    };
-
-    // Task Duration Extension Modal Component
-    const TaskDurationModal = ({ task, project, open, onOpenChange }: {
-        task: any;
-        project: Project;
-        open: boolean;
-        onOpenChange: (open: boolean) => void;
-    }) => {
-        const [duration, setDuration] = useState(task?.duration_days || 1);
-
-        if (!task) return null;
-
-        const handleDurationUpdate = () => {
-            const startDate = task.start_date || task.due_date;
-            const newStartDate = new Date(startDate.split('T')[0]);
-            const newDueDate = new Date(newStartDate);
-            newDueDate.setDate(newDueDate.getDate() + duration - 1);
-
-            router.put(route('tasks.update', { project: project.id, task: task.id }), {
-                title: task.title,
-                description: task.description || '',
-                priority: task.priority,
-                status: task.status,
-                estimate: task.estimate,
-                due_date: newDueDate.toISOString().split('T')[0],
-                start_date: startDate.split('T')[0],
-                duration_days: duration,
-                list_id: task.list_id,
-                assignee_ids: task.assignees?.map((a: any) => a.id) || [],
-                label_ids: task.labels?.map((l: any) => l.id) || [],
-                is_archived: task.is_archived || false,
-            }, {
-                preserveState: true,
-                preserveScroll: true,
-                onSuccess: () => {
-                    onOpenChange(false);
-                },
-                onError: (errors) => {
-                    console.error('Failed to update task duration:', errors);
-                }
-            });
-        };
-
-        return (
-            <div className={`fixed inset-0 z-50 ${open ? 'block' : 'hidden'}`}>
-                <div className="fixed inset-0 bg-black/50" onClick={() => onOpenChange(false)} />
-                <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-background border rounded-lg shadow-lg p-6">
-                    <h3 className="text-lg font-semibold mb-4">Extend Task: {task.title}</h3>
-                    <div className="space-y-4">
-                        <div>
-                            <label className="text-sm font-medium">Duration (days)</label>
-                            <Input
-                                type="number"
-                                min="1"
-                                value={duration}
-                                onChange={(e) => setDuration(parseInt(e.target.value) || 1)}
-                                className="mt-1"
-                            />
-                        </div>
-                    </div>
-                    <div className="flex justify-end gap-2 mt-4">
-                        <Button variant="outline" onClick={() => onOpenChange(false)}>
-                            Cancel
-                        </Button>
-                        <Button onClick={handleDurationUpdate}>
-                            Update Duration
-                        </Button>
-                    </div>
-                </div>
-            </div>
-        );
-    };
-
-    // Generate calendar data fresh each render for real-time updates
-    const calendarDays = generateCalendarDays();
-    const weeks: any[][] = [];
-    for (let i = 0; i < calendarDays.length; i += 7) {
-        weeks.push(calendarDays.slice(i, i + 7));
-    }
-
-    const allTasks = getAllProjectTasks();
-    const taskToAssign = allTasks.find(t => t.id === taskToAssignId) || null;
-
+    // Place this at the end of ProjectCalendarView, after all helper components
     return (
         <DndContext
             sensors={sensors}
@@ -1354,7 +1111,6 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                             </CardDescription>
                         </div>
                         <div className="flex items-center gap-2">
-                            {/* Team Members Panel Toggle */}
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -1365,28 +1121,14 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                                 <span className="hidden sm:inline">Team</span>
                                 {memberPanelOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                             </Button>
-
                             <Separator orientation="vertical" className="h-6" />
-
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => navigateMonth('prev')}
-                            >
+                            <Button variant="outline" size="sm" onClick={() => navigateMonth('prev')}>
                                 <ChevronLeft className="h-4 w-4" />
                             </Button>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setCurrentDate(new Date())}
-                            >
+                            <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>
                                 Today
                             </Button>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => navigateMonth('next')}
-                            >
+                            <Button variant="outline" size="sm" onClick={() => navigateMonth('next')}>
                                 <ChevronRight className="h-4 w-4" />
                             </Button>
                         </div>
@@ -1394,8 +1136,33 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                     <div className="text-center text-lg font-semibold text-primary">
                         {formatMonthYear(currentDate)}
                     </div>
-
-                    {/* Collapsible Team Members Panel */}
+                    {/* Hide weekend filter UI */}
+                    <div className="flex gap-4 mb-2 px-4 pt-4">
+                        <label className="flex items-center gap-1">
+                            <input
+                                type="checkbox"
+                                checked={hiddenDays.sat}
+                                disabled={hiddenDays.sun && visibleDays.length <= 1}
+                                onChange={e => {
+                                    if (e.target.checked && visibleDays.length <= 1) return;
+                                    setHiddenDays(h => ({ ...h, sat: e.target.checked }));
+                                }}
+                            />
+                            Hide Saturday
+                        </label>
+                        <label className="flex items-center gap-1">
+                            <input
+                                type="checkbox"
+                                checked={hiddenDays.sun}
+                                disabled={hiddenDays.sat && visibleDays.length <= 1}
+                                onChange={e => {
+                                    if (e.target.checked && visibleDays.length <= 1) return;
+                                    setHiddenDays(h => ({ ...h, sun: e.target.checked }));
+                                }}
+                            />
+                            Hide Sunday
+                        </label>
+                    </div>
                     {memberPanelOpen && (
                         <div className="mt-4 p-4 bg-muted/30 rounded-lg border">
                             <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
@@ -1426,7 +1193,6 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                                         {isUpdatingTask && (
                                             <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
                                         )}
-
                                     </CardTitle>
                                     <CardDescription>
                                         Drag tasks to calendar days to set deadlines
@@ -1441,7 +1207,6 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                                         {(() => {
                                             const tasksWithoutDueDate = getAllProjectTasks().filter(task => !task.due_date);
                                             const tasksWithDueDate = getAllProjectTasks().filter(task => task.due_date);
-
                                             if (getAllProjectTasks().length === 0) {
                                                 return (
                                                     <div className="text-center py-8 text-muted-foreground">
@@ -1450,7 +1215,6 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                                                     </div>
                                                 );
                                             }
-
                                             return (
                                                 <div className="space-y-3">
                                                     {/* Tasks without due dates */}
@@ -1467,7 +1231,6 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                                                             </div>
                                                         </div>
                                                     )}
-
                                                     {/* Tasks with due dates */}
                                                     {tasksWithDueDate.length > 0 && (
                                                         <div>
@@ -1491,48 +1254,74 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                                 </CardContent>
                             </Card>
                         </div>
-
                         {/* Calendar - Right Side */}
                         <div className="lg:col-span-3">
-                            <div className="border rounded-lg overflow-hidden bg-background">
-                                {/* Week days header */}
-                                <div className="grid grid-cols-7 bg-muted/50">
-                                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                                        <div key={day} className="p-2 text-center text-sm font-medium text-muted-foreground border-r border-border last:border-r-0">
-                                            {day}
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Calendar weeks */}
-                                <div className="relative">
-                                    {weeks && weeks.length > 0 ? weeks.map((week, weekIndex) => (
-                                        <div key={`week-${weekIndex}`} className="grid grid-cols-7">
-                                            {week && week.length > 0 ? week.map((day, dayIndex) => (
-                                                <DroppableCalendarDay key={`day-${day?.date?.toISOString() || `${weekIndex}-${dayIndex}`}`} day={day} />
-                                            )) : null}
-                                        </div>
-                                    )) : (
-                                        <div className="text-center py-8 text-muted-foreground">
-                                            Loading calendar...
-                                        </div>
-                                    )}
-
-                                    {/* All task strips overlay */}
-                                    {weeks && weeks.length > 0 && getAllTasksWithRows().map((task) => (
-                                        <MultiDayTaskStrip
-                                            key={`task-strip-${task.id}`}
-                                            task={task}
-                                            calendarDays={weeks.flat()}
-                                        />
-                                    ))}
+                            <div className="w-full max-w-5xl mx-auto">
+                                <div className="border rounded-lg overflow-hidden bg-background">
+                                    {/* Week days header */}
+                                    <div className={`grid grid-cols-${numCols} bg-muted/50`} style={{ gridTemplateColumns: `repeat(${numCols}, 1fr)` }}>
+                                        {reorderedDayLabels.filter((_, idx) => visibleDays.includes(idx + 1 > 6 ? 0 : idx + 1)).map((day, i) => (
+                                            <div
+                                                key={day}
+                                                className={`p-2 text-center text-sm font-medium border-r border-border last:border-r-0 ${
+                                                    (day === 'Sat' && hiddenDays.sat) || (day === 'Sun' && hiddenDays.sun)
+                                                        ? 'hidden'
+                                                        : (day === 'Sat' || day === 'Sun')
+                                                        ? 'bg-muted text-muted-foreground'
+                                                        : 'text-muted-foreground'
+                                                }`}
+                                            >
+                                                {day}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {/* Calendar weeks and overlay */}
+                                    <div className={`border border-border bg-muted/10 relative`} style={{ gridTemplateColumns: `repeat(${numCols}, 1fr)` }}>
+                                        {visibleDays.length === 0 ? (
+                                            <div className="text-center py-8 text-muted-foreground">
+                                                Cannot hide all days. At least one day must be visible.
+                                            </div>
+                                        ) : (
+                                            <>
+                                                {weeks.map((week, weekIndex) => (
+                                                    <div
+                                                        key={`week-${weekIndex}`}
+                                                        className={`grid grid-cols-${numCols}`}
+                                                        style={{ gridTemplateColumns: `repeat(${numCols}, 1fr)` }}
+                                                    >
+                                                        {week.map((day: any, dayIndex: any) => (
+                                                            <DroppableCalendarDay
+                                                                key={`day-${day?.date?.toISOString() || `${weekIndex}-${dayIndex}`}`}
+                                                                day={day}
+                                                                className={`min-h-[140px] border border-border bg-background transition-all duration-200 overflow-hidden ${
+                                                                    !day.isCurrentMonth
+                                                                        ? 'bg-muted/20 text-muted-foreground'
+                                                                        : 'bg-background hover:bg-muted/30'
+                                                                } ${isToday(day.date) ? 'bg-primary/10 border-primary/20' : ''}`}
+                                                                ref={weekIndex === 0 && dayIndex === 0 ? (cellRef as React.RefObject<HTMLDivElement>) : undefined}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                ))}
+                                                {/* All task strips overlay */}
+                                                {weeks && weeks.length > 0 && getAllTasksWithRows().map((task) => (
+                                                    <MultiDayTaskStrip
+                                                        key={`task-strip-${task.id}`}
+                                                        task={task}
+                                                        calendarDays={weeks.flat()}
+                                                        numCols={numCols}
+                                                        cellWidth={cellWidth}
+                                                    />
+                                                ))}
+                                            </>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </CardContent>
             </Card>
-
             {/* Task Create Modal */}
             <TaskCreateModal
                 open={taskCreateModalOpen}
@@ -1543,18 +1332,15 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                 tags={[]}
                 sections={[]}
             />
-
             {/* Task Assignment Modal */}
-            {taskToAssign && (
+            {taskToAssignId && (
                 <TaskAssignmentModal
-                    task={taskToAssign}
+                    task={getAllProjectTasks().find(t => t.id === taskToAssignId)}
                     project={project}
                     open={assignTaskModalOpen}
                     onOpenChange={setAssignTaskModalOpen}
-                    setLocalTaskUpdates={setLocalTaskUpdates}
                 />
             )}
-
             {/* Task Duration Modal */}
             <TaskDurationModal
                 task={taskToExtend}
@@ -1562,7 +1348,6 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                 open={durationModalOpen}
                 onOpenChange={setDurationModalOpen}
             />
-
             {/* Task Detail Modal */}
             <TaskDetailModal
                 task={selectedTaskForDetail}
@@ -1571,7 +1356,6 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                 onOpenChange={setTaskDetailModalOpen}
                 availableLists={project.boards?.flatMap(board => board.lists || []) || []}
             />
-
             {/* Drag Overlay */}
             <DragOverlay>
                 {activeTask ? (
@@ -1620,4 +1404,104 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
             </DragOverlay>
         </DndContext>
     );
+}
+
+// Task Assignment Modal Component
+function TaskAssignmentModal({ task, project, open, onOpenChange }: {
+    task: any;
+    project: any;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+}) {
+    if (!task || !open) return null;
+
+    const handleAssigneeToggle = (e: React.MouseEvent, memberId: number) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const currentAssignees = task.assignees?.map((a: any) => a.id) || [];
+        const newAssignees = currentAssignees.includes(memberId)
+            ? currentAssignees.filter((id: number) => id !== memberId)
+            : [...currentAssignees, memberId];
+        onOpenChange(false);
+        // Update task with new assignees using Inertia router
+        const updateUrl = route('tasks.update', { project: project.id, task: task.id });
+        const updateData = {
+            title: task.title,
+            description: task.description || '',
+            priority: task.priority,
+            status: task.status,
+            estimate: task.estimate,
+            due_date: task.due_date,
+            start_date: task.start_date,
+            duration_days: task.duration_days,
+            list_id: task.list_id,
+            position: task.position,
+            assignee_ids: newAssignees,
+            label_ids: task.labels?.map((l: any) => l.id) || [],
+            is_archived: task.is_archived || false,
+        };
+        router.put(updateUrl, updateData, {
+            preserveState: true,
+            preserveScroll: true,
+        });
+    };
+    const handleClose = () => {
+        onOpenChange(false);
+        setTimeout(() => {
+            const overlays = document.querySelectorAll('.fixed.inset-0.z-50');
+            overlays.forEach(overlay => {
+                if (overlay.querySelector('.bg-black\/50') || overlay.classList.contains('bg-black')) {
+                    overlay.remove();
+                }
+            });
+        }, 300);
+    };
+    return (
+        <div className="fixed inset-0 z-50">
+            <div className="fixed inset-0 bg-black/50" onClick={handleClose} />
+            <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-background border rounded-lg shadow-lg p-6">
+                <h3 className="text-lg font-semibold mb-4">
+                    Assign Task: {task.title}
+                </h3>
+                <div className="space-y-3 max-h-64 overflow-y-auto scrollbar-hide">
+                    {project.members?.map((member: any) => {
+                        const isAssigned = task.assignees?.some((a: any) => a.id === member.id);
+                        return (
+                            <div
+                                key={member.id}
+                                className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                                    isAssigned
+                                        ? 'bg-primary/10 border border-primary/20 hover:bg-primary/20'
+                                        : 'hover:bg-muted/50 hover:shadow-md'
+                                }`}
+                                onClick={(e) => handleAssigneeToggle(e, member.id)}
+                            >
+                                <Avatar className="h-8 w-8">
+                                    <AvatarImage src={member.avatar} />
+                                    <AvatarFallback>{member.name.charAt(0).toUpperCase()}</AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1">
+                                    <div className="font-medium">{member.name}</div>
+                                    <div className="text-sm text-muted-foreground">{member.email}</div>
+                                </div>
+                                {isAssigned && <CheckCircle2 className="h-5 w-5 text-primary" />}
+                            </div>
+                        );
+                    })}
+                </div>
+                <div className="flex justify-end gap-2 mt-4">
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>
+                        Close
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// Task Duration Modal (placeholder, implement as needed)
+function TaskDurationModal({ task, project, open, onOpenChange }: { task: any; project: any; open: boolean; onOpenChange: (open: boolean) => void }) {
+    if (!task || !open) return null;
+    // Implement your modal UI here
+    return null;
 }
