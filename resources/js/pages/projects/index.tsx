@@ -10,7 +10,7 @@ import { Project } from '@/types/project-manager';
 import { Head, Link, usePage } from '@inertiajs/react';
 import { CalendarDays, Plus, User, Users, Globe, Archive, Grid, List, SortAsc, SortDesc, Clock } from 'lucide-react';
 import StarButton from '@/components/star-button';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useShortName } from '@/hooks/use-initials';
 import CreateProjectModal from '@/components/project/CreateProjectModal';
 
@@ -29,6 +29,8 @@ export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
     const [viewMode, setViewMode] = useState<ProjectView>('card');
     const [createModalOpen, setCreateModalOpen] = useState(false);
     const getShortName = useShortName();
+    const location = typeof window !== 'undefined' ? window.location : null;
+    const navigate = typeof window !== 'undefined' ? (url: string) => window.history.replaceState({}, '', url) : () => {};
 
     // Filter and sort projects
     const filteredAndSortedProjects = useMemo(() => {
@@ -69,6 +71,31 @@ export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
                 return filtered; // manual sorting
         }
     }, [projects, activeFilter, sortBy, auth.user.id]);
+
+    // On mount, set viewMode from URL param
+    useEffect(() => {
+        if (!location) return;
+        const params = new URLSearchParams(location.search);
+        const viewParam = params.get('view');
+        if (viewParam === 'list' && viewMode !== 'list') {
+            setViewMode('list');
+        } else if (viewParam === 'card' && viewMode !== 'card') {
+            setViewMode('card');
+        }
+    }, []);
+
+    // When viewMode changes, update URL param
+    useEffect(() => {
+        if (!location) return;
+        const params = new URLSearchParams(location.search);
+        if (viewMode === 'list') {
+            params.set('view', 'list');
+        } else {
+            params.set('view', 'card');
+        }
+        const newUrl = `${location.pathname}?${params.toString()}`;
+        navigate(newUrl);
+    }, [viewMode]);
 
     return (
         <AppLayout>
@@ -199,7 +226,7 @@ export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
                                                 )}
                                             </div>
                                         </CardContent>
-                                        <div className="flex items-center justify-between w-full text-xs text-muted-foreground px-4 pb-3 pt-1 mt-auto border-t border-border">
+                                        <div className="flex items-center justify-between w-full text-xs text-muted-foreground pt-1 pb-3 pl-3 pr-2 mt-auto border-t border-border">
                                             <div className="flex items-center gap-1 min-w-0">
                                                 <Avatar className="h-5 w-5">
                                                     <AvatarImage src={project.owner?.avatar} />
@@ -221,40 +248,46 @@ export default function ProjectsIndex({ projects }: ProjectsIndexProps) {
                             {filteredAndSortedProjects.map((project) => (
                                 <Link key={project.id} href={route('projects.show', project.id)} className="block">
                                     <Card className={`hover:shadow-md transition-shadow border-2 ${project.background_color ? '' : (project.is_team_project ? 'border-blue-500' : 'border-gray-400')}`} style={project.background_color ? { borderColor: project.background_color } : {}}>
-                                        <CardContent className="py-1 px-2">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-4 flex-1 min-w-0">
-                                                    <div className="flex flex-col min-w-0">
-                                                        <h3 className="font-medium truncate max-w-[200px]">{project.name}</h3>
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            {project.is_team_project ? (
-                                                                <Badge variant="default" className="bg-blue-100 text-blue-800 border-blue-200 px-2 py-0.5 text-xs mt-1 h-6 flex items-center gap-1"><Users className="h-3 w-3 mr-1" />Team</Badge>
-                                                            ) : (
-                                                                <Badge variant="default" className="bg-gray-100 text-gray-700 border-gray-200 px-2 py-0.5 text-xs mt-1 h-6 flex items-center gap-1"><User className="h-3 w-3 mr-1" />Personal</Badge>
-                                                            )}
-                                                            {project.is_archived && (
-                                                                <Badge variant="outline" className="text-xs ml-2 h-6 flex items-center gap-1"><Archive className="h-3 w-3 mr-1" />Archived</Badge>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    {project.is_team_project && project.members && project.members.length > 0 && (
-                                                        <div className="flex items-center gap-1">
-                                                            <Users className="h-4 w-4" />
-                                                            <span>{project.members.length} members</span>
-                                                        </div>
-                                                    )}
+                                        <CardContent className="py-0 px-2 pt-0 pb-0">
+                                            <div className="flex items-start gap-4 flex-1 min-w-0 pl-3">
+                                                {/* Project name and star in one row */}
+                                                <div className="flex flex-1 items-center min-w-0">
+                                                    <h3 className="font-medium truncate max-w-[200px] flex-1 flex items-center">
+                                                        {project.name}
+                                                        <StarButton
+                                                            type="project"
+                                                            id={project.id}
+                                                            isFavorited={project.is_favorited || false}
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="ml-0"
+                                                        />
+                                                    </h3>
                                                 </div>
-                                                <div className="flex items-center gap-2 flex-shrink-0">
-                                                    <StarButton
-                                                        type="project"
-                                                        id={project.id}
-                                                        isFavorited={project.is_favorited || false}
-                                                        size="sm"
-                                                        variant="ghost"
-                                                    />
+                                                {/* Tag and member count to the far right, with pr-2 */}
+                                                <div className="flex flex-col items-end flex-shrink-0 ml-auto min-w-[110px] pr-2">
+                                                    <div className="flex items-center gap-2">
+                                                        {project.is_team_project ? (
+                                                            <Badge variant="default" className="bg-blue-100 text-blue-800 border-blue-200 px-2 py-0.5 text-xs h-6 flex items-center gap-1"><Users className="h-3 w-3 mr-1" />Team</Badge>
+                                                        ) : (
+                                                            <Badge variant="default" className="bg-gray-100 text-gray-700 border-gray-200 px-2 py-0.5 text-xs h-6 flex items-center gap-1"><User className="h-3 w-3 mr-1" />Personal</Badge>
+                                                        )}
+                                                        {project.is_archived && (
+                                                            <Badge variant="outline" className="text-xs ml-2 h-6 flex items-center gap-1"><Archive className="h-3 w-3 mr-1" />Archived</Badge>
+                                                        )}
+                                                    </div>
+                                                    {/* Member count directly under tag, right-aligned, pr-2, always rendered for alignment */}
+                                                    <div className="flex items-center gap-1 text-xs text-muted-foreground mt-2 pb-2 min-h-[18px] justify-end w-full">
+                                                        {project.is_team_project && project.members && project.members.length > 0 ? (
+                                                            <>
+                                                                <Users className="h-3 w-3" />
+                                                                <span>{project.members.length} members</span>
+                                                            </>
+                                                        ) : null}
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center justify-between w-full text-xs text-muted-foreground mt-1 border-t border-border pt-1">
+                                            <div className="flex items-center justify-between w-full text-xs text-muted-foreground pt-0 pb-0 pl-3 pr-2 mt-auto border-t border-border">
                                                 <div className="flex items-center gap-1 min-w-0">
                                                     <Avatar className="h-5 w-5">
                                                         <AvatarImage src={project.owner?.avatar} />

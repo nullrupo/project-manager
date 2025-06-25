@@ -278,13 +278,13 @@ export default function InviteMemberModal({ project, open, onOpenChange }: Invit
                         </TabsContent>
                     </Tabs>
 
-                    <div className="space-y-3">
+                    <div className="space-y-3 items-start">
                         <Label className="flex items-center gap-2">
                             <Shield className="h-4 w-4" />
                             Role & Permissions
                         </Label>
                         <Select value={data.role} onValueChange={(value: 'admin' | 'editor' | 'viewer') => setData('role', value)}>
-                            <SelectTrigger>
+                            <SelectTrigger className="w-full max-w-xs text-left">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
