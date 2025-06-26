@@ -9,7 +9,7 @@ import TaskCreateModal from '@/components/task-create-modal';
 import TaskDetailModal from '@/components/task-detail-modal';
 import { Project } from '@/types/project-manager';
 import { router } from '@inertiajs/react';
-import { Plus, Users, ListTodo, Tag, Calendar, BarChart3, Clock, AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, GripVertical, Settings, Crown, Trash2, Lock, Edit } from 'lucide-react';
+import { Plus, Users, ListTodo, Tag, Calendar, BarChart3, Clock, AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, GripVertical, Settings, Crown, Trash2, Lock, Edit, Filter } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useSensor, useSensors, PointerSensor, MouseSensor } from '@dnd-kit/core';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
@@ -38,6 +38,7 @@ function getMondayFirstDayIndex(date: Date) {
 }
 
 export default function ProjectCalendarView({ project, state }: ProjectCalendarViewProps) {
+    const [calendarViewMode, setCalendarViewMode] = useState<'month' | 'week' | 'day'>('month');
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDay, setSelectedDay] = useState<Date | null>(null);
 
@@ -1106,9 +1107,6 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                                 <Calendar className="h-5 w-5" />
                                 Project Calendar
                             </CardTitle>
-                            <CardDescription>
-                                Drag tasks from the list to calendar days to set deadlines
-                            </CardDescription>
                         </div>
                         <div className="flex items-center gap-2">
                             <Button
@@ -1136,32 +1134,63 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                     <div className="text-center text-lg font-semibold text-primary">
                         {formatMonthYear(currentDate)}
                     </div>
-                    {/* Hide weekend filter UI */}
-                    <div className="flex gap-4 mb-2 px-4 pt-4">
-                        <label className="flex items-center gap-1">
-                            <input
-                                type="checkbox"
-                                checked={hiddenDays.sat}
-                                disabled={hiddenDays.sun && visibleDays.length <= 1}
-                                onChange={e => {
-                                    if (e.target.checked && visibleDays.length <= 1) return;
-                                    setHiddenDays(h => ({ ...h, sat: e.target.checked }));
-                                }}
-                            />
-                            Hide Saturday
-                        </label>
-                        <label className="flex items-center gap-1">
-                            <input
-                                type="checkbox"
-                                checked={hiddenDays.sun}
-                                disabled={hiddenDays.sat && visibleDays.length <= 1}
-                                onChange={e => {
-                                    if (e.target.checked && visibleDays.length <= 1) return;
-                                    setHiddenDays(h => ({ ...h, sun: e.target.checked }));
-                                }}
-                            />
-                            Hide Sunday
-                        </label>
+                    {/* Filters: view mode + weekend hide */}
+                    <div className="mt-4">
+                        <div className="bg-muted/60 rounded border px-4 py-2 flex items-center gap-4">
+                            <Filter className="h-4 w-4 text-muted-foreground mr-1" />
+                            <span className="text-xs font-semibold text-muted-foreground mr-2">Filters</span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium">View:</span>
+                                <Select value={calendarViewMode} onValueChange={v => setCalendarViewMode(v as any)}>
+                                    <SelectTrigger className="w-[110px] h-8">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="day">Day</SelectItem>
+                                        <SelectItem value="week">Week</SelectItem>
+                                        <SelectItem value="month">Month</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="h-6 w-px bg-border mx-3" />
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-medium text-muted-foreground">Hide weekends:</span>
+                                <div className="flex items-center gap-2 bg-muted/40 rounded-full px-2 py-1">
+                                    <label className="flex items-center gap-1 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={hiddenDays.sat}
+                                            disabled={hiddenDays.sun && visibleDays.length <= 1}
+                                            onChange={e => {
+                                                if (e.target.checked && visibleDays.length <= 1) return;
+                                                setHiddenDays(h => ({ ...h, sat: e.target.checked }));
+                                            }}
+                                            className="peer sr-only"
+                                        />
+                                        <span className="w-9 h-5 bg-gray-300 peer-checked:bg-primary rounded-full relative transition-colors duration-200">
+                                            <span className={`absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 peer-checked:translate-x-4`} />
+                                        </span>
+                                        <span className="ml-1 text-xs">Sat</span>
+                                    </label>
+                                    <label className="flex items-center gap-1 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={hiddenDays.sun}
+                                            disabled={hiddenDays.sat && visibleDays.length <= 1}
+                                            onChange={e => {
+                                                if (e.target.checked && visibleDays.length <= 1) return;
+                                                setHiddenDays(h => ({ ...h, sun: e.target.checked }));
+                                            }}
+                                            className="peer sr-only"
+                                        />
+                                        <span className="w-9 h-5 bg-gray-300 peer-checked:bg-primary rounded-full relative transition-colors duration-200">
+                                            <span className={`absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 peer-checked:translate-x-4`} />
+                                        </span>
+                                        <span className="ml-1 text-xs">Sun</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     {memberPanelOpen && (
                         <div className="mt-4 p-4 bg-muted/30 rounded-lg border">
@@ -1263,13 +1292,13 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                                         {reorderedDayLabels.filter((_, idx) => visibleDays.includes(idx + 1 > 6 ? 0 : idx + 1)).map((day, i) => (
                                             <div
                                                 key={day}
-                                                className={`p-2 text-center text-sm font-medium border-r border-border last:border-r-0 ${
-                                                    (day === 'Sat' && hiddenDays.sat) || (day === 'Sun' && hiddenDays.sun)
+                                                className={`p-2 text-center text-sm font-medium border-r border-border last:border-r-0
+                                                    ${(day === 'Sat' && hiddenDays.sat) || (day === 'Sun' && hiddenDays.sun)
                                                         ? 'hidden'
-                                                        : (day === 'Sat' || day === 'Sun')
-                                                        ? 'bg-muted text-muted-foreground'
-                                                        : 'text-muted-foreground'
-                                                }`}
+                                                        : day === 'Sat' || day === 'Sun'
+                                                            ? 'bg-muted/80 text-muted-foreground/80'
+                                                            : 'text-muted-foreground'
+                                                    }`}
                                             >
                                                 {day}
                                             </div>
@@ -1293,11 +1322,13 @@ export default function ProjectCalendarView({ project, state }: ProjectCalendarV
                                                             <DroppableCalendarDay
                                                                 key={`day-${day?.date?.toISOString() || `${weekIndex}-${dayIndex}`}`}
                                                                 day={day}
-                                                                className={`min-h-[140px] border border-border bg-background transition-all duration-200 overflow-hidden ${
-                                                                    !day.isCurrentMonth
+                                                                className={`min-h-[140px] border border-border bg-background transition-all duration-200 overflow-hidden
+                                                                    ${!day.isCurrentMonth
                                                                         ? 'bg-muted/20 text-muted-foreground'
-                                                                        : 'bg-background hover:bg-muted/30'
-                                                                } ${isToday(day.date) ? 'bg-primary/10 border-primary/20' : ''}`}
+                                                                        : day.date.getDay() === 6 || day.date.getDay() === 0
+                                                                            ? 'bg-muted/80 text-muted-foreground/80'
+                                                                            : 'bg-background hover:bg-muted/30'}
+                                                                    ${isToday(day.date) ? 'bg-primary/10 border-primary/20' : ''}`}
                                                                 ref={weekIndex === 0 && dayIndex === 0 ? (cellRef as React.RefObject<HTMLDivElement>) : undefined}
                                                             />
                                                         ))}
