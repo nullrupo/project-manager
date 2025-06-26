@@ -20,11 +20,12 @@ class UserManagementController extends Controller
      */
     public function index(): Response
     {
-        $users = User::with('department')
+        $users = User::with(['department', 'teamRole'])
             ->orderBy('name')
             ->get()
             ->map(function ($user) {
                 $user->short_name = ShortNameService::generate($user->name);
+                $user->teamRole = $user->teamRole ?: null;
                 return $user;
             });
 
@@ -57,15 +58,15 @@ class UserManagementController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'phone' => 'nullable|string|max:20',
-            'role' => 'nullable|string|max:255',
+            'role' => 'required|in:admin,mod,user',
             'department_id' => 'nullable|exists:departments,id',
+            'team_role_id' => 'nullable|exists:department_roles,id',
             'discord_id' => 'nullable|string|max:255',
             'password' => 'required|string|min:8|confirmed',
-            'is_admin' => 'boolean',
         ]);
 
         $validated['password'] = Hash::make($validated['password']);
-        $validated['is_admin'] = $validated['is_admin'] ?? false;
+        $validated['is_admin'] = $validated['role'] === 'admin';
 
         User::create($validated);
 
@@ -79,6 +80,7 @@ class UserManagementController extends Controller
     public function edit(User $user): Response
     {
         $user->short_name = ShortNameService::generate($user->name);
+        $user->teamRole = $user->teamRole ?: null;
         $departments = Department::orderBy('name')->get(['id', 'name']);
         
         return Inertia::render('admin/users/edit', [
@@ -96,11 +98,11 @@ class UserManagementController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
             'phone' => 'nullable|string|max:20',
-            'role' => 'nullable|string|max:255',
+            'role' => 'required|in:admin,mod,user',
             'department_id' => 'nullable|exists:departments,id',
+            'team_role_id' => 'nullable|exists:department_roles,id',
             'discord_id' => 'nullable|string|max:255',
             'password' => 'nullable|string|min:8|confirmed',
-            'is_admin' => 'boolean',
         ]);
 
         if (isset($validated['password'])) {
@@ -109,7 +111,7 @@ class UserManagementController extends Controller
             unset($validated['password']);
         }
 
-        $validated['is_admin'] = $validated['is_admin'] ?? false;
+        $validated['is_admin'] = $validated['role'] === 'admin';
 
         $user->update($validated);
 
@@ -144,5 +146,21 @@ class UserManagementController extends Controller
         });
         
         return response()->json($users);
+    }
+
+    /**
+     * Reset the password for a user (admin only).
+     */
+    public function resetPassword(Request $request, User $user)
+    {
+        $validated = $request->validate([
+            'password' => 'required|string|min:8',
+        ]);
+        $user->password = Hash::make($validated['password']);
+        $user->save();
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Password reset successfully.']);
+        }
+        return redirect()->route('admin.users.index')->with('success', 'Password reset successfully.');
     }
 }

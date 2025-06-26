@@ -32,10 +32,6 @@ export const useAuth = () => {
 // --- Auth Provider Component ---
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const { auth, ...rest } = usePage<SharedData>().props;
-    if (typeof window !== 'undefined' && window.console) {
-        // eslint-disable-next-line no-console
-        console.log('Inertia page props:', { auth, ...rest });
-    }
     if (typeof auth === 'undefined') {
         if (typeof window !== 'undefined' && window.console) {
             // eslint-disable-next-line no-console

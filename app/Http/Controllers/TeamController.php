@@ -20,7 +20,7 @@ class TeamController extends Controller
     {
         // For now, just get all users as team members
         // In a real app, you would filter by organization or team
-        $team = User::select(['id', 'name', 'email', 'phone', 'role', 'department', 'created_at'])->get();
+        $team = User::with(['teamRole', 'department'])->select(['id', 'name', 'email', 'phone', 'team_role_id', 'department_id', 'created_at', 'role'])->get();
 
         // Get current user's owned projects for invitation functionality
         $ownedProjects = Auth::user()->ownedProjects()

@@ -112,9 +112,32 @@ export default function Team({ team = [], ownedProjects = [] }: TeamProps) {
                             <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3">
                                 {members.map((member, idx) => {
                                     const colorIndex = getColorForIndex(idx);
+                                    let globalRole = (typeof member.role === 'string' ? member.role : 'user');
+                                    let borderColor = globalRole === 'admin' ? 'border-yellow-400' : globalRole === 'mod' ? 'border-green-400' : 'border-blue-400';
+                                    let roleBadge = null;
+                                    if (globalRole === 'admin') roleBadge = <span className="bg-yellow-400 text-black text-[10px] font-bold px-2 py-0.5 rounded">Admin</span>;
+                                    else if (globalRole === 'mod') roleBadge = <span className="bg-green-400 text-black text-[10px] font-bold px-2 py-0.5 rounded">Mod</span>;
+                                    else roleBadge = <span className="bg-blue-400 text-black text-[10px] font-bold px-2 py-0.5 rounded">User</span>;
+                                    let teamRoleName: string | undefined = undefined;
+                                    if (
+                                        member.team_role &&
+                                        typeof member.team_role === 'object' &&
+                                        !Array.isArray(member.team_role) &&
+                                        Object.prototype.hasOwnProperty.call(member.team_role, 'name')
+                                    ) {
+                                        teamRoleName = (member.team_role as { name: string }).name;
+                                    }
                                     return (
-                                        <Card key={member.id} className="flex flex-col h-full gap-2 py-3">
-                                            <CardHeader className="pb-0 pt-0 px-3">
+                                        <Card key={member.id} className={`flex flex-col h-full gap-2 py-3 border-2 ${borderColor} relative`}>
+                                            {/* Team role badge (left) */}
+                                            {typeof teamRoleName === 'string' && teamRoleName && (
+                                                <div className="absolute -top-3 left-2 z-10">
+                                                    <span className="bg-gray-700 text-white text-[10px] font-medium px-2 py-0.5 rounded shadow">{teamRoleName}</span>
+                                                </div>
+                                            )}
+                                            {/* Global role badge (right) */}
+                                            <div className="absolute top-2 right-2">{roleBadge}</div>
+                                            <CardHeader className="pb-0 pt-4 px-3">
                                                 <div className="flex flex-col items-center text-center space-y-1">
                                                     <Avatar className="h-8 w-8 overflow-hidden rounded-full">
                                                         <AvatarImage src={member.avatar} alt={member.name} />
@@ -129,11 +152,6 @@ export default function Team({ team = [], ownedProjects = [] }: TeamProps) {
                                                         <div className="text-xs text-muted-foreground italic mt-0.5 min-h-[0.75rem]">
                                                             {getShortName(member.name || '')}
                                                         </div>
-                                                        {member.role && (
-                                                            <div className="text-xs text-muted-foreground mt-0.5">
-                                                                {member.role}
-                                                            </div>
-                                                        )}
                                                     </div>
                                                 </div>
                                             </CardHeader>

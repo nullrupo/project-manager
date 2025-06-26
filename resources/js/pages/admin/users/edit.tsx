@@ -8,7 +8,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import InputError from '@/components/input-error';
 import AppLayout from '@/layouts/app-layout';
 import { User, Department } from '@/types';
-import { FormEventHandler } from 'react';
+import { FormEventHandler, useState, useEffect } from 'react';
+import axios from 'axios';
 
 interface EditUserProps {
     user: User;
@@ -20,13 +21,47 @@ export default function EditUser({ user, departments }: EditUserProps) {
         name: user.name || '',
         email: user.email || '',
         phone: user.phone || '',
-        role: user.role || '',
+        role: user.role || 'user',
+        is_admin: user.role === 'admin',
         department_id: user.department_id?.toString() || '',
+        team_role_id: user.team_role_id?.toString() || '',
         discord_id: user.discord_id || '',
         password: '',
         password_confirmation: '',
-        is_admin: user.is_admin || false,
     });
+
+    const [roles, setRoles] = useState<{id:number,name:string}[]>([]);
+    const [roleLoading, setRoleLoading] = useState(false);
+    const [newRole, setNewRole] = useState('');
+
+    useEffect(() => {
+        if (data.department_id) {
+            setRoleLoading(true);
+            axios.get(`/admin/departments/${data.department_id}/roles`).then(res => {
+                setRoles(res.data);
+                setRoleLoading(false);
+            });
+        } else {
+            setRoles([]);
+        }
+    }, [data.department_id]);
+
+    useEffect(() => {
+        setData('is_admin', data.role === 'admin');
+    }, [data.role]);
+
+    const handleAddRole = async () => {
+        if (!data.department_id || !newRole.trim()) return;
+        setRoleLoading(true);
+        try {
+            const res = await axios.post(`/admin/departments/${data.department_id}/roles`, { name: newRole });
+            setRoles([...roles, res.data]);
+            setData('team_role_id', res.data.id);
+            setNewRole('');
+        } finally {
+            setRoleLoading(false);
+        }
+    };
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
@@ -77,11 +112,6 @@ export default function EditUser({ user, departments }: EditUserProps) {
                             
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <Label htmlFor="role">Company Role</Label>
-                                    <Input id="role" value={data.role} onChange={e => setData('role', e.target.value)} />
-                                    <InputError message={errors.role} />
-                                </div>
-                                <div>
                                     <Label htmlFor="department_id">Department</Label>
                                     <Select onValueChange={value => setData('department_id', value)} value={data.department_id}>
                                         <SelectTrigger>
@@ -92,6 +122,35 @@ export default function EditUser({ user, departments }: EditUserProps) {
                                         </SelectContent>
                                     </Select>
                                     <InputError message={errors.department_id} />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <Label htmlFor="team_role_id">Team Role</Label>
+                                    <Select
+                                        onValueChange={value => setData('team_role_id', value)}
+                                        value={data.team_role_id || ''}
+                                        disabled={!data.department_id || roleLoading}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder={roleLoading ? 'Loading roles...' : 'Select a role'} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {roles.map(r => <SelectItem key={r.id} value={String(r.id)}>{r.name}</SelectItem>)}
+                                            <div className="flex items-center gap-2 px-2 py-1">
+                                                <Input
+                                                    className="flex-1"
+                                                    placeholder="Add new role"
+                                                    value={newRole}
+                                                    onChange={e => setNewRole(e.target.value)}
+                                                    disabled={roleLoading}
+                                                />
+                                                <Button type="button" size="sm" onClick={handleAddRole} disabled={roleLoading || !newRole.trim()}>Add</Button>
+                                            </div>
+                                        </SelectContent>
+                                    </Select>
+                                    <InputError message={errors.team_role_id} />
                                 </div>
                             </div>
 
@@ -108,12 +167,17 @@ export default function EditUser({ user, departments }: EditUserProps) {
                             </div>
                             
                             <div className="flex items-center space-x-2">
-                                <Checkbox
-                                    id="is_admin"
-                                    checked={data.is_admin}
-                                    onCheckedChange={(checked) => setData('is_admin', !!checked)}
-                                />
-                                <Label htmlFor="is_admin">Is Administrator?</Label>
+                                <Label htmlFor="role">Role</Label>
+                                <Select value={data.role || 'user'} onValueChange={value => setData('role', value)}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select a role" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="admin">Admin</SelectItem>
+                                        <SelectItem value="mod">Mod</SelectItem>
+                                        <SelectItem value="user">User</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </CardContent>
                     </Card>

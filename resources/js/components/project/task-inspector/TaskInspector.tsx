@@ -480,14 +480,14 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
                         })()}</div>
                     </div>
                 ) : (
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium">Due Date</label>
-                        <Input
-                            type="date"
-                            value={taskData.due_date}
-                            onChange={(e) => handleFieldChange('due_date', e.target.value)}
-                        />
-                    </div>
+                <div className="space-y-2">
+                    <label className="text-sm font-medium">Due Date</label>
+                    <Input
+                        type="date"
+                        value={taskData.due_date}
+                        onChange={(e) => handleFieldChange('due_date', e.target.value)}
+                    />
+                </div>
                 )}
 
                 {/* Assignees */}

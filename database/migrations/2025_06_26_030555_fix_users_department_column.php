@@ -12,8 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->string('role')->nullable()->after('email');
-            $table->string('phone')->nullable()->after('role');
+            if (Schema::hasColumn('users', 'department')) {
+                $table->dropColumn('department');
+            }
             $table->unsignedBigInteger('department_id')->nullable()->after('phone');
             $table->foreign('department_id')->references('id')->on('departments')->nullOnDelete();
         });
@@ -27,8 +28,7 @@ return new class extends Migration
         Schema::table('users', function (Blueprint $table) {
             $table->dropForeign(['department_id']);
             $table->dropColumn('department_id');
-            $table->dropColumn('phone');
-            $table->dropColumn('role');
+            $table->string('department')->nullable()->after('phone');
         });
     }
 };

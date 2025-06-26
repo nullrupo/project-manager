@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Department;
+use App\Models\DepartmentRole;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -101,5 +102,42 @@ class DepartmentController extends Controller
         $departments = Department::active()->orderBy('name')->get(['id', 'name']);
         
         return response()->json($departments);
+    }
+
+    /**
+     * List all roles for a department (API).
+     */
+    public function roles(Department $department)
+    {
+        return response()->json($department->roles()->get(['id', 'name']));
+    }
+
+    /**
+     * Add a new role to a department (API).
+     */
+    public function addRole(Request $request, Department $department)
+    {
+        $validated = $request->validate(['name' => 'required|string|max:255']);
+        $role = $department->roles()->create(['name' => $validated['name']]);
+        return response()->json($role);
+    }
+
+    /**
+     * Update a department role (API).
+     */
+    public function updateRole(Request $request, Department $department, DepartmentRole $role)
+    {
+        $validated = $request->validate(['name' => 'required|string|max:255']);
+        $role->update(['name' => $validated['name']]);
+        return response()->json($role);
+    }
+
+    /**
+     * Delete a department role (API).
+     */
+    public function deleteRole(Department $department, DepartmentRole $role)
+    {
+        $role->delete();
+        return response()->json(['success' => true]);
     }
 }

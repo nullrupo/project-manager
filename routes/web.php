@@ -198,10 +198,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // User management routes
         Route::resource('users', \App\Http\Controllers\Admin\UserManagementController::class);
         Route::get('users/list', [\App\Http\Controllers\Admin\UserManagementController::class, 'list'])->name('users.list');
+        Route::post('admin/users/{user}/reset-password', [\App\Http\Controllers\Admin\UserManagementController::class, 'resetPassword'])->name('admin.users.reset_password');
         
         // Department management routes
         Route::resource('departments', \App\Http\Controllers\Admin\DepartmentController::class);
         Route::get('departments/list', [\App\Http\Controllers\Admin\DepartmentController::class, 'list'])->name('departments.list');
+        Route::get('departments/{department}/roles', [\App\Http\Controllers\Admin\DepartmentController::class, 'roles']);
+        Route::post('departments/{department}/roles', [\App\Http\Controllers\Admin\DepartmentController::class, 'addRole']);
+        Route::put('departments/{department}/roles/{role}', [\App\Http\Controllers\Admin\DepartmentController::class, 'updateRole']);
+        Route::delete('departments/{department}/roles/{role}', [\App\Http\Controllers\Admin\DepartmentController::class, 'deleteRole']);
     });
 
 });

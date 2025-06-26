@@ -25,7 +25,7 @@ class Department extends Model
      */
     public function users(): HasMany
     {
-        return $this->hasMany(User::class, 'department', 'name');
+        return $this->hasMany(User::class, 'department_id');
     }
 
     /**
@@ -34,5 +34,13 @@ class Department extends Model
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    /**
+     * Relationship for department roles.
+     */
+    public function roles()
+    {
+        return $this->hasMany(DepartmentRole::class);
     }
 }

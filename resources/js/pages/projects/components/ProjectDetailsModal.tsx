@@ -23,7 +23,8 @@ import {
     Trash2,
     Save,
     X,
-    LoaderCircle
+    LoaderCircle,
+    Archive
 } from 'lucide-react';
 import { useAuth } from '../../../app';
 
@@ -35,6 +36,7 @@ interface ProjectDetailsModalProps {
 
 export default function ProjectDetailsModal({ project, open, onOpenChange }: ProjectDetailsModalProps) {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const { user, isAuthenticated } = useAuth();
 
@@ -72,6 +74,15 @@ export default function ProjectDetailsModal({ project, open, onOpenChange }: Pro
     const handleDeleteProject = () => {
         router.delete(route('projects.destroy', { project: project.id }), {
             onSuccess: () => {
+                onOpenChange(false);
+            }
+        });
+    };
+
+    const handleArchiveProject = () => {
+        router.post(route('projects.archive', { project: project.id }), {}, {
+            onSuccess: () => {
+                setShowArchiveConfirm(false);
                 onOpenChange(false);
             }
         });
@@ -364,7 +375,43 @@ export default function ProjectDetailsModal({ project, open, onOpenChange }: Pro
                                     </Button>
                                 </Link>
                             </div>
-
+                            {/* Archive Project */}
+                            {project.can_edit && !project.is_archived && (
+                                <>
+                                    <Separator />
+                                    <div className="flex items-center justify-between p-3 border border-yellow-400/20 rounded-lg bg-yellow-50 dark:bg-yellow-900/10">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 rounded-lg bg-yellow-100">
+                                                <Archive className="h-5 w-5 text-yellow-700" />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-medium text-yellow-800">Archive Project</h4>
+                                                <p className="text-sm text-muted-foreground">
+                                                    Archive this project. You can restore it later from the archive list.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setShowArchiveConfirm(true)}
+                                        >
+                                            <Archive className="h-4 w-4 mr-2" />
+                                            Archive
+                                        </Button>
+                                    </div>
+                                    <ConfirmDialog
+                                        open={showArchiveConfirm}
+                                        onOpenChange={setShowArchiveConfirm}
+                                        title="Archive Project"
+                                        description={`Are you sure you want to archive "${project.name}"? You can restore it later from the archive list.`}
+                                        confirmText="Archive Project"
+                                        cancelText="Cancel"
+                                        onConfirm={handleArchiveProject}
+                                        variant="default"
+                                    />
+                                </>
+                            )}
                             {/* Delete Project */}
                             {isProjectOwner && (
                                 <>

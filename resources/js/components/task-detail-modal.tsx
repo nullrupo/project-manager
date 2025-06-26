@@ -576,7 +576,7 @@ export default function TaskDetailModal({ task, project, open, onOpenChange, ava
                                                     <div className="text-sm">{task.due_date ? new Date(task.due_date).toLocaleDateString() : '-'}</div>
                                                 </>
                                             )}
-                                        </div>
+                                            </div>
                                     </div>
                                 </div>
 

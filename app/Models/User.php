@@ -26,9 +26,9 @@ class User extends Authenticatable
         'phone',
         'role',
         'department_id',
+        'team_role_id',
         'discord_id',
         'password',
-        'is_admin',
         'sidebar_preferences',
         'inbox_preferences',
         'task_display_preferences',
@@ -58,6 +58,8 @@ class User extends Authenticatable
             'sidebar_preferences' => 'array',
             'inbox_preferences' => 'array',
             'task_display_preferences' => 'array',
+            'role' => 'string',
+            'team_role_id' => 'integer',
         ];
     }
 
@@ -167,5 +169,10 @@ class User extends Authenticatable
     public function isAdmin(): bool
     {
         return $this->is_admin;
+    }
+
+    public function teamRole(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\DepartmentRole::class, 'team_role_id');
     }
 }
