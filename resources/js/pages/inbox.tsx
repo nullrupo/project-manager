@@ -488,6 +488,18 @@ export default function InboxPage({ tasks = [], users = [], projects = [], tags 
             setCurrentFocusedTaskId(newTaskId);
             setLastSelectedTaskId(newTaskId);
             setShowBulkActions(selectedTasks.size > 0 || shiftKey);
+
+            // --- Enhancement: Open inspector for the new task if inspector is open ---
+            if (document.querySelector('[data-global-inspector]')) {
+                const newTask = sortedTasks[newIndex];
+                if (newTask) {
+                    openInspector({
+                        ...newTask,
+                        description: newTask.description ?? undefined,
+                        due_date: newTask.due_date ?? undefined
+                    });
+                }
+            }
         }
     };
 

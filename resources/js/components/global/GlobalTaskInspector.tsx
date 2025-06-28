@@ -3,6 +3,7 @@ import { useGlobalTaskInspector } from '@/contexts/GlobalTaskInspectorContext';
 import { TaskInspector } from '@/components/project/task-inspector/TaskInspector';
 import { useTags } from '@/hooks/useTags';
 import { useLabels } from '@/hooks/useLabels';
+import { usePage } from '@inertiajs/react';
 
 export function GlobalTaskInspector() {
     const { isOpen, task, project, closeInspector, saveInspectorRef } = useGlobalTaskInspector();
@@ -11,6 +12,10 @@ export function GlobalTaskInspector() {
     // Fetch available tags and labels
     const { tags: availableTags } = useTags();
     const { labels: availableLabels } = useLabels(project?.id);
+
+    const page = usePage();
+    // Prefer Inertia page props, fallback to window.PROJECTS
+    const allProjects = page.props.projects || (window as any).PROJECTS || [];
 
     // Register the save function with the global context
     useEffect(() => {
@@ -37,7 +42,7 @@ export function GlobalTaskInspector() {
                 onClose={closeInspector}
                 availableTags={availableTags}
                 availableLabels={availableLabels}
-                allProjects={project?.all_projects || []}
+                allProjects={allProjects}
             />
         </div>
     );

@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef, memo, useCallback, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useEffect, useRef, memo, useCallback, forwardRef, useImperativeHandle, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, CheckCircle2, Save, X, Trash2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Save, X, Trash2, Search } from 'lucide-react';
 import { router } from '@inertiajs/react';
 import TaskChecklist from '@/components/task-checklist';
 import { TagSelector } from '@/components/tag/TagSelector';
@@ -32,6 +32,15 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
     availableLabels = [],
     allProjects = []
 }, ref) => {
+    // These must be the first hooks in the component
+    const [selectedProject, setSelectedProject] = useState<any>(project || null);
+    const [projectSearchQuery, setProjectSearchQuery] = useState('');
+    const projectSearchInputRef = useRef<HTMLInputElement>(null);
+    const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+    useEffect(() => {
+        setSelectedProject(project || null);
+    }, [project]);
+
     if (!inspectorTask) return null;
 
     const { createTag, tags: userTags } = useTags();
@@ -45,7 +54,8 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
         tag_ids: [] as number[],
         label_ids: [] as number[],
         start_date: '',
-        duration_days: 1
+        duration_days: 1,
+        project_id: null,
     });
 
     // Save state tracking
@@ -79,7 +89,8 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
                 tag_ids: inspectorTask.tags?.map((t: any) => t.id) || [],
                 label_ids: inspectorTask.labels?.map((l: any) => l.id) || [],
                 start_date: inspectorTask.start_date ? inspectorTask.start_date.split('T')[0] : '',
-                duration_days: inspectorTask.duration_days || 1
+                duration_days: inspectorTask.duration_days || 1,
+                project_id: inspectorTask.project_id || inspectorTask.project?.id || (project?.id ?? null),
             });
             setHasUnsavedChanges(false);
             setSaveState('idle');
@@ -100,15 +111,10 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
     // Manual save function using Inertia (no auto-save)
     const handleManualSave = useCallback(() => {
         if (!inspectorTask || !hasUnsavedChanges) return;
-
-        console.log('💾 Manual save triggered');
         setSaveState('saving');
-
-        // Determine if this is an inbox task
         const isInboxTask = inspectorTask.is_inbox;
-
-        // Prepare the data with fields appropriate for the task type
-        const updateData = {
+        const movingToProject = isInboxTask && (selectedProject?.id || taskData.project_id);
+        const updateData: any = {
             title: taskData.title || 'Untitled Task',
             description: taskData.description || '',
             priority: taskData.priority || 'medium',
@@ -119,50 +125,41 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
             tag_ids: taskData.tag_ids || [],
             is_archived: inspectorTask.is_archived || false,
             start_date: taskData.start_date || null,
-            duration_days: taskData.duration_days || 1
+            duration_days: taskData.duration_days || 1,
+            project_id: selectedProject?.id || taskData.project_id || inspectorTask.project_id || inspectorTask.project?.id,
         };
-
-        // Add project-specific fields only for non-inbox tasks
-        if (!isInboxTask) {
-            Object.assign(updateData, {
-                list_id: taskData.list_id || inspectorTask.list_id || inspectorTask.list?.id,
-                reviewer_id: null,
-                section_id: null
-            });
+        if (isInboxTask) {
+            // If moving to a project, set is_inbox to false
+            if (movingToProject) {
+                updateData.is_inbox = false;
+            }
+        } else {
+            updateData.list_id = taskData.list_id || inspectorTask.list_id || inspectorTask.list?.id;
+            updateData.reviewer_id = null;
+            updateData.section_id = null;
         }
-
-        console.log('💾 Sending update data:', updateData);
-
-        // Determine the correct route based on whether this is an inbox task
         const updateRoute = isInboxTask
             ? route('inbox.tasks.update', { task: inspectorTask.id })
-            : route('tasks.update', { project: project?.id || inspectorTask.project_id, task: inspectorTask.id });
-
-        console.log('📍 Using route:', updateRoute, 'for', isInboxTask ? 'inbox task' : 'project task');
-
-        // Use Inertia's put method for proper Laravel integration
+            : route('tasks.update', { project: updateData.project_id, task: inspectorTask.id });
         router.put(updateRoute, updateData, {
             preserveState: true,
             preserveScroll: true,
             onSuccess: () => {
-                console.log('✅ Task saved successfully');
                 setHasUnsavedChanges(false);
                 setSaveState('saved');
-
-                // Close the inspector after successful save
-                setTimeout(() => {
-                    onClose();
-                }, 500); // Small delay to show the "saved" state
+                // Only close if not just moved to a project
+                if (!movingToProject) {
+                    setTimeout(() => {
+                        onClose();
+                    }, 500);
+                }
             },
             onError: (errors) => {
-                console.error('❌ Save failed:', errors);
                 setSaveState('error');
-
-                // Clear error state after 3 seconds
                 setTimeout(() => setSaveState('idle'), 3000);
             }
         });
-    }, [inspectorTask, hasUnsavedChanges, taskData, project?.id, router]);
+    }, [inspectorTask, hasUnsavedChanges, taskData, selectedProject, router]);
 
     // Expose save function to parent components
     useImperativeHandle(ref, () => ({
@@ -187,17 +184,30 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
         }
     }), [hasUnsavedChanges, handleManualSave, saveState]);
 
-    const [selectedProject, setSelectedProject] = useState<any>(project || null);
-    const [projectSearchQuery, setProjectSearchQuery] = useState('');
-    useEffect(() => {
-        setSelectedProject(project || null);
-    }, [project]);
+    // Filter projects for dropdown (same as create modal)
+    const filteredProjects = useMemo(() => {
+        if (!projectSearchQuery.trim()) return allProjects;
+        const query = projectSearchQuery.toLowerCase();
+        return allProjects.filter(project =>
+            project.name.toLowerCase().includes(query) ||
+            (project.key && project.key.toLowerCase().includes(query))
+        );
+    }, [allProjects, projectSearchQuery]);
 
-    // Filter projects for dropdown
-    const filteredProjects = allProjects.filter(p =>
-        p.name.toLowerCase().includes(projectSearchQuery.toLowerCase()) ||
-        p.key?.toLowerCase().includes(projectSearchQuery.toLowerCase())
-    );
+    // Project selection handler (same as create modal)
+    const handleProjectSelect = (project: any) => {
+        setSelectedProject(project);
+        setProjectSearchQuery(project.name);
+        setShowProjectDropdown(false);
+        setTaskData(prev => ({ ...prev, project_id: project.id }));
+        setHasUnsavedChanges(true);
+    };
+    const clearProjectSelection = () => {
+        setSelectedProject(null);
+        setProjectSearchQuery('');
+        setTaskData(prev => ({ ...prev, project_id: null }));
+        setHasUnsavedChanges(true);
+    };
 
     return (
         <div ref={containerRef} className="w-96 border-l bg-background flex flex-col h-full">
@@ -247,44 +257,56 @@ export const TaskInspector = memo(forwardRef<{ saveTask: () => Promise<void> }, 
                     />
                 </div>
 
-                {/* Project Search (NEW) */}
-                {!inspectorTask.is_inbox && (
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium">Project</label>
-                        <div className="relative">
-                            <Input
-                                value={projectSearchQuery}
-                                onChange={e => setProjectSearchQuery(e.target.value)}
-                                placeholder={selectedProject ? selectedProject.name : 'Search projects...'}
-                                className="pl-10"
-                            />
-                            {/* Dropdown */}
-                            {projectSearchQuery && (
-                                <div className="absolute z-10 bg-white dark:bg-gray-900 border border-border rounded shadow w-full mt-1 max-h-48 overflow-y-auto">
-                                    {filteredProjects.length > 0 ? filteredProjects.map(p => (
-                                        <div
-                                            key={p.id}
-                                            className={`px-3 py-2 cursor-pointer hover:bg-muted/50 ${selectedProject?.id === p.id ? 'bg-muted' : ''}`}
-                                            onClick={() => {
-                                                setSelectedProject(p);
-                                                setProjectSearchQuery(p.name);
-                                            }}
-                                        >
-                                            <span className="font-medium">{p.name}</span>
-                                            {p.key && <span className="ml-2 text-xs text-muted-foreground">{p.key}</span>}
-                                        </div>
-                                    )) : (
-                                        <div className="px-3 py-2 text-muted-foreground text-sm">No projects found</div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                        {/* Show current project below search */}
+                {/* Project Search (MATCH CREATE MODAL) */}
+                <div className="space-y-2">
+                    <label className="text-sm font-medium">Project</label>
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            ref={projectSearchInputRef}
+                            value={projectSearchQuery}
+                            onChange={e => {
+                                setProjectSearchQuery(e.target.value);
+                                setShowProjectDropdown(e.target.value.length > 0 || filteredProjects.length > 0);
+                            }}
+                            onFocus={() => setShowProjectDropdown(true)}
+                            onBlur={() => setTimeout(() => setShowProjectDropdown(false), 200)}
+                            placeholder={selectedProject ? selectedProject.name : 'Search projects...'}
+                            className="pl-10"
+                        />
                         {selectedProject && (
-                            <div className="mt-1 text-xs text-muted-foreground">Current: <span className="font-semibold">{selectedProject.name}</span></div>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                                onClick={clearProjectSelection}
+                            >
+                                <X className="h-3 w-3" />
+                            </Button>
+                        )}
+                        {showProjectDropdown && (
+                            <div className="absolute z-10 bg-white dark:bg-gray-900 border border-border rounded shadow w-full mt-1 max-h-48 overflow-y-auto">
+                                {filteredProjects.length > 0 ? filteredProjects.map(p => (
+                                    <div
+                                        key={p.id}
+                                        className={`px-3 py-2 cursor-pointer hover:bg-muted/50 ${selectedProject?.id === p.id ? 'bg-muted' : ''}`}
+                                        onClick={() => handleProjectSelect(p)}
+                                    >
+                                        <span className="font-medium">{p.name}</span>
+                                        {p.key && <span className="ml-2 text-xs text-muted-foreground">{p.key}</span>}
+                                    </div>
+                                )) : (
+                                    <div className="px-3 py-2 text-muted-foreground text-sm">No projects found</div>
+                                )}
+                            </div>
                         )}
                     </div>
-                )}
+                    {/* Show current project below search */}
+                    {selectedProject && (
+                        <div className="mt-1 text-xs text-muted-foreground">Current: <span className="font-semibold">{selectedProject.name}</span></div>
+                    )}
+                </div>
 
                 {/* Description */}
                 <div className="space-y-2">

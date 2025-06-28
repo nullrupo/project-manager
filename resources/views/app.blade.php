@@ -44,6 +44,9 @@
         @viteReactRefresh
         @vite(['resources/css/app.css', 'resources/js/app.tsx'])
         @inertiaHead
+        <script>
+            window.PROJECTS = @json($projects ?? []);
+        </script>
     </head>
     <body class="font-sans antialiased">
         @inertia
