@@ -21,6 +21,17 @@ const getStatusFromListName = (listName: string): string | null => {
     return getStatusFromColumnName(listName);
 };
 
+// Add arrayMove utility if not present
+function arrayMove<T>(array: T[], from: number, to: number): T[] {
+    const newArray = array.slice();
+    const startIndex = from < 0 ? newArray.length + from : from;
+    if (startIndex >= 0 && startIndex < newArray.length) {
+        const [item] = newArray.splice(startIndex, 1);
+        newArray.splice(to, 0, item);
+    }
+    return newArray;
+}
+
 /**
  * Custom hook for drag and drop functionality
  */
@@ -139,210 +150,90 @@ export const useDragAndDrop = (
             return;
         }
 
-        // New grid-based drop validation
+        // Handle task movement
         if (active.id.startsWith('task-')) {
             const taskId = parseInt(active.id.replace('task-', ''));
             const sourceTask = state.lists.flatMap((list: any) => list.tasks || []).find((task: any) => task.id === taskId);
-            const sourceListId = state.dragSourceListId || sourceTask?.list_id;
+            if (!sourceTask) return;
+            const sourceListId = state.dragSourceListId || sourceTask.list_id;
 
-            let targetListId = null;
+            let targetListId: number | null = null;
+            let targetTaskId: number | null = null;
+            let targetTaskIndex: number | null = null;
             let isValidDrop = false;
 
-            // Simplified drop validation without insertion zones
             if (over.id.startsWith('list-')) {
-                // Column container - always valid
+                // Dropped on column: move to end
                 targetListId = parseInt(over.id.replace('list-', ''));
                 isValidDrop = true;
             } else if (over.id.startsWith('task-')) {
-                // Task drop - always valid
-                const targetTaskId = parseInt(over.id.replace('task-', ''));
-                const targetTask = state.lists.flatMap((l: any) => l.tasks || []).find((t: any) => t.id === targetTaskId);
-                targetListId = targetTask?.list_id;
-                isValidDrop = (targetListId !== undefined);
-            } else {
-                // Invalid drop zone
-                return;
-            }
-
-            if (!isValidDrop) {
-                return;
-            }
-        }
-
-        // Handle list reordering
-        if (active.id.startsWith('list-') && over.id.startsWith('list-')) {
-            const activeIndex = state.lists.findIndex((list: any) => `list-${list.id}` === active.id);
-            const overIndex = state.lists.findIndex((list: any) => `list-${list.id}` === over.id);
-
-            if (activeIndex !== -1 && overIndex !== -1 && activeIndex !== overIndex) {
-
-                // Reorder lists using array move
-                const newLists = [...state.lists];
-                const [movedList] = newLists.splice(activeIndex, 1);
-                newLists.splice(overIndex, 0, movedList);
-
-                // Update positions
-                const updatedLists = newLists.map((list: any, index: number) => ({
-                    ...list,
-                    position: index,
-                }));
-
-                state.setLists(updatedLists);
-
-                // Send the updated positions to the server
-                const boardId = state.currentBoardId || project.boards?.[0]?.id;
-                if (boardId) {
-                    fetchWithCsrf(route('lists.positions', { project: project.id, board: boardId }), {
-                        method: 'POST',
-                        body: JSON.stringify({
-                            lists: updatedLists.map((list: any) => ({
-                                id: list.id,
-                                position: list.position,
-                            })),
-                        }),
-                    })
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error(`HTTP error! status: ${response.status}`);
-                        }
-                        return response.json();
-                    })
-                    .catch(() => {
-                        // Revert the changes on error
-                        state.setLists(state.lists);
-                        alert('Failed to save list order. Please try again.');
-                    });
-                }
-            }
-            return;
-        }
-
-        // Handle task movement with new grid-based system
-        if (active.id.startsWith('task-')) {
-            const taskId = parseInt(active.id.replace('task-', ''));
-            const sourceTask = state.lists.flatMap((list: any) => list.tasks || []).find((task: any) => task.id === taskId);
-
-            if (!sourceTask) {
-                return;
-            }
-
-            let targetListId = null;
-            let targetGridPosition = null;
-            let targetTaskId = null;
-            const sourceListId = state.dragSourceListId || sourceTask.list_id;
-
-            // Enhanced drop handling with better positioning
-            if (over.id.startsWith('list-')) {
-                // List container drop - always place at end
-                targetListId = parseInt(over.id.replace('list-', ''));
-                targetGridPosition = null; // Will place at end
-            } else if (over.id.startsWith('task-')) {
-                // Task drop - detect if dragging up or down and position accordingly
                 targetTaskId = parseInt(over.id.replace('task-', ''));
                 const targetTask = state.lists.flatMap((l: any) => l.tasks || []).find((t: any) => t.id === targetTaskId);
                 targetListId = targetTask?.list_id;
-
-                const targetList = state.lists.find((l: any) => l.id === targetListId);
-                if (targetList) {
-                    const targetTaskIndex = targetList.tasks.findIndex((t: any) => t.id === targetTaskId);
-                    const sourceTaskIndex = targetList.tasks.findIndex((t: any) => t.id === taskId);
-
-                    if (sourceListId !== targetListId) {
-                        // Cross-column: always insert before target task
-                        targetGridPosition = targetTaskIndex;
-                    } else {
-                        // Same-column: detect direction and position accordingly
-                        const isDraggingDown = sourceTaskIndex < targetTaskIndex;
-
-                        if (isDraggingDown) {
-                            // Dragging down: place AFTER target (user wants to move below target)
-                            targetGridPosition = targetTaskIndex; // After removal, this becomes the correct position
-                        } else {
-                            // Dragging up: place BEFORE target (user wants to move above target)
-                            targetGridPosition = targetTaskIndex;
-                        }
-                    }
+                isValidDrop = (targetListId !== undefined);
+                if (isValidDrop) {
+                    const targetList = state.lists.find((l: any) => l.id === targetListId);
+                    targetTaskIndex = targetList.tasks.findIndex((t: any) => t.id === targetTaskId);
                 }
             } else {
                 return;
             }
 
-            if (targetListId) {
+            if (!isValidDrop) return;
 
-                // Find the target list to determine the new status
-                const targetList = state.lists.find((list: any) => list.id === targetListId);
-                const newStatus = targetList ? getStatusFromListName(targetList.name) : null;
-
-                // Create optimistic update function with proper insertion logic
-                const optimisticUpdate = () => {
-                    // Patch the lists state in real time for both board and list views
-                    const newLists = state.lists.map((list: any) => ({ ...list, tasks: [...(list.tasks || [])] }));
-
-                    // Find source and target lists
-                    const sourceList = newLists.find((list: any) => list.tasks.some((task: any) => task.id === taskId));
-                    const targetList = newLists.find((list: any) => list.id === targetListId);
-
-                    if (!sourceList || !targetList) {
-                        return;
-                    }
-
-                    // Find and remove the task from source list
-                    const sourceTaskIndex = sourceList.tasks.findIndex((task: any) => task.id === taskId);
-                    if (sourceTaskIndex === -1) {
-                        return;
-                    }
-
-                    const [taskToMove] = sourceList.tasks.splice(sourceTaskIndex, 1);
-
-                    // Update task properties
-                    const updatedTask = {
-                        ...taskToMove,
-                        list_id: targetListId,
-                        // Update status if it should change based on the list
-                        ...(newStatus && newStatus !== taskToMove.status && { status: newStatus }),
-                        // Handle completed_at timestamp
-                        ...(newStatus === 'done' && taskToMove.status !== 'done' && { completed_at: new Date().toISOString() }),
-                        ...(newStatus !== 'done' && taskToMove.status === 'done' && { completed_at: null })
-                    };
-
-                    // Calculate insertion index based on drop target
-                    let insertionIndex = targetList.tasks.length; // Default to end
-
-                    if (targetGridPosition !== null) {
-                        // Insertion zone or task drop - insert at specific position
-                        insertionIndex = Math.max(0, Math.min(targetGridPosition, targetList.tasks.length));
-                    } else {
-                        // List container drop - place at end
-                        insertionIndex = targetList.tasks.length;
-                    }
-
-                    // Insert the task at the calculated position
-                    targetList.tasks.splice(insertionIndex, 0, updatedTask);
-
-                    // Update positions for all tasks in both lists
-                    sourceList.tasks.forEach((task: any, index: number) => {
-                        task.position = index;
-                    });
-
-                    targetList.tasks.forEach((task: any, index: number) => {
-                        task.position = index;
-                    });
-
-                    // Patch the shared lists state for both board and list views
-                    state.setLists(newLists);
-                };
-
-                // Prepare update data with simplified positioning
-                const updateData: any = { list_id: targetListId };
-
-                // Set insertion position based on drop target
-                if (targetGridPosition !== null) {
-                    // Task drop - insert before the target task
-                    updateData.insertion_position = targetGridPosition;
+            // Same column move (reorder)
+            if (sourceListId === targetListId) {
+                const listIdx = state.lists.findIndex((l: any) => l.id === sourceListId);
+                if (listIdx === -1) return;
+                const list = state.lists[listIdx];
+                const oldIndex = list.tasks.findIndex((t: any) => t.id === taskId);
+                let newIndex: number;
+                if (over.id.startsWith('list-')) {
+                    newIndex = list.tasks.length - 1;
+                } else {
+                    newIndex = targetTaskIndex ?? 0;
                 }
-
-                moveTask(taskId, updateData, optimisticUpdate);
+                if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+                const newTasks = arrayMove(list.tasks, oldIndex, newIndex);
+                const updatedTasks = newTasks.map((task: any, idx: number) => ({ ...task, position: idx }));
+                const newLists = state.lists.map((l: any, idx: number) =>
+                    idx === listIdx ? { ...l, tasks: updatedTasks } : l
+                );
+                state.setLists(newLists);
+                // Backend sync: use updateTaskPositions for same-column reordering
+                const updates = updatedTasks.map((task: any) => ({
+                    id: task.id,
+                    position: task.position,
+                    list_id: task.list_id,
+                }));
+                updateTaskPositions(updates);
+                return;
             }
+
+            // Cross-column move (keep as is)
+            let insertionIndex = 0;
+            if (over.id.startsWith('list-')) {
+                const targetList = state.lists.find((l: any) => l.id === targetListId);
+                insertionIndex = targetList ? targetList.tasks.length : 0;
+            } else if (over.id.startsWith('task-')) {
+                insertionIndex = targetTaskIndex ?? 0;
+            }
+            const optimisticUpdate = () => {
+                const newLists = state.lists.map((list: any) => ({ ...list, tasks: [...(list.tasks || [])] }));
+                const sourceList = newLists.find((l: any) => l.id === sourceListId);
+                const targetList = newLists.find((l: any) => l.id === targetListId);
+                if (!sourceList || !targetList) return;
+                const sourceTaskIndex = sourceList.tasks.findIndex((t: any) => t.id === taskId);
+                if (sourceTaskIndex === -1) return;
+                const [taskToMove] = sourceList.tasks.splice(sourceTaskIndex, 1);
+                const updatedTask = { ...taskToMove, list_id: targetListId ?? undefined };
+                targetList.tasks.splice(insertionIndex, 0, updatedTask);
+                // Reindex
+                sourceList.tasks.forEach((task: any, idx: number) => { task.position = idx; });
+                targetList.tasks.forEach((task: any, idx: number) => { task.position = idx; });
+                state.setLists(newLists);
+            };
+            moveTask(taskId, { list_id: targetListId ?? undefined, insertion_position: insertionIndex }, optimisticUpdate);
         }
 
         // Note: Task-to-task drops are already handled above in the main task movement logic
