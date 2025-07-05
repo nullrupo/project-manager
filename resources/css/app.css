@@ -530,3 +530,18 @@ button:hover,
 [data-slot="button"]:hover {
     opacity: 0.9 !important;
 }
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.task-fade-in {
+  animation: fadeInUp 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+}

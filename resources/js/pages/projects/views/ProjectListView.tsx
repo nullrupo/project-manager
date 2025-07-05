@@ -19,6 +19,7 @@ import { BulkActionsPanel } from '@/components/BulkActionsPanel';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
+import { useTaskOperations } from '../hooks/useTaskOperations';
 
 interface ProjectListViewProps {
     project: Project;
@@ -37,6 +38,13 @@ interface ProjectListViewProps {
     onCreateTask?: (sectionId?: string, status?: string) => void;
 }
 
+const arrayMove = (arr: any[], from: number, to: number) => {
+    const newArr = arr.slice();
+    const [item] = newArr.splice(from, 1);
+    newArr.splice(to, 0, item);
+    return newArr;
+};
+
 export default function ProjectListView({
     project,
     state,
@@ -54,6 +62,7 @@ export default function ProjectListView({
     onCreateTask
 }: ProjectListViewProps) {
     const { tags } = useTags();
+    const { updateTaskPositions } = useTaskOperations(project, state.listViewMode, project.boards?.[0]?.id);
     const taskListRef = useRef<HTMLDivElement>(null);
     const [isCleaningUp, setIsCleaningUp] = useState(false);
     const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null);
@@ -63,6 +72,7 @@ export default function ProjectListView({
     const [sectionToMove, setSectionToMove] = useState<any>(null);
     const [targetProjectId, setTargetProjectId] = useState<string>('');
     const [isProcessing, setIsProcessing] = useState(false);
+    const [animatedTaskIds, setAnimatedTaskIds] = useState<number[]>([]);
 
     // Cleanup state
     const cleanupEligibleTasks = useMemo(() => {
@@ -352,8 +362,8 @@ export default function ProjectListView({
 
     // All projects for dropdown (excluding current)
     const allProjects = useMemo(() => {
-        return project.all_projects?.filter((p: any) => p.id !== project.id) || [];
-    }, [project]);
+        return [];
+    }, []);
 
     const handleMoveSection = (section: any) => {
         setSectionToMove(section);
@@ -373,6 +383,41 @@ export default function ProjectListView({
             }
         });
     };
+
+    // Handler for reordering tasks within a section
+    const handleTaskDragEnd = (event: any, section: any) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+        const taskIds = section.tasks.map((task: any) => `list-task-${task.id}`);
+        const oldIndex = taskIds.indexOf(active.id);
+        const newIndex = taskIds.indexOf(over.id);
+        if (oldIndex === -1 || newIndex === -1) return;
+        // Use arrayMove on a copy, never mutate section.tasks directly
+        const newTasks = arrayMove([...section.tasks], oldIndex, newIndex);
+        // Track reordered task IDs for animation
+        setAnimatedTaskIds(newTasks.map(task => task.id));
+        // Find the default list_id for No Section
+        let defaultListId = null;
+        if (project.boards && project.boards[0] && project.boards[0].lists && project.boards[0].lists.length > 0) {
+            defaultListId = project.boards[0].lists[0].id;
+        }
+        // Update positions, ensure list_id is valid for No Section
+        const updates = newTasks.map((task, idx) => ({
+            id: task.id,
+            position: idx,
+            list_id: (task.list_id === null || typeof task.list_id === 'undefined') ? defaultListId : task.list_id,
+        }));
+        updateTaskPositions(updates).then(() => {
+            router.reload();
+        });
+    };
+
+    useEffect(() => {
+        if (animatedTaskIds.length > 0) {
+            const timeout = setTimeout(() => setAnimatedTaskIds([]), 500);
+            return () => clearTimeout(timeout);
+        }
+    }, [animatedTaskIds]);
 
     // Now handle the empty state after all hooks
     if (sections.length === 0) {
@@ -599,43 +644,49 @@ export default function ProjectListView({
                                                     </div>
                                                 )}
                                             </div>
-                                            {/* Section Tasks */}
+                                            {/* Section Tasks with drag-and-drop */}
                                             {!isCollapsed && (
-                                                <SortableContext
-                                                    items={taskIds}
-                                                    strategy={verticalListSortingStrategy}
+                                                <DndContext
+                                                    collisionDetection={closestCenter}
+                                                    onDragEnd={(event) => handleTaskDragEnd(event, section)}
                                                 >
-                                                    <div className="flex flex-col gap-y-3">
-                                                        {section.tasks.map((task: any) => (
-                                                            <ListTaskItem
-                                                                key={task.id}
-                                                                task={task}
-                                                                project={project}
-                                                                sectionId={section.id}
-                                                                onTaskClick={handleTaskClick}
-                                                                onEditTask={onEditTask}
-                                                                onViewTask={onViewTask}
-                                                                onAssignTask={onAssignTask}
-                                                                isSelected={state.selectedTasks.has(task.id)}
-                                                                onToggleSelection={toggleTaskSelection}
-                                                                currentView={state.listViewMode}
-                                                                currentBoardId={project.boards?.[0]?.id}
-                                                                dragFeedback={state.listDragFeedback}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                    {/* Add bottom QuickAddTask for No Section only */}
-                                                    {isNoSection && (
-                                                        <div className="mt-4">
-                                                            <QuickAddTask
-                                                                project={project}
-                                                                sectionId={null}
-                                                                status="to_do"
-                                                                placeholder="Add task to No Section..."
-                                                            />
+                                                    <SortableContext items={section.tasks.map((task: any) => `list-task-${task.id}`)} strategy={verticalListSortingStrategy}>
+                                                        <div className="flex flex-col gap-y-3">
+                                                            {section.tasks.map((task: any) => (
+                                                                <div
+                                                                    key={task.id}
+                                                                    className={animatedTaskIds.includes(task.id) ? "task-fade-in" : ""}
+                                                                >
+                                                                    <ListTaskItem
+                                                                        task={task}
+                                                                        project={project}
+                                                                        sectionId={section.id}
+                                                                        onTaskClick={handleTaskClick}
+                                                                        onEditTask={onEditTask}
+                                                                        onViewTask={onViewTask}
+                                                                        onAssignTask={onAssignTask}
+                                                                        isSelected={state.selectedTasks.has(task.id)}
+                                                                        onToggleSelection={toggleTaskSelection}
+                                                                        currentView={state.listViewMode}
+                                                                        currentBoardId={project.boards?.[0]?.id}
+                                                                        dragFeedback={state.listDragFeedback}
+                                                                    />
+                                                                </div>
+                                                            ))}
+                                                            {/* Add bottom QuickAddTask for No Section only */}
+                                                            {isNoSection && (
+                                                                <div className="mt-4">
+                                                                    <QuickAddTask
+                                                                        project={project}
+                                                                        sectionId={null}
+                                                                        status="to_do"
+                                                                        placeholder="Add task to No Section..."
+                                                                    />
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                    )}
-                                                </SortableContext>
+                                                    </SortableContext>
+                                                </DndContext>
                                             )}
                                         </div>
                                     );

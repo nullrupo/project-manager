@@ -60,7 +60,9 @@ export const getOrganizedTasks = (project: Project, listViewMode: 'status' | 'se
         const sections = [];
 
         // Add tasks without sections first (if any)
-        const tasksWithoutSection = allTasks.filter(task => !task.section_id);
+        const tasksWithoutSection = allTasks
+            .filter(task => !task.section_id)
+            .sort((a, b) => a.position - b.position);
         if (tasksWithoutSection.length > 0) {
             sections.push({
                 id: 'no-section',
