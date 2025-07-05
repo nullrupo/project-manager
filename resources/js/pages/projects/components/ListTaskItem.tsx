@@ -135,7 +135,7 @@ export default function ListTaskItem({
             <div
                 ref={combinedRef}
                 style={style}
-                className={`group relative bg-card border rounded-lg p-3 cursor-grab transition-all duration-200 ml-4 ${
+                className={`group relative bg-card border rounded-lg p-3 pb-0 cursor-grab transition-all duration-200 ml-4 ${
                     task.status === 'done' ? 'opacity-60' : ''
                 } ${isSelected
                     ? 'ring-2 ring-primary/40 border-primary/40'
@@ -217,13 +217,13 @@ export default function ListTaskItem({
                         </Button>
                     </div>
                 )}
-                <div className="flex items-start gap-3 pr-16 pb-8">
+                <div className="flex items-start gap-2 pr-8 pb-4">
                     {/* Enhanced completion checkbox */}
                     <Checkbox
                         checked={task.status === 'done'}
                         onCheckedChange={handleCheckboxChange}
                         onClick={(e) => e.stopPropagation()}
-                        className="mt-1 z-10 h-4 w-4 transition-all duration-200"
+                        className="mt-0.5 z-10 h-3.5 w-3.5 transition-all duration-200"
                     />
                     {/* Enhanced task content */}
                     <div className="flex-1 min-w-0">
